@@ -4,28 +4,10 @@ import { useEffect, useSyncExternalStore } from "react";
 import { createBusinessCommands } from "@/src/application/use-cases/business-commands";
 import { authStore, getAuthUsername, useAuth } from "@/src/presentation/auth/use-auth";
 import { browserApi } from "@/src/infrastructure/client/api";
-import { BUSINESS_STORAGE_KEY } from "@/src/infrastructure/repositories/local-business-store";
 import { createRemoteBusinessStore } from "@/src/infrastructure/repositories/remote-business-store";
-
-const readLegacy = () => {
-  try {
-    const raw = window.localStorage.getItem(BUSINESS_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as unknown) : null;
-  } catch {
-    return null;
-  }
-};
 
 const store = createRemoteBusinessStore(browserApi, {
   onUnauthorized: () => authStore.expire(),
-  takeLegacy: readLegacy,
-  clearLegacy: () => {
-    try {
-      window.localStorage.removeItem(BUSINESS_STORAGE_KEY);
-    } catch {
-      /* data lama tetap ada di browser, tidak masalah */
-    }
-  },
 });
 
 export function useLocalBusiness() {

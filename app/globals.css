@@ -1220,3 +1220,5 @@ button.metric-card { cursor: pointer; }
   .account-dropdown { right: -4px; }
   .auth-card { padding: 24px 20px; border-radius: 24px; }
 }
+
+.chart-empty { margin: 4px 0 0; color: var(--faint); font-size: 12.5px; text-align: center; }

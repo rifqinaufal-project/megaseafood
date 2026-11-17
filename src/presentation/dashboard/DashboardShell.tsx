@@ -26,7 +26,8 @@ import {
   WalletCards,
   X,
 } from "lucide-react";
-import type { DashboardSnapshot, Module } from "@/src/domain/dashboard";
+import type { DashboardSnapshot, Module, OverviewRange } from "@/src/domain/dashboard";
+import { buildOverview } from "@/src/domain/overview";
 import {
   formatRupiah,
   today,
@@ -320,15 +321,8 @@ function LapakDashboard({
   );
 }
 
-function ProfitChart({
-  module,
-  dashboard,
-}: {
-  module: Module;
-  dashboard: DashboardSnapshot;
-}) {
-  const chartValues = dashboard.chartValues[module];
-  const costs = dashboard.costs;
+function ProfitChart({ dashboard }: { dashboard: DashboardSnapshot }) {
+  const { chart } = dashboard;
   return (
     <section className="panel chart-panel">
       <div className="panel-heading">
@@ -342,11 +336,13 @@ function ProfitChart({
         </button>
       </div>
       <div className="chart-summary">
-        <strong>{dashboard.chartTotal}</strong>
-        <span className="positive-change">
-          <ArrowUpRight size={14} /> {dashboard.chartChange}
-        </span>
-        <small>vs. periode sebelumnya</small>
+        <strong>{chart.total}</strong>
+        {chart.change && (
+          <span className="positive-change">
+            <ArrowUpRight size={14} /> {chart.change}
+          </span>
+        )}
+        <small>{chart.change ? "vs. bulan sebelumnya" : "profit 6 bulan terakhir"}</small>
       </div>
       <div className="chart-legend">
         <span>
@@ -361,19 +357,19 @@ function ProfitChart({
       <div
         className="bar-chart"
         role="img"
-        aria-label="Grafik profit dan biaya dari Januari sampai Juni"
+        aria-label="Grafik profit dan biaya 6 bulan terakhir"
       >
-        {["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu"].map(
+        {chart.labels.map(
           (month, index) => (
             <div className="bar-group" key={month}>
               <div className="bars">
                 <span
                   className="bar profit-bar"
-                  style={{ height: `${chartValues[index]}%` }}
+                  style={{ height: `${chart.profit[index]}%` }}
                 />
                 <span
                   className="bar cost-bar"
-                  style={{ height: `${costs[index]}%` }}
+                  style={{ height: `${chart.cost[index]}%` }}
                 />
               </div>
               <small>{month}</small>
@@ -381,6 +377,7 @@ function ProfitChart({
           ),
         )}
       </div>
+      {!chart.hasData && <p className="chart-empty">Belum ada transaksi untuk ditampilkan.</p>}
     </section>
   );
 }
@@ -404,9 +401,7 @@ function WalletsPanel({ dashboard }: { dashboard: DashboardSnapshot }) {
       <div className="cash-total">
         <span>Total kas aktif</span>
         <strong>{dashboard.cashTotal}</strong>
-        <small>
-          <ArrowUpRight size={13} /> {dashboard.cashChange}
-        </small>
+        <small>{dashboard.cashNote}</small>
       </div>
       <div className="wallet-list">
         {dashboard.wallets.map((wallet) => (
@@ -420,9 +415,6 @@ function WalletsPanel({ dashboard }: { dashboard: DashboardSnapshot }) {
           </div>
         ))}
       </div>
-      <button className="text-link" type="button">
-        Kelola sumber dana <ChevronRight size={15} />
-      </button>
     </section>
   );
 }
@@ -524,7 +516,7 @@ function ActivityTable({
           </tbody>
         </table>
         {filteredRows.length === 0 && (
-          <div className="empty-state">Tidak ada aktivitas yang cocok.</div>
+          <div className="empty-state">Belum ada aktivitas.</div>
         )}
       </div>
     </section>
@@ -799,16 +791,13 @@ function QuickAdd({
   );
 }
 
-function DashboardContent({
-  dashboard,
-}: {
-  dashboard: DashboardSnapshot;
-}) {
+function DashboardContent() {
   const { state: business, actions, storageError, retryStorage } = useLocalBusiness();
   const [module, setModule] = useState<Module>("overview");
   const [activeNav, setActiveNav] = useState<string | null>(null);
   const [query] = useState("");
-  const [range, setRange] = useState("Bulan ini");
+  const [range, setRange] = useState<OverviewRange>("Bulan ini");
+  const dashboard = useMemo(() => buildOverview(business, range), [business, range]);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [createRequest, setCreateRequest] = useState<{
     module: Module;
@@ -1003,7 +992,7 @@ function DashboardContent({
                     <CalendarDays size={16} />
                     <select
                       value={range}
-                      onChange={(event) => setRange(event.target.value)}
+                      onChange={(event) => setRange(event.target.value as OverviewRange)}
                       aria-label="Periode laporan"
                     >
                       <option>Bulan ini</option>
@@ -1042,7 +1031,7 @@ function DashboardContent({
               </div>
               <OverviewWorkspaceCards business={business} onNavigate={navigateTo} />
               <div className="main-grid">
-                <ProfitChart module={module} dashboard={dashboard} />
+                <ProfitChart dashboard={dashboard} />
                 <WalletsPanel dashboard={dashboard} />
               </div>
               <div className="lower-grid">
@@ -1104,9 +1093,9 @@ function DashboardContent({
   );
 }
 
-export default function DashboardShell({ dashboard }: { dashboard: DashboardSnapshot }) {
+export default function DashboardShell() {
   const { status, loadError, retryStorage } = useLocalBusiness();
-  if (status === "ready") return <DashboardContent dashboard={dashboard} />;
+  if (status === "ready") return <DashboardContent />;
   return (
     <main className="auth-page" aria-busy={status === "loading"}>
       {status === "failed" ? (

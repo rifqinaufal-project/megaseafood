@@ -1,5 +1,5 @@
 import { BusinessPersistenceError, type BusinessUpdater } from "@/src/application/ports/business-store";
-import { seedBusinessState, type BusinessState } from "@/src/domain/business-state";
+import { emptyBusinessState, type BusinessState } from "@/src/domain/business-state";
 import { messageOf, type ApiClient } from "@/src/infrastructure/client/api";
 import { normalizeBusinessState } from "@/src/infrastructure/repositories/local-business-store";
 
@@ -14,23 +14,18 @@ export type BusinessSnapshot = {
 type Options = {
   /** Server menjawab 401: sesi tidak aktif, tampilkan layar masuk. */
   onUnauthorized: () => void;
-  /** Data lama dari localStorage untuk dipindah ke akun pertama yang belum punya data di server. */
-  takeLegacy?: () => unknown | null;
-  /** Dipanggil setelah data lama berhasil tersimpan di server, agar tidak terimpor ke akun lain. */
-  clearLegacy?: () => void;
 };
 
 const UNREACHABLE = "Server tidak dapat dihubungi. Periksa koneksi internet lalu coba lagi.";
 const UNSAVED_OFFLINE = "Perubahan belum tersimpan ke server karena koneksi terputus. Data di layar aman dan akan dicoba disimpan lagi; tekan Periksa ulang data bila perlu.";
 
 export function createRemoteBusinessStore(api: ApiClient, options: Options) {
-  const serverSnapshot: BusinessSnapshot = { state: seedBusinessState(), status: "loading", loadError: null, storageError: null };
+  const serverSnapshot: BusinessSnapshot = { state: emptyBusinessState(), status: "loading", loadError: null, storageError: null };
   let snapshot: BusinessSnapshot = serverSnapshot;
   let version = 0;
   let dirty = false;
   let saving = false;
   let loading = false;
-  let migrating = false;
   let generation = 0;
   const listeners = new Set<() => void>();
 
@@ -43,9 +38,9 @@ export function createRemoteBusinessStore(api: ApiClient, options: Options) {
     const response = await api("GET", "/api/business");
     if (gen !== generation) return;
     if (response.status === 401) return options.onUnauthorized();
-    if (response.status === 200 && response.body && "state" in response.body && response.body.state !== null) {
+    if (response.status === 200 && response.body && "state" in response.body) {
       try {
-        const state = normalizeBusinessState(response.body.state);
+        const state = response.body.state === null ? emptyBusinessState() : normalizeBusinessState(response.body.state);
         version = Number(response.body.version) || 0;
         dirty = false;
         return publish({ state, status: "ready", loadError: null, storageError: message });
@@ -67,10 +62,6 @@ export function createRemoteBusinessStore(api: ApiClient, options: Options) {
         if (gen !== generation) return;
         if (response.status === 200 && typeof response.body?.version === "number") {
           version = response.body.version;
-          if (migrating) {
-            migrating = false;
-            options.clearLegacy?.();
-          }
           if (!dirty && snapshot.storageError) publish({ ...snapshot, storageError: null });
           continue;
         }
@@ -96,24 +87,9 @@ export function createRemoteBusinessStore(api: ApiClient, options: Options) {
     if (response.status !== 200 || !response.body)
       return publish({ ...serverSnapshot, status: "failed", loadError: response.status === 0 ? UNREACHABLE : messageOf(response, "Data bisnis tidak dapat dimuat.") });
     try {
-      if (response.body.state !== null && response.body.state !== undefined) {
-        version = Number(response.body.version) || 0;
-        return publish({ state: normalizeBusinessState(response.body.state), status: "ready", loadError: null, storageError: null });
-      }
-      let legacy: BusinessState | null = null;
-      try {
-        const raw = options.takeLegacy?.();
-        legacy = raw ? normalizeBusinessState(raw) : null;
-      } catch {
-        legacy = null;
-      }
-      version = 0;
-      publish({ state: legacy ?? seedBusinessState(), status: "ready", loadError: null, storageError: null });
-      if (legacy) {
-        migrating = true;
-        dirty = true;
-        void flush();
-      }
+      version = response.body.state === null || response.body.state === undefined ? 0 : Number(response.body.version) || 0;
+      const state = version === 0 ? emptyBusinessState() : normalizeBusinessState(response.body.state);
+      publish({ state, status: "ready", loadError: null, storageError: null });
     } catch {
       publish({ ...serverSnapshot, status: "failed", loadError: "Data di server tidak dapat dibaca atau formatnya rusak. Penyimpanan diblokir agar data lama tidak tertimpa." });
     }
@@ -137,7 +113,6 @@ export function createRemoteBusinessStore(api: ApiClient, options: Options) {
       dirty = false;
       saving = false;
       loading = false;
-      migrating = false;
       publish(serverSnapshot);
     },
 

@@ -6,12 +6,11 @@ import { createRemoteBusinessStore } from "../src/infrastructure/repositories/re
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-function fixture(initial: BusinessState | null, legacy: unknown = null) {
+function fixture(initial: BusinessState | null) {
   let stored: BusinessState | null = initial;
   let version = initial ? 1 : 0;
   let mode: "ok" | "expired" | "offline" = "ok";
   let unauthorized = 0;
-  let cleared = 0;
   const puts: number[] = [];
   const api: ApiClient = async (method, _path, body): Promise<ApiResponse> => {
     if (mode === "offline") return { status: 0, body: null };
@@ -24,8 +23,8 @@ function fixture(initial: BusinessState | null, legacy: unknown = null) {
     puts.push(version);
     return { status: 200, body: { version } };
   };
-  const store = createRemoteBusinessStore(api, { onUnauthorized: () => void (unauthorized += 1), takeLegacy: () => legacy, clearLegacy: () => void (cleared += 1) });
-  return { store, puts, bump: (next: BusinessState) => { stored = next; version += 1; }, set: (value: typeof mode) => (mode = value), unauthorized: () => unauthorized, cleared: () => cleared, stored: () => stored };
+  const store = createRemoteBusinessStore(api, { onUnauthorized: () => void (unauthorized += 1) });
+  return { store, puts, bump: (next: BusinessState) => { stored = next; version += 1; }, set: (value: typeof mode) => (mode = value), unauthorized: () => unauthorized, stored: () => stored };
 }
 const rename = (name: string) => (state: BusinessState): BusinessState => ({ ...state, company: { ...state.company, name } });
 
@@ -38,19 +37,19 @@ test("loads the saved state from the server", async () => {
   assert.equal(f.store.getSnapshot().state.company.name, "PT Laut");
 });
 
-test("a brand new account starts from the seed and imports legacy browser data once", async () => {
-  const legacy = { ...seedBusinessState(), company: { ...seedBusinessState().company, name: "Data Lama" } };
-  const f = fixture(null, legacy);
+test("a brand new account starts empty, with no sample data, and nothing is written until it changes", async () => {
+  const f = fixture(null);
   await f.store.load();
+  const state = f.store.getSnapshot().state;
+  assert.equal(f.store.getSnapshot().status, "ready");
+  for (const key of ["invoices", "products", "suppliers", "restaurants", "batches", "operatingExpenses", "commissions"] as const)
+    assert.equal(state[key].length, 0, key);
+  assert.equal(f.puts.length, 0);
+  f.store.update(rename("Toko Baru"));
   await tick();
   await tick();
-  assert.equal(f.store.getSnapshot().state.company.name, "Data Lama");
-  assert.equal(f.stored()?.company.name, "Data Lama");
-  assert.equal(f.cleared(), 1);
-  const empty = fixture(null);
-  await empty.store.load();
-  assert.equal(empty.store.getSnapshot().state.company.name, seedBusinessState().company.name);
-  assert.equal(empty.puts.length, 0);
+  assert.equal(f.stored()?.company.name, "Toko Baru");
+  assert.equal(f.puts.length, 1);
 });
 
 test("updates apply instantly and are saved to the server in order", async () => {

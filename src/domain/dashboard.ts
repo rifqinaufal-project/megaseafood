@@ -2,7 +2,9 @@ export type Module = "overview" | "lapak" | "resto";
 
 export type StatTone = "primary" | "soft" | "warning";
 
-export type ActivityStatus = "Lunas" | "Berjalan" | "Diproses" | "Selesai" | "Tercatat";
+export type ActivityStatus = "Lunas" | "Belum lunas" | "Berjalan" | "Selesai" | "Tercatat";
+
+export type OverviewRange = "Bulan ini" | "Kuartal ini" | "Tahun ini";
 
 export interface DashboardStat {
   label: string;
@@ -31,11 +33,15 @@ export interface WalletSummary {
 export interface DashboardSnapshot {
   stats: DashboardStat[];
   activities: ActivityRow[];
-  chartValues: Record<Module, number[]>;
-  costs: number[];
-  chartTotal: string;
-  chartChange: string;
+  chart: {
+    labels: string[];
+    profit: number[];
+    cost: number[];
+    hasData: boolean;
+    total: string;
+    change: string | null;
+  };
   cashTotal: string;
-  cashChange: string;
+  cashNote: string;
   wallets: WalletSummary[];
 }

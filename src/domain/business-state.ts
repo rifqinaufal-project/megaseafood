@@ -386,3 +386,26 @@ export const seedBusinessState = (): BusinessState => ({
   ],
   notes: [],
 });
+
+/** Keadaan awal akun baru: tidak ada transaksi maupun master data. */
+export const emptyBusinessState = (): BusinessState => ({
+  company: defaultCompanyProfile(),
+  users: [defaultOwnerUser()],
+  auditLogs: [],
+  batches: [],
+  commissions: [],
+  sourcings: [],
+  lapakSales: [],
+  lapakExpenses: [],
+  products: [],
+  suppliers: [],
+  restaurants: [],
+  receipts: [],
+  supplierPayments: [],
+  stockMovements: [],
+  customerPrices: [],
+  invoices: [],
+  payments: [],
+  operatingExpenses: [],
+  notes: [],
+});
