@@ -1,0 +1,374 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { createBusinessCommands } from "../src/application/use-cases/business-commands";
+import { seedBusinessState, type BusinessState } from "../src/domain/business-state";
+import { addCalendarDays, isBusinessDate, localDate, receiptOutstanding } from "../src/domain/business-integrity";
+import WorkspacePage from "../src/presentation/dashboard/WorkspacePage";
+import { resolveWorkspacePage } from "../src/presentation/dashboard/workspace-routing";
+import { BUSINESS_STORAGE_KEY, createLocalBusinessStore, normalizeBusinessState } from "../src/infrastructure/repositories/local-business-store";
+
+function memoryCommands(initial = seedBusinessState()) {
+  let state = initial;
+  const commands = createBusinessCommands((update) => { state = update(state); }, () => state);
+  return { commands, getState: () => state };
+}
+
+function storageFixture(raw: string | null = JSON.stringify(seedBusinessState())) {
+  let saved = raw;
+  let fail = false;
+  let writes = 0;
+  const storage = {
+    getItem: (key: string) => { assert.equal(key, BUSINESS_STORAGE_KEY); return saved; },
+    setItem: (key: string, value: string) => {
+      assert.equal(key, BUSINESS_STORAGE_KEY);
+      if (fail) throw new Error("QuotaExceededError");
+      saved = value;
+      writes++;
+    },
+  };
+  const store = createLocalBusinessStore(() => storage);
+  const commands = createBusinessCommands(store.update, () => store.getSnapshot().state);
+  return { store, commands, saved: () => saved, writes: () => writes, fail: (value: boolean) => { fail = value; }, externalWrite: (value: string | null) => { saved = value; } };
+}
+
+const receiptInput = { supplierId: "supplier-1", date: "2026-11-11", productId: "product-1", manualWeight: 10, digitalWeight: 10, unitPurchasePrice: 10000, paidAmount: 25000 };
+const invoiceInput = { channel: "RESTAURANT" as const, restaurantId: "restaurant-1", customerName: "Dapoer Ikan", date: "2026-06-12", dueDate: "2026-06-26", items: [{ productId: "product-1", quantity: 1, marginQuantity: 0, sellingPrice: 86000 }], discount: 0 };
+const expenseInput = { batchId: "batch-42", date: "2026-11-11", expenseName: "Es", amount: 10000, notes: "" };
+
+test("local dates and due dates stay correct in Indonesian and DST timezones", () => {
+  const previous = process.env.TZ;
+  try {
+    for (const timezone of ["Asia/Jakarta", "Asia/Makassar", "Asia/Jayapura", "America/New_York", "UTC"]) {
+      process.env.TZ = timezone;
+      assert.equal(addCalendarDays("2026-06-12", 14), "2026-06-26");
+      assert.equal(addCalendarDays("2026-12-31", 1), "2027-01-01");
+      assert.equal(addCalendarDays("2028-02-28", 1), "2028-02-29");
+      assert.equal(addCalendarDays("2026-03-07", 2), "2026-03-09");
+      assert.equal(addCalendarDays("2026-11-11", 0), "2026-11-11");
+    }
+    process.env.TZ = "Asia/Jakarta";
+    assert.equal(localDate(new Date("2026-11-10T17:30:00Z")), "2026-11-11");
+  } finally {
+    if (previous === undefined) delete process.env.TZ;
+    else process.env.TZ = previous;
+  }
+});
+
+test("invalid calendar dates and non-finite amounts are rejected without mutation", () => {
+  const { commands, getState } = memoryCommands();
+  const initial = getState();
+  for (const startDate of ["", "2026-02-29", "2026-11-31", "2026-13-01", "not-a-date"]) {
+    assert.equal(isBusinessDate(startDate), false);
+    assert.equal(commands.createBatch({ startDate, notes: "" }).ok, false);
+  }
+  assert.equal(commands.createInvoice({ ...invoiceInput, items: [{ ...invoiceInput.items[0], quantity: NaN }] }).ok, false);
+  assert.equal(commands.addPayment({ invoiceId: "invoice-127", date: "2026-02-30", amount: 100, method: "Tunai", reference: "" }).ok, false);
+  assert.equal(commands.addOperatingExpense({ date: "2026-11-11", category: "Es", description: "Es", amount: Infinity }).ok, false);
+  assert.equal(commands.addRestaurant({ name: "Resto", contactName: "", phone: "", paymentTermDays: 1.5 }).ok, false);
+  assert.equal(getState(), initial);
+});
+
+test("batch note edits preserve the number even when there are several batches on a date", () => {
+  const { commands, getState } = memoryCommands();
+  const first = commands.createBatch({ startDate: "2026-11-11", notes: "Awal" });
+  commands.createBatch({ startDate: "2026-11-11", notes: "Kedua" });
+  const number = getState().batches.find((batch) => batch.id === first.id)!.batchNumber;
+  assert.equal(commands.updateBatch(first.id!, { startDate: "2026-11-11", notes: "Koreksi" }).ok, true);
+  assert.equal(getState().batches.find((batch) => batch.id === first.id)!.batchNumber, number);
+});
+
+test("batch numbers do not collide after deleting a middle or highest record", () => {
+  const { commands, getState } = memoryCommands();
+  const first = commands.createBatch({ startDate: "2026-11-11", notes: "" });
+  const middle = commands.createBatch({ startDate: "2026-11-11", notes: "" });
+  const highest = commands.createBatch({ startDate: "2026-11-11", notes: "" });
+  commands.deleteBatch(middle.id!);
+  commands.deleteBatch(highest.id!);
+  const next = commands.createBatch({ startDate: "2026-11-11", notes: "" });
+  assert.equal(getState().batches.find((batch) => batch.id === next.id)!.batchNumber, "BAT-111126-004");
+  commands.deleteBatch(first.id!);
+  commands.deleteBatch(next.id!);
+  commands.createBatch({ startDate: "2026-11-11", notes: "" });
+  assert.equal(getState().batches.at(-1)!.batchNumber, "BAT-111126-005");
+});
+
+test("moving a batch date reserves a unique number and retains the old high-water mark", () => {
+  const { commands, getState } = memoryCommands();
+  const first = commands.createBatch({ startDate: "2026-11-11", notes: "" });
+  commands.createBatch({ startDate: "2026-11-12", notes: "" });
+  commands.updateBatch(first.id!, { startDate: "2026-11-12", notes: "Pindah" });
+  assert.equal(getState().batches.find((batch) => batch.id === first.id)!.batchNumber, "BAT-121126-002");
+  commands.createBatch({ startDate: "2026-11-11", notes: "" });
+  assert.equal(getState().batches.at(-1)!.batchNumber, "BAT-111126-002");
+});
+
+test("legacy document numbers are used as maxima, not record counts", () => {
+  const initial = seedBusinessState();
+  initial.batches[0].batchNumber = "BAT-100626-019";
+  initial.invoices[0].invoiceNumber = "INV/2026/06/0980";
+  const { commands, getState } = memoryCommands(initial);
+  commands.createBatch({ startDate: "2026-06-10", notes: "" });
+  commands.createInvoice(invoiceInput);
+  assert.equal(getState().batches.at(-1)!.batchNumber, "BAT-100626-020");
+  assert.equal(getState().invoices.at(-1)!.invoiceNumber, "INV/2026/06/0981");
+  assert.equal(getState().invoices.at(-1)!.dueDate, "2026-06-26");
+});
+
+test("number reservations survive reload and deletion", () => {
+  const fixture = storageFixture();
+  const result = fixture.commands.createBatch({ startDate: "2026-11-11", notes: "" });
+  fixture.commands.deleteBatch(result.id!);
+  const restored = memoryCommands(normalizeBusinessState(JSON.parse(fixture.saved()!)));
+  restored.commands.createBatch({ startDate: "2026-11-11", notes: "" });
+  assert.equal(restored.getState().batches.at(-1)!.batchNumber, "BAT-111126-002");
+});
+
+test("invoice and receipt counters survive removal and advance independently per month", () => {
+  const fixture = storageFixture();
+  fixture.commands.receiveStock(receiptInput);
+  fixture.commands.createInvoice(invoiceInput);
+  fixture.store.update((state) => ({ ...state, receipts: [], invoices: state.invoices.filter((invoice) => invoice.invoiceNumber !== "INV/2026/06/0129") }));
+  const restored = memoryCommands(normalizeBusinessState(JSON.parse(fixture.saved()!)));
+  restored.commands.receiveStock(receiptInput);
+  restored.commands.createInvoice(invoiceInput);
+  assert.equal(restored.getState().receipts.at(-1)!.receiptNumber, "RCV/2026/11/0002");
+  assert.equal(restored.getState().invoices.at(-1)!.invoiceNumber, "INV/2026/06/0130");
+  restored.commands.receiveStock({ ...receiptInput, date: "2026-12-01" });
+  restored.commands.createInvoice({ ...invoiceInput, date: "2026-12-01", dueDate: "2026-12-15" });
+  assert.equal(restored.getState().receipts.at(-1)!.receiptNumber, "RCV/2026/12/0001");
+  assert.equal(restored.getState().invoices.at(-1)!.invoiceNumber, "INV/2026/12/0001");
+});
+
+test("receipt payments produce Resto debt without affecting Lapak sourcing", () => {
+  const { commands, getState } = memoryCommands();
+  const sourcing = getState().sourcings;
+  assert.equal(commands.receiveStock(receiptInput).ok, true);
+  assert.equal(receiptOutstanding(getState().receipts[0]), 75000);
+  assert.equal(getState().receipts[0].receiptNumber, "RCV/2026/11/0001");
+  assert.equal(getState().products[0].stockBalance, 18);
+  assert.equal(getState().sourcings, sourcing);
+  commands.receiveStock({ ...receiptInput, paidAmount: 100000 });
+  assert.equal(receiptOutstanding(getState().receipts[1]), 0);
+  commands.receiveStock({ ...receiptInput, paidAmount: 0 });
+  assert.equal(receiptOutstanding(getState().receipts[2]), 100000);
+});
+
+test("supplier overpayments and negative payments never change stock or HPP", () => {
+  const { commands, getState } = memoryCommands();
+  const initial = getState();
+  for (const paidAmount of [-1, 100001, NaN, Infinity]) {
+    assert.equal(commands.receiveStock({ ...receiptInput, paidAmount }).ok, false);
+    assert.equal(getState(), initial);
+  }
+});
+
+test("legacy receipts retain unknown payment information rather than inventing debt", () => {
+  const { commands, getState } = memoryCommands();
+  commands.receiveStock(receiptInput);
+  delete getState().receipts[0].paidAmount;
+  const migrated = normalizeBusinessState(JSON.parse(JSON.stringify(getState())));
+  assert.equal(receiptOutstanding(migrated.receipts[0]), null);
+  assert.equal(migrated.receipts[0].paidAmount, undefined);
+});
+
+test("Resto quick-entry and regular forms resolve to the Resto expense form", () => {
+  assert.equal(resolveWorkspacePage("resto", "Expenses"), "Operating Expenses");
+  assert.equal(resolveWorkspacePage("lapak", "Pengeluaran"), "Expenses");
+  assert.equal(resolveWorkspacePage("lapak", "Batch"), "Batches");
+  assert.equal(resolveWorkspacePage("resto", "Invoices"), "Invoices");
+  const { commands, getState } = memoryCommands();
+  const html = renderToStaticMarkup(createElement(WorkspacePage, { module: "resto", page: "Expenses", business: getState(), commands, onNotify: () => {}, initialFormOpen: true }));
+  assert.match(html, /Operating Expenses/);
+  assert.match(html, /Kategori/);
+  assert.doesNotMatch(html, /Batch Id|Expense Name|Tambah item/);
+  const lapak = getState().lapakExpenses;
+  commands.addOperatingExpense({ date: "2026-11-11", category: "Logistik", description: "Bensin", amount: 10000 });
+  assert.equal(getState().lapakExpenses, lapak);
+  assert.equal(getState().operatingExpenses.at(-1)!.description, "Bensin");
+});
+
+test("batch list shows each batch's name and income/cost totals without CRUD meta cards", () => {
+  const { commands, getState } = memoryCommands();
+  const html = renderToStaticMarkup(
+    createElement(WorkspacePage, {
+      module: "lapak",
+      page: "Batch",
+      business: getState(),
+      commands,
+      onNotify: () => {},
+    }),
+  );
+
+  assert.match(html, /BAT-100626-001/);
+  assert.match(html, /Batch Pasar Muara Baru/);
+  assert.match(html, /Rp 4\.200\.000/);
+  assert.match(html, /Rp 3\.876\.000/);
+  assert.match(html, /Pendapatan/);
+  assert.match(html, /Biaya/);
+  assert.doesNotMatch(html, /Mode data|CRUD|terhubung ke batch/);
+});
+
+test("Payables renders receipt debt and verification status, never Lapak sourcing", () => {
+  const { commands, getState } = memoryCommands();
+  commands.receiveStock(receiptInput);
+  commands.receiveStock({ ...receiptInput, paidAmount: 100000 });
+  delete getState().receipts[1].paidAmount;
+  const html = renderToStaticMarkup(createElement(WorkspacePage, { module: "resto", page: "Payables", business: getState(), commands, onNotify: () => {} }));
+  assert.match(html, /RCV\/2026\/11\/0001/);
+  assert.match(html, /75\.000/);
+  assert.match(html, /Belum diketahui/);
+  assert.match(html, /Perlu verifikasi/);
+  assert.match(html, /Catat penerimaan stok/);
+  assert.doesNotMatch(html, /956\.000|Catat payable/);
+});
+
+test("a failed write returns failure, preserves disk and memory, and can be retried", () => {
+  const fixture = storageFixture();
+  const before = fixture.store.getSnapshot().state;
+  const raw = fixture.saved();
+  fixture.fail(true);
+  const result = fixture.commands.createInvoice(invoiceInput);
+  assert.equal(result.ok, false);
+  assert.match(result.message, /belum disimpan/);
+  assert.equal(fixture.saved(), raw);
+  assert.equal(fixture.store.getSnapshot().state, before);
+  assert.ok(fixture.store.getSnapshot().storageError);
+  fixture.fail(false);
+  assert.equal(fixture.commands.createInvoice(invoiceInput).ok, true);
+  assert.equal(fixture.store.getSnapshot().state.products[0].stockBalance, 7);
+  assert.equal(fixture.store.getSnapshot().state.invoices.length, before.invoices.length + 1);
+  assert.equal(fixture.store.getSnapshot().storageError, null);
+});
+
+test("failed batch saves do not consume numbers or return a created id", () => {
+  const fixture = storageFixture();
+  fixture.fail(true);
+  const failed = fixture.commands.createBatch({ startDate: "2026-11-11", notes: "" });
+  assert.equal(failed.ok, false);
+  assert.equal(failed.id, undefined);
+  fixture.fail(false);
+  fixture.commands.createBatch({ startDate: "2026-11-11", notes: "" });
+  assert.equal(fixture.store.getSnapshot().state.batches.at(-1)!.batchNumber, "BAT-111126-001");
+});
+
+test("failed receipts and payments preserve stock, HPP, debts, and invoice balances", () => {
+  const fixture = storageFixture();
+  const initial = fixture.store.getSnapshot().state;
+  fixture.fail(true);
+  assert.equal(fixture.commands.receiveStock(receiptInput).ok, false);
+  assert.equal(fixture.store.getSnapshot().state, initial);
+  assert.equal(fixture.commands.addPayment({ invoiceId: "invoice-127", date: "2026-11-11", amount: 100000, method: "Tunai", reference: "" }).ok, false);
+  assert.equal(fixture.store.getSnapshot().state, initial);
+  assert.equal(fixture.writes(), 0);
+});
+
+test("arithmetic overflow cannot be persisted as null amounts", () => {
+  const fixture = storageFixture();
+  const initial = fixture.store.getSnapshot().state;
+  const result = fixture.commands.receiveStock({ ...receiptInput, unitPurchasePrice: Number.MAX_VALUE });
+  assert.equal(result.ok, false);
+  assert.equal(fixture.store.getSnapshot().state, initial);
+  assert.equal(fixture.writes(), 0);
+});
+
+test("corrupt JSON or malformed records are preserved and block all writes", () => {
+  const invalidStates = ["{broken", "null", "{}", JSON.stringify({ ...seedBusinessState(), invoices: null }), JSON.stringify({ ...seedBusinessState(), products: [{ id: "broken" }] })];
+  for (const raw of invalidStates) {
+    const fixture = storageFixture(raw);
+    assert.ok(fixture.store.getSnapshot().storageError);
+    assert.equal(fixture.commands.createBatch({ startDate: "2026-11-11", notes: "" }).ok, false);
+    assert.equal(fixture.saved(), raw);
+    assert.equal(fixture.writes(), 0);
+  }
+});
+
+test("unavailable storage blocks writing, and retry recovers without resetting records", () => {
+  let unavailable = true;
+  let raw: string | null = JSON.stringify(seedBusinessState());
+  const store = createLocalBusinessStore(() => {
+    if (unavailable) throw new Error("SecurityError");
+    return { getItem: () => raw, setItem: (_key: string, value: string) => { raw = value; } };
+  });
+  assert.ok(store.getSnapshot().storageError);
+  unavailable = false;
+  store.reload();
+  assert.equal(store.getSnapshot().storageError, null);
+  assert.equal(store.getSnapshot().state.invoices.length, 2);
+});
+
+test("legacy batches lose lifecycle fields without losing their transactions", () => {
+  const initial = seedBusinessState();
+  const legacy = { ...initial, batches: initial.batches.map((batch) => ({ ...batch, status: "CLOSED", closedDate: "2026-11-11" })) };
+  const normalized = normalizeBusinessState(legacy);
+  assert.equal("status" in normalized.batches[0], false);
+  assert.equal("closedDate" in normalized.batches[0], false);
+  assert.equal(normalized.commissions, initial.commissions);
+  assert.equal(normalized.sourcings, initial.sourcings);
+});
+
+test("a multi-item save commits once and cannot leave a partial transaction", () => {
+  const fixture = storageFixture();
+  const initial = fixture.store.getSnapshot().state;
+  fixture.fail(true);
+  const save = () => fixture.commands.runTransaction((commands) => {
+    const first = commands.addLapakExpense(expenseInput);
+    if (!first.ok) return first;
+    return commands.addLapakExpense({ ...expenseInput, expenseName: "Transport" });
+  });
+  assert.equal(save().ok, false);
+  assert.equal(fixture.store.getSnapshot().state, initial);
+  fixture.fail(false);
+  assert.equal(save().ok, true);
+  assert.equal(fixture.writes(), 1);
+  assert.equal(fixture.store.getSnapshot().state.lapakExpenses.length, initial.lapakExpenses.length + 2);
+});
+
+test("invalid later items abort the whole transaction", () => {
+  const fixture = storageFixture();
+  const initial = fixture.store.getSnapshot().state;
+  const result = fixture.commands.runTransaction((commands) => {
+    commands.addLapakExpense(expenseInput);
+    return commands.addLapakExpense({ ...expenseInput, amount: -1 });
+  });
+  assert.equal(result.ok, false);
+  assert.equal(fixture.writes(), 0);
+  assert.equal(fixture.store.getSnapshot().state, initial);
+});
+
+test("stale tabs do not overwrite newer data, and retry uses the latest state", () => {
+  const fixture = storageFixture();
+  fixture.store.getSnapshot();
+  const latest = seedBusinessState();
+  latest.operatingExpenses.push({ id: "external", date: "2026-11-11", category: "Es", description: "Tab lain", amount: 1000 });
+  fixture.externalWrite(JSON.stringify(latest));
+  const result = fixture.commands.addLapakExpense(expenseInput);
+  assert.equal(result.ok, false);
+  assert.match(result.message, /tab lain/);
+  assert.equal(fixture.writes(), 0);
+  assert.equal(fixture.store.getSnapshot().state.operatingExpenses.at(-1)!.id, "external");
+  assert.equal(fixture.commands.addLapakExpense(expenseInput).ok, true);
+  const persisted = JSON.parse(fixture.saved()!) as BusinessState;
+  assert.equal(persisted.operatingExpenses.at(-1)!.id, "external");
+});
+
+test("an external corrupt write retains last known records and blocks overwrite", () => {
+  const fixture = storageFixture();
+  const before = fixture.store.getSnapshot().state;
+  fixture.externalWrite("{broken");
+  fixture.store.reload();
+  assert.equal(fixture.store.getSnapshot().state, before);
+  assert.equal(fixture.commands.addLapakExpense(expenseInput).ok, false);
+  assert.equal(fixture.saved(), "{broken");
+});
+
+test("fully discounted invoices are paid and online orders never retain a restaurant link", () => {
+  const { commands, getState } = memoryCommands();
+  assert.equal(commands.createInvoice({ ...invoiceInput, channel: "ONLINE", dueDate: invoiceInput.date, discount: 86000 }).ok, true);
+  const invoice = getState().invoices.at(-1)!;
+  assert.equal(invoice.status, "PAID");
+  assert.equal(invoice.outstandingAmount, 0);
+  assert.equal(invoice.restaurantId, undefined);
+  assert.equal(invoice.dueDate, invoice.date);
+});
