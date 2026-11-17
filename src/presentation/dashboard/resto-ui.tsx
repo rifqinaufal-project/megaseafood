@@ -294,7 +294,7 @@ export const Cell = ({ label, children, className }: { label: string; children: 
 
 export type ComboboxOption = { value: string; label: string; detail?: string; search?: string };
 
-type ListPosition = { top: number; left: number; width: number; maxHeight: number };
+type ListPosition = { top?: number; bottom?: number; left: number; width: number; maxHeight: number };
 
 export function Combobox({ value, onChange, options, placeholder = "Cari...", ariaLabel, invalid, disabled, required, emptyText = "Tidak ada yang cocok." }: {
   value: string;
@@ -308,6 +308,7 @@ export function Combobox({ value, onChange, options, placeholder = "Cari...", ar
   emptyText?: string;
 }) {
   const listId = useId();
+  const portalReady = useSyncExternalStore(subscribeToNothing, portalReadyOnClient, portalReadyOnServer);
   const input = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState<string | null>(null);
   const [active, setActive] = useState(0);
@@ -332,7 +333,7 @@ export function Combobox({ value, onChange, options, placeholder = "Cari...", ar
     const flip = below < 180 && above > below;
     const maxHeight = Math.max(120, Math.min(280, flip ? above : below));
     const width = Math.min(Math.max(box.width, 300), window.innerWidth - 16);
-    setPosition({ left: Math.max(8, Math.min(box.left, window.innerWidth - width - 8)), width, maxHeight, top: flip ? Math.max(8, box.top - 6 - Math.min(maxHeight, 44 * Math.max(matches.length, 1))) : box.bottom + 6 });
+    setPosition({ left: Math.max(8, Math.min(box.left, window.innerWidth - width - 8)), width, maxHeight, ...(flip ? { bottom: window.innerHeight - box.top + 6 } : { top: box.bottom + 6 }) });
   };
 
   useEffect(() => {
@@ -344,7 +345,6 @@ export function Combobox({ value, onChange, options, placeholder = "Cari...", ar
       window.removeEventListener("resize", reposition);
       window.removeEventListener("scroll", reposition, true);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, matches.length]);
 
   const openList = () => {
@@ -409,7 +409,7 @@ export function Combobox({ value, onChange, options, placeholder = "Cari...", ar
       />
       <ChevronDown className="combobox-chevron" size={15} aria-hidden="true" />
       {required && <input className="combobox-proxy" tabIndex={-1} aria-hidden="true" required value={value} onChange={() => {}} />}
-      {open && position && (
+      {open && position && portalReady && createPortal(
         <ul id={listId} role="listbox" className="combobox-list" style={position} onMouseDown={(event) => event.preventDefault()}>
           {matches.length === 0 ? (
             <li className="combobox-empty">{emptyText}</li>
@@ -422,7 +422,8 @@ export function Combobox({ value, onChange, options, placeholder = "Cari...", ar
               </li>
             ))
           )}
-        </ul>
+        </ul>,
+        document.body,
       )}
     </div>
   );
