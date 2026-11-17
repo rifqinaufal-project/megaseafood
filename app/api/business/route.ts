@@ -12,7 +12,7 @@ export async function GET() {
     const user = await currentUser();
     if (!user) return unauthorized();
     const sql = await getSql();
-    const rows = await sql`SELECT data, version FROM business_state WHERE user_id = ${user.id}`;
+    const rows = await sql`SELECT data, version FROM shared_business_state WHERE id = 1`;
     const row = rows[0];
     return json(row ? { state: row.data, version: Number(row.version) } : { state: null, version: 0 });
   } catch (error) {
@@ -40,11 +40,11 @@ export async function PUT(request: Request) {
     const rows =
       baseVersion === 0
         ? await sql`
-            INSERT INTO business_state (user_id, data, version) VALUES (${user.id}, ${serialized}::jsonb, 1)
-            ON CONFLICT (user_id) DO NOTHING RETURNING version`
+            INSERT INTO shared_business_state (id, data, version, updated_by) VALUES (1, ${serialized}::jsonb, 1, ${user.id})
+            ON CONFLICT (id) DO NOTHING RETURNING version`
         : await sql`
-            UPDATE business_state SET data = ${serialized}::jsonb, version = version + 1, updated_at = now()
-            WHERE user_id = ${user.id} AND version = ${baseVersion} RETURNING version`;
+            UPDATE shared_business_state SET data = ${serialized}::jsonb, version = version + 1, updated_by = ${user.id}, updated_at = now()
+            WHERE id = 1 AND version = ${baseVersion} RETURNING version`;
     if (!rows[0])
       return json({ code: "CONFLICT", message: "Data berubah di perangkat atau tab lain. Belum ada perubahan yang disimpan; periksa data terbaru lalu coba lagi." }, 409);
     return json({ version: Number(rows[0].version) });

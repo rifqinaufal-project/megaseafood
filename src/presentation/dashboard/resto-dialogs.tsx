@@ -6,7 +6,7 @@ import type { BusinessCommands } from "@/src/application/use-cases/business-comm
 import { today, type BusinessState, type OperatingExpense, type Product, type Receipt, type Restaurant, type Supplier } from "@/src/domain/business-state";
 import { receiptOutstanding } from "@/src/domain/business-integrity";
 import { CUSTOM_PRODUCT_OPTION, PRODUCT_CATEGORIES, PRODUCT_UNITS, productDisplayName, receiptSubtotal } from "@/src/domain/inventory";
-import { FormField, Modal, ModalActions, MoneyInput, money, parseMoney, parseNumber, qty, report, type Notify } from "@/src/presentation/dashboard/resto-ui";
+import { Combobox, FormField, Modal, ModalActions, MoneyInput, money, parseMoney, parseNumber, qty, report, type Notify } from "@/src/presentation/dashboard/resto-ui";
 
 type DialogProps = { commands: BusinessCommands; onNotify: Notify; onClose: () => void };
 
@@ -166,12 +166,7 @@ export function ReceiveStockDialog({ commands, onNotify, onClose, state }: Dialo
                 </div>
                 <div className="form-grid">
                   <FormField label="Produk *" span>
-                    <select required value={item.productId} onChange={(event) => pickProduct(item.key, event.target.value)}>
-                      <option value="">Pilih produk</option>
-                      {products.map((entry) => (
-                        <option key={entry.id} value={entry.id}>{productDisplayName(entry)} · stok {qty(entry.stockBalance)} {entry.unit}</option>
-                      ))}
-                    </select>
+                    <Combobox required ariaLabel={`Produk ${index + 1}`} placeholder="Cari produk" value={item.productId} onChange={(value) => pickProduct(item.key, value)} options={products.map((entry) => ({ value: entry.id, label: productDisplayName(entry), detail: `stok ${qty(entry.stockBalance)} ${entry.unit}`, search: `${entry.sku} ${entry.category}` }))} />
                   </FormField>
                   <FormField label={`Berat manual ${unit ? `(${unit})` : ""} *`} hint="Dasar pembayaran ke supplier">
                     <input required type="number" min="0" step="any" value={item.manual} onChange={(event) => setItem(item.key, { manual: event.target.value })} />
@@ -279,10 +274,7 @@ export function CustomerPriceDialog({ commands, onNotify, onClose, state, initia
             </select>
           </FormField>
           <FormField label="Produk *">
-            <select required disabled={!!initial} value={productId} onChange={(event) => setProductId(event.target.value)}>
-              <option value="">Pilih produk</option>
-              {state.products.filter((item) => item.status === "ACTIVE" || item.id === initial?.productId).map((item) => <option key={item.id} value={item.id}>{productDisplayName(item)}</option>)}
-            </select>
+            <Combobox required disabled={!!initial} ariaLabel="Produk" placeholder="Cari produk" value={productId} onChange={setProductId} options={state.products.filter((item) => item.status === "ACTIVE" || item.id === initial?.productId).map((item) => ({ value: item.id, label: productDisplayName(item), search: `${item.sku} ${item.category}` }))} />
           </FormField>
           <FormField label="Harga khusus (Rp) *" hint={product ? `Harga standar ${money(product.defaultSellingPrice)} · HPP ${money(product.averageHpp)}` : undefined} span>
             <MoneyInput required value={price} onChange={setPrice} />

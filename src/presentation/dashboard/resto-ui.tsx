@@ -1,8 +1,8 @@
 "use client";
 
-import { useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { formatRupiah } from "@/src/domain/business-state";
 import type { CommandResult } from "@/src/application/use-cases/business-commands";
 
@@ -291,3 +291,139 @@ export function Table({ columns, empty, children, count, className = "" }: { col
 export const Cell = ({ label, children, className }: { label: string; children: ReactNode; className?: string }) => (
   <td data-label={label} className={className}>{children}</td>
 );
+
+export type ComboboxOption = { value: string; label: string; detail?: string; search?: string };
+
+type ListPosition = { top: number; left: number; width: number; maxHeight: number };
+
+export function Combobox({ value, onChange, options, placeholder = "Cari...", ariaLabel, invalid, disabled, required, emptyText = "Tidak ada yang cocok." }: {
+  value: string;
+  onChange: (value: string) => void;
+  options: ComboboxOption[];
+  placeholder?: string;
+  ariaLabel: string;
+  invalid?: boolean;
+  disabled?: boolean;
+  required?: boolean;
+  emptyText?: string;
+}) {
+  const listId = useId();
+  const input = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState<string | null>(null);
+  const [active, setActive] = useState(0);
+  const [position, setPosition] = useState<ListPosition | null>(null);
+  const open = query !== null && !disabled;
+  const selected = options.find((option) => option.value === value);
+
+  const matches = useMemo(() => {
+    const terms = (query ?? "").toLowerCase().split(/\s+/).filter(Boolean);
+    if (terms.length === 0) return options;
+    return options.filter((option) => {
+      const haystack = `${option.label} ${option.detail ?? ""} ${option.search ?? ""}`.toLowerCase();
+      return terms.every((term) => haystack.includes(term));
+    });
+  }, [options, query]);
+
+  const place = () => {
+    const box = input.current?.getBoundingClientRect();
+    if (!box) return;
+    const below = window.innerHeight - box.bottom - 12;
+    const above = box.top - 12;
+    const flip = below < 180 && above > below;
+    const maxHeight = Math.max(120, Math.min(280, flip ? above : below));
+    const width = Math.min(Math.max(box.width, 300), window.innerWidth - 16);
+    setPosition({ left: Math.max(8, Math.min(box.left, window.innerWidth - width - 8)), width, maxHeight, top: flip ? Math.max(8, box.top - 6 - Math.min(maxHeight, 44 * Math.max(matches.length, 1))) : box.bottom + 6 });
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const reposition = () => place();
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+    return () => {
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, matches.length]);
+
+  const openList = () => {
+    if (disabled) return;
+    setQuery("");
+    setActive(Math.max(0, options.findIndex((option) => option.value === value)));
+    place();
+  };
+  const choose = (option: ComboboxOption) => {
+    onChange(option.value);
+    setQuery(null);
+  };
+  const onKey = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (!open) {
+      if (event.key === "ArrowDown" || event.key === "Enter") {
+        event.preventDefault();
+        openList();
+      }
+      return;
+    }
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActive((index) => Math.min(index + 1, matches.length - 1));
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActive((index) => Math.max(index - 1, 0));
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      if (matches[active]) choose(matches[active]);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      setQuery(null);
+    } else if (event.key === "Tab") {
+      setQuery(null);
+    }
+  };
+
+  return (
+    <div className={`combobox${invalid ? " invalid" : ""}`}>
+      <input
+        ref={input}
+        role="combobox"
+        aria-label={ariaLabel}
+        aria-expanded={open}
+        aria-controls={listId}
+        aria-autocomplete="list"
+        aria-invalid={invalid || undefined}
+        autoComplete="off"
+        disabled={disabled}
+        placeholder={placeholder}
+        value={query ?? selected?.label ?? ""}
+        onFocus={openList}
+        onClick={() => !open && openList()}
+        onChange={(event) => {
+          setQuery(event.target.value);
+          setActive(0);
+          place();
+        }}
+        onBlur={() => setQuery(null)}
+        onKeyDown={onKey}
+      />
+      <ChevronDown className="combobox-chevron" size={15} aria-hidden="true" />
+      {required && <input className="combobox-proxy" tabIndex={-1} aria-hidden="true" required value={value} onChange={() => {}} />}
+      {open && position && (
+        <ul id={listId} role="listbox" className="combobox-list" style={position} onMouseDown={(event) => event.preventDefault()}>
+          {matches.length === 0 ? (
+            <li className="combobox-empty">{emptyText}</li>
+          ) : (
+            matches.map((option, index) => (
+              <li key={option.value} role="option" aria-selected={option.value === value} className={index === active ? "active" : ""} onMouseEnter={() => setActive(index)} onClick={() => choose(option)}>
+                <span>{option.label}</span>
+                {option.detail && <small>{option.detail}</small>}
+                {option.value === value && <Check size={14} aria-hidden="true" />}
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}

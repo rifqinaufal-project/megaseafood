@@ -24,10 +24,11 @@ const SCHEMA = [
     created_at timestamptz NOT NULL DEFAULT now()
   )`,
   `CREATE INDEX IF NOT EXISTS app_sessions_user_idx ON app_sessions (user_id)`,
-  `CREATE TABLE IF NOT EXISTS business_state (
-    user_id uuid PRIMARY KEY REFERENCES app_users(id) ON DELETE CASCADE,
+  `CREATE TABLE IF NOT EXISTS shared_business_state (
+    id smallint PRIMARY KEY CHECK (id = 1),
     data jsonb NOT NULL,
     version integer NOT NULL DEFAULT 1,
+    updated_by uuid REFERENCES app_users(id) ON DELETE SET NULL,
     updated_at timestamptz NOT NULL DEFAULT now()
   )`,
 ];

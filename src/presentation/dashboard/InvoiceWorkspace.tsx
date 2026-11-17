@@ -53,6 +53,7 @@ import {
   type EffectiveInvoiceStatus,
   type InvoiceInput,
 } from "@/src/domain/invoice";
+import { productDisplayName } from "@/src/domain/inventory";
 import {
   Cell,
   IconAction,
@@ -63,6 +64,7 @@ import {
   Tabs,
   downloadCsv,
   paginate,
+  Combobox,
 } from "@/src/presentation/dashboard/resto-ui";
 import { confirmDiscardChanges } from "@/src/presentation/dashboard/unsaved-changes";
 
@@ -709,28 +711,25 @@ export function InvoiceEditor({
                         <Fragment key={line.key}>
                         <tr>
                           <td data-label="Produk">
-                            <select
-                              aria-label={`Produk ${index + 1}`}
-                              aria-invalid={!!productError}
+                            <Combobox
+                              ariaLabel={`Produk ${index + 1}`}
+                              placeholder="Cari produk"
+                              invalid={!!productError}
                               value={line.productId}
-                              onChange={(event) =>
-                                setLine(index, "productId", event.target.value)
-                              }
-                            >
-                              <option value="">Pilih produk</option>
-                              {business.products
+                              onChange={(value) => setLine(index, "productId", value)}
+                              options={business.products
                                 .filter(
                                   (entry) =>
                                     entry.status === "ACTIVE" ||
                                     oldQuantities[entry.id],
                                 )
-                                .map((entry) => (
-                                  <option key={entry.id} value={entry.id}>
-                                    {entry.name} · {quantity(entry.stockBalance)}{" "}
-                                    {entry.unit}
-                                  </option>
-                                ))}
-                            </select>
+                                .map((entry) => ({
+                                  value: entry.id,
+                                  label: productDisplayName(entry),
+                                  detail: `${quantity(entry.stockBalance)} ${entry.unit}`,
+                                  search: `${entry.sku} ${entry.category}`,
+                                }))}
+                            />
                             {productError && (
                               <small className="invoice-field-error">
                                 {productError}
