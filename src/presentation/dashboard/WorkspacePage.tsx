@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState, useSyncExternalStore } from "react";
+import { FormEvent, useId, useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowUpRight,
@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { Module } from "@/src/domain/dashboard";
 import type { AuthAccount } from "@/src/domain/auth-account";
+import { recentSuggestions } from "@/src/domain/suggestions";
 import {
   formatRupiah,
   today,
@@ -201,6 +202,7 @@ function Field({
   onChange,
   type = "text",
   options,
+  suggestions,
   placeholder,
   required = false,
 }: {
@@ -209,10 +211,12 @@ function Field({
   onChange: (value: string) => void;
   type?: string;
   options?: { label: string; value: string }[];
+  suggestions?: string[];
   placeholder?: string;
   required?: boolean;
 }) {
   const isMoney = moneyFields.has(name);
+  const listId = useId();
   return (
     <label className="form-field">
       <span>
@@ -235,6 +239,7 @@ function Field({
       ) : (
         <input
           required={required}
+          list={suggestions?.length ? listId : undefined}
           type={isMoney ? "text" : type}
           step={type === "number" ? "any" : undefined}
           inputMode={isMoney ? "numeric" : undefined}
@@ -247,6 +252,7 @@ function Field({
           placeholder={placeholder}
         />
       )}
+      {!!suggestions?.length && <datalist id={listId}>{suggestions.map((suggestion) => <option key={suggestion} value={suggestion} />)}</datalist>}
     </label>
   );
 }
@@ -564,6 +570,7 @@ function ModalForm({
           <>
             <Field
               name="partner"
+              suggestions={recentSuggestions(state.commissions.map((entry) => entry.partner))}
               value={item.partner || ""}
               onChange={(value) => setItem(index, "partner", value)}
               placeholder="Nama supplier atau pedagang"
@@ -581,6 +588,7 @@ function ModalForm({
           <>
             <Field
               name="expenseName"
+              suggestions={recentSuggestions(state.lapakExpenses.map((entry) => entry.expenseName))}
               value={item.expenseName || ""}
               onChange={(value) => setItem(index, "expenseName", value)}
               placeholder="Es, plastik, transportasi..."
@@ -594,6 +602,7 @@ function ModalForm({
             />
             <Field
               name="notes"
+              suggestions={recentSuggestions(state.lapakExpenses.map((entry) => entry.notes))}
               value={item.notes || ""}
               onChange={(value) => setItem(index, "notes", value)}
               placeholder="Catatan"
@@ -604,6 +613,7 @@ function ModalForm({
           <>
             <Field
               name="productName"
+              suggestions={recentSuggestions(state.lapakSales.flatMap((entry) => entry.items.map((line) => line.productName)))}
               value={item.productName || ""}
               onChange={(value) => setItem(index, "productName", value)}
               placeholder="Nama produk"
@@ -641,12 +651,14 @@ function ModalForm({
             />
             <Field
               name="sourceName"
+              suggestions={recentSuggestions(state.sourcings.map((entry) => entry.sourceName))}
               value={item.sourceName || ""}
               onChange={(value) => setItem(index, "sourceName", value)}
               placeholder="Nama sumber"
             />
             <Field
               name="productName"
+              suggestions={recentSuggestions(state.sourcings.map((entry) => entry.productName))}
               value={item.productName || ""}
               onChange={(value) => setItem(index, "productName", value)}
               placeholder="Nama seafood"

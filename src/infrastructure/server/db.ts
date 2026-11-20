@@ -31,6 +31,11 @@ const SCHEMA = [
     updated_by uuid REFERENCES app_users(id) ON DELETE SET NULL,
     updated_at timestamptz NOT NULL DEFAULT now()
   )`,
+  `CREATE TABLE IF NOT EXISTS invoice_public_links (
+    invoice_id text PRIMARY KEY,
+    token text NOT NULL UNIQUE,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`,
 ];
 
 let client: Sql | null = null;

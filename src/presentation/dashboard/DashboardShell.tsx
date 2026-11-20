@@ -873,18 +873,22 @@ function DashboardContent() {
       <header className="app-header">
         <BrandPill />
         <nav className="module-nav" role="tablist" aria-label="Pilih workspace">
-          {(Object.keys(moduleLabels) as Module[]).map((key) => (
-            <button
+          {(Object.keys(moduleLabels) as Module[]).map((key) => {
+            const Icon = key === "overview" ? LayoutDashboard : key === "lapak" ? Store : ShoppingBag;
+            return <button
               className={module === key ? "selected" : ""}
               onClick={() => changeModule(key)}
               role="tab"
+              aria-label={moduleLabels[key]}
+              title={moduleLabels[key]}
               aria-selected={module === key}
               type="button"
               key={key}
             >
-              {moduleLabels[key]}
-            </button>
-          ))}
+              <span className="module-nav-icon"><Icon size={21} strokeWidth={1.9} aria-hidden="true" /></span>
+              <span className="module-nav-label">{moduleLabels[key]}</span>
+            </button>;
+          })}
         </nav>
         <div className="header-actions">
           <div className="action-pill">

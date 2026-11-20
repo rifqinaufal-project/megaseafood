@@ -81,6 +81,21 @@ const money = (value: number) => `Rp ${formatRupiah(value)}`;
 const quantity = (value: number) =>
   value.toLocaleString("id-ID", { maximumFractionDigits: 6 });
 const number = (value: string) => (value.trim() === "" ? NaN : Number(value));
+async function openInvoiceLink(invoice: Invoice, onNotify: Notify, destination?: (url: string) => string) {
+  const popup = window.open("", "_blank");
+  if (!popup) return onNotify("Popup diblokir. Izinkan popup lalu coba lagi.", "error");
+  popup.opener = null;
+  try {
+    const response = await fetch("/api/invoice-link", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ invoiceId: invoice.id }) });
+    const data = await response.json();
+    if (!response.ok || typeof data.token !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(data.token)) throw new Error(response.status === 401 ? "Sesi berakhir. Silakan masuk kembali." : data.message || "Gagal membuat tautan invoice.");
+    const url = `${window.location.origin}/preview/invoices/${data.token}`;
+    popup.location.replace(destination ? destination(url) : url);
+  } catch (error) {
+    popup.close();
+    onNotify(error instanceof Error ? error.message : "Gagal membuat tautan invoice.", "error");
+  }
+}
 function sendInvoiceWhatsapp(
   invoice: Invoice,
   business: BusinessState,
@@ -88,7 +103,10 @@ function sendInvoiceWhatsapp(
 ) {
   const link = invoiceWhatsappLink(invoice, business);
   if (!link.ok) return onNotify(link.message, "error");
-  window.open(link.url, "_blank", "noopener,noreferrer");
+  void openInvoiceLink(invoice, onNotify, (url) => {
+    const result = invoiceWhatsappLink(invoice, business, url);
+    return result.ok ? result.url : link.url;
+  });
 }
 async function saveInvoicePdf(
   invoice: Invoice,
@@ -1489,6 +1507,7 @@ export function InvoiceDetail({
             </p>
           </div>
           <div className="workspace-actions invoice-detail-actions">
+            <button className="secondary-outline-button" type="button" onClick={() => void openInvoiceLink(invoice, onNotify)}><ReceiptText size={15} /> Lihat Invoice Digital</button>
             <button
               className="secondary-outline-button"
               type="button"
@@ -2213,6 +2232,7 @@ export default function InvoiceWorkspace({
                     </Cell>
                     <Cell label="Status" className="nowrap"><Status invoice={invoice} /></Cell>
                     <Cell label="Aksi" className="row-actions">
+                      <IconAction label={`Lihat Invoice Digital ${invoice.invoiceNumber}`} onClick={() => void openInvoiceLink(invoice, onNotify)}><ReceiptText size={15} /></IconAction>
                       <IconAction label={`Kirim WhatsApp ${invoice.invoiceNumber}`} onClick={() => sendInvoiceWhatsapp(invoice, business, onNotify)}>
                         <MessageCircle size={15} />
                       </IconAction>

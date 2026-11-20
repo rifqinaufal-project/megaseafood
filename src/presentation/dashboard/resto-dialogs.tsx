@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useId, useState, type FormEvent } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import type { BusinessCommands } from "@/src/application/use-cases/business-commands";
 import { today, type BusinessState, type OperatingExpense, type Product, type Receipt, type Restaurant, type Supplier } from "@/src/domain/business-state";
 import { receiptOutstanding } from "@/src/domain/business-integrity";
+import { recentSuggestions } from "@/src/domain/suggestions";
 import { CUSTOM_PRODUCT_OPTION, PRODUCT_CATEGORIES, PRODUCT_UNITS, productDisplayName, receiptSubtotal } from "@/src/domain/inventory";
 import { Combobox, FormField, Modal, ModalActions, MoneyInput, money, parseMoney, parseNumber, qty, report, type Notify } from "@/src/presentation/dashboard/resto-ui";
 
@@ -339,7 +340,9 @@ export function RestaurantDialog({ commands, onNotify, onClose, restaurant }: Di
 
 export const EXPENSE_CATEGORIES = ["Logistik", "Operasional", "Gaji", "Sewa", "Listrik & Air", "Kemasan", "Es & Pendingin", "Lainnya"];
 
-export function ExpenseDialog({ commands, onNotify, onClose, expense }: DialogProps & { expense?: OperatingExpense }) {
+export function ExpenseDialog({ commands, onNotify, onClose, expense, expenses }: DialogProps & { expense?: OperatingExpense; expenses: OperatingExpense[] }) {
+  const categoryListId = useId();
+  const descriptionListId = useId();
   const [date, setDate] = useState(expense?.date ?? today());
   const [category, setCategory] = useState(expense?.category ?? EXPENSE_CATEGORIES[0]);
   const [description, setDescription] = useState(expense?.description ?? "");
@@ -356,10 +359,10 @@ export function ExpenseDialog({ commands, onNotify, onClose, expense }: DialogPr
         <div className="form-grid">
           <FormField label="Tanggal *"><input required type="date" value={date} onChange={(event) => setDate(event.target.value)} /></FormField>
           <FormField label="Kategori *">
-            <input required list="expense-categories" value={category} onChange={(event) => setCategory(event.target.value)} />
-            <datalist id="expense-categories">{EXPENSE_CATEGORIES.map((item) => <option key={item} value={item} />)}</datalist>
+            <input required list={categoryListId} value={category} onChange={(event) => setCategory(event.target.value)} />
+            <datalist id={categoryListId}>{recentSuggestions([...EXPENSE_CATEGORIES, ...expenses.map((item) => item.category)]).map((item) => <option key={item} value={item} />)}</datalist>
           </FormField>
-          <FormField label="Deskripsi *" span><input required value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Contoh: bensin kendaraan operasional" /></FormField>
+          <FormField label="Deskripsi *" span><input required list={descriptionListId} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Contoh: bensin kendaraan operasional" /><datalist id={descriptionListId}>{recentSuggestions(expenses.map((item) => item.description)).map((item) => <option key={item} value={item} />)}</datalist></FormField>
           <FormField label="Jumlah (Rp) *" span><MoneyInput required value={amount} onChange={setAmount} /></FormField>
         </div>
         <ModalActions onCancel={onClose} submitLabel={expense ? "Simpan perubahan" : "Simpan pengeluaran"} />

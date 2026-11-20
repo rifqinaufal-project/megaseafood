@@ -657,7 +657,7 @@ export function ExpensesPage({ state, commands, onNotify, initialFormOpen = fals
         </Table>
         <Pager page={page.current} total={expenses.length} pageSize={25} onPage={setPageNumber} />
       </section>
-      {dialog && <ExpenseDialog commands={commands} onNotify={onNotify} onClose={() => setDialog(null)} expense={dialog.expense} />}
+      {dialog && <ExpenseDialog commands={commands} onNotify={onNotify} onClose={() => setDialog(null)} expense={dialog.expense} expenses={state.operatingExpenses} />}
     </div>
   );
 }

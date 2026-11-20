@@ -15,7 +15,7 @@ export function invoiceRestaurant(invoice: Invoice, business: BusinessState) {
   return business.restaurants.find((item) => item.id === invoice.restaurantId);
 }
 
-export function invoiceWhatsappMessage(invoice: Invoice, business: BusinessState): string {
+export function invoiceWhatsappMessage(invoice: Invoice, business: BusinessState, publicUrl?: string): string {
   const { company } = business;
   const restaurant = invoiceRestaurant(invoice, business);
   const lines = [
@@ -31,17 +31,18 @@ export function invoiceWhatsappMessage(invoice: Invoice, business: BusinessState
   ];
   if (invoice.outstandingAmount > 0 && company.bankAccount)
     lines.push("", `Pembayaran transfer ke ${company.bankName} ${company.bankAccount}${company.bankHolder ? ` a.n. ${company.bankHolder}` : ""}.`);
+  if (publicUrl) lines.push("", `Lihat invoice digital: ${publicUrl}`);
   lines.push("", "Terima kasih.");
   return lines.filter((line, index, all) => line !== "" || all[index - 1] !== "").join("\n");
 }
 
 export type WhatsappLink = { ok: true; url: string } | { ok: false; message: string };
 
-export function invoiceWhatsappLink(invoice: Invoice, business: BusinessState): WhatsappLink {
+export function invoiceWhatsappLink(invoice: Invoice, business: BusinessState, publicUrl?: string): WhatsappLink {
   const restaurant = invoiceRestaurant(invoice, business);
   if (!restaurant) return { ok: false, message: "Restoran invoice ini tidak ditemukan, nomor WhatsApp tidak tersedia" };
   if (!restaurant.phone.trim()) return { ok: false, message: `Nomor telepon ${restaurant.name} belum diisi di menu Restoran` };
   const number = whatsappNumber(restaurant.phone);
   if (!number) return { ok: false, message: `Nomor ${restaurant.name} (${restaurant.phone}) tidak valid untuk WhatsApp` };
-  return { ok: true, url: `https://wa.me/${number}?text=${encodeURIComponent(invoiceWhatsappMessage(invoice, business))}` };
+  return { ok: true, url: `https://wa.me/${number}?text=${encodeURIComponent(invoiceWhatsappMessage(invoice, business, publicUrl))}` };
 }
