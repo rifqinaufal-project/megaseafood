@@ -147,16 +147,39 @@ export function IconAction({
   danger?: boolean;
   children: ReactNode;
 }) {
+  const tooltipId = useId();
+  const [tooltip, setTooltip] = useState<{ left: number; top: number; below: boolean } | null>(null);
+  const showTooltip = (button: HTMLButtonElement) => {
+    const rect = button.getBoundingClientRect();
+    const below = rect.top < 56;
+    setTooltip({
+      left: Math.max(12, Math.min(window.innerWidth - 12, rect.left + rect.width / 2)),
+      top: below ? rect.bottom + 8 : rect.top - 8,
+      below,
+    });
+  };
   return (
-    <button
-      className={`icon-button${danger ? " danger-button" : ""}`}
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-    >
-      {children}
-    </button>
+    <>
+      <button
+        className={`icon-button${danger ? " danger-button" : ""}`}
+        type="button"
+        aria-label={label}
+        aria-describedby={tooltip ? tooltipId : undefined}
+        onMouseEnter={(event) => showTooltip(event.currentTarget)}
+        onMouseLeave={() => setTooltip(null)}
+        onFocus={(event) => showTooltip(event.currentTarget)}
+        onBlur={() => setTooltip(null)}
+        onClick={onClick}
+      >
+        {children}
+      </button>
+      {tooltip && typeof document !== "undefined" && createPortal(
+        <span id={tooltipId} role="tooltip" className={`icon-action-tooltip${tooltip.below ? " below" : ""}`} style={{ left: tooltip.left, top: tooltip.top }}>
+          {label}
+        </span>,
+        document.body,
+      )}
+    </>
   );
 }
 

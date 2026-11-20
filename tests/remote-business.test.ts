@@ -12,10 +12,15 @@ function fixture(initial: BusinessState | null) {
   let mode: "ok" | "expired" | "offline" = "ok";
   let unauthorized = 0;
   const puts: number[] = [];
-  const api: ApiClient = async (method, _path, body): Promise<ApiResponse> => {
+  let fullReads = 0;
+  const api: ApiClient = async (method, path, body): Promise<ApiResponse> => {
     if (mode === "offline") return { status: 0, body: null };
     if (mode === "expired") return { status: 401, body: { code: "UNAUTHORIZED" } };
-    if (method === "GET") return { status: 200, body: { state: stored, version } };
+    if (method === "GET" && path === "/api/business/version") return { status: 200, body: { version, accountsCount: 0 } };
+    if (method === "GET") {
+      fullReads += 1;
+      return { status: 200, body: { state: stored, version } };
+    }
     const request = body as { state: BusinessState; baseVersion: number };
     if (request.baseVersion !== version) return { status: 409, body: { message: "Data berubah di perangkat atau tab lain." } };
     stored = request.state;
@@ -24,8 +29,17 @@ function fixture(initial: BusinessState | null) {
     return { status: 200, body: { version } };
   };
   const store = createRemoteBusinessStore(api, { onUnauthorized: () => void (unauthorized += 1) });
-  return { store, puts, bump: (next: BusinessState) => { stored = next; version += 1; }, set: (value: typeof mode) => (mode = value), unauthorized: () => unauthorized, stored: () => stored };
+  return {
+    store,
+    puts,
+    bump: (next: BusinessState) => { stored = next; version += 1; },
+    set: (value: typeof mode) => (mode = value),
+    unauthorized: () => unauthorized,
+    stored: () => stored,
+    fullReads: () => fullReads,
+  };
 }
+
 const rename = (name: string) => (state: BusinessState): BusinessState => ({ ...state, company: { ...state.company, name } });
 
 test("loads the saved state from the server", async () => {
@@ -35,6 +49,33 @@ test("loads the saved state from the server", async () => {
   await f.store.load();
   assert.equal(f.store.getSnapshot().status, "ready");
   assert.equal(f.store.getSnapshot().state.company.name, "PT Laut");
+});
+
+test("version checks avoid downloading unchanged data and sync changed data", async () => {
+  const f = fixture(seedBusinessState());
+  await f.store.load();
+  const readsBeforeCheck = f.fullReads();
+  await f.store.checkForUpdates();
+  assert.equal(f.fullReads(), readsBeforeCheck);
+
+  f.bump({ ...seedBusinessState(), company: { ...seedBusinessState().company, name: "Perangkat lain" } });
+  await f.store.checkForUpdates();
+  assert.equal(f.store.getSnapshot().state.company.name, "Perangkat lain");
+  assert.equal(f.fullReads(), readsBeforeCheck + 1);
+});
+
+test("automatic sync never overwrites pending local changes", async () => {
+  const f = fixture(seedBusinessState());
+  await f.store.load();
+  f.set("offline");
+  f.store.update(rename("Local belum tersimpan"));
+  await tick();
+  f.set("ok");
+  f.bump({ ...seedBusinessState(), company: { ...seedBusinessState().company, name: "Perangkat lain" } });
+  const readsBeforeCheck = f.fullReads();
+  await f.store.checkForUpdates();
+  assert.equal(f.store.getSnapshot().state.company.name, "Local belum tersimpan");
+  assert.equal(f.fullReads(), readsBeforeCheck);
 });
 
 test("a brand new account starts empty, with no sample data, and nothing is written until it changes", async () => {
@@ -100,19 +141,16 @@ test("offline saves keep the data on screen, warn, and retry", async () => {
   assert.equal(f.store.getSnapshot().storageError, null);
 });
 
-test("a version conflict reloads the latest server data and reports it", async () => {
+test("a version conflict keeps local changes visible instead of replacing them", async () => {
   const f = fixture(seedBusinessState());
   await f.store.load();
   f.bump({ ...seedBusinessState(), company: { ...seedBusinessState().company, name: "Perangkat lain" } });
   f.store.update(rename("Lokal"));
   await tick();
   await tick();
-  assert.equal(f.store.getSnapshot().state.company.name, "Perangkat lain");
+  assert.equal(f.store.getSnapshot().state.company.name, "Lokal");
+  assert.equal(f.stored()?.company.name, "Perangkat lain");
   assert.match(f.store.getSnapshot().storageError ?? "", /Data berubah/);
-  f.store.update(rename("Setelah muat ulang"));
-  await tick();
-  await tick();
-  assert.equal(f.stored()?.company.name, "Setelah muat ulang");
 });
 
 test("reset hides the previous account's data", async () => {

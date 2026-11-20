@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   ArrowUpRight,
   Bell,
@@ -14,7 +14,6 @@ import {
   Database,
   FileText,
   Filter,
-  Info,
   LayoutDashboard,
   MoreHorizontal,
   Plus,
@@ -27,6 +26,7 @@ import {
   X,
 } from "lucide-react";
 import type { DashboardSnapshot, Module, OverviewRange } from "@/src/domain/dashboard";
+import { searchBusiness, type GlobalSearchResult } from "@/src/domain/global-search";
 import { buildOverview } from "@/src/domain/overview";
 import {
   formatRupiah,
@@ -69,7 +69,6 @@ const navItems: Record<
     { label: workspaceNavLabels.resto[6], icon: Store },
     { label: workspaceNavLabels.resto[7], icon: Truck },
     { label: workspaceNavLabels.resto[8], icon: FileText },
-    { label: workspaceNavLabels.resto[9], icon: Settings },
   ],
 };
 
@@ -421,15 +420,17 @@ function WalletsPanel({ dashboard }: { dashboard: DashboardSnapshot }) {
 
 function ActivityTable({
   query,
+  onQueryChange,
   dashboard,
   onNavigate,
 }: {
   query: string;
+  onQueryChange: (value: string) => void;
   dashboard: DashboardSnapshot;
   onNavigate: NavigateTarget;
 }) {
   const filteredRows = dashboard.activities.filter((row) =>
-    `${row.id} ${row.activity} ${row.status}`
+    `${row.id} ${row.activity} ${row.status} ${row.amount} ${row.date}`
       .toLowerCase()
       .includes(query.toLowerCase()),
   );
@@ -455,7 +456,7 @@ function ActivityTable({
             aria-label="Cari aktivitas"
             placeholder="Cari aktivitas..."
             value={query}
-            readOnly
+            onChange={(event) => onQueryChange(event.target.value)}
           />
         </label>
         <button className="filter-button" type="button">
@@ -516,7 +517,7 @@ function ActivityTable({
           </tbody>
         </table>
         {filteredRows.length === 0 && (
-          <div className="empty-state">Belum ada aktivitas.</div>
+          <div className="empty-state">{query ? "Tidak ada aktivitas yang cocok." : "Belum ada aktivitas."}</div>
         )}
       </div>
     </section>
@@ -791,13 +792,79 @@ function QuickAdd({
   );
 }
 
+function GlobalSearchDialog({
+  query,
+  results,
+  inputRef,
+  onQueryChange,
+  onClose,
+  onSelect,
+}: {
+  query: string;
+  results: GlobalSearchResult[];
+  inputRef: RefObject<HTMLInputElement | null>;
+  onQueryChange: (value: string) => void;
+  onClose: () => void;
+  onSelect: (result: GlobalSearchResult) => void;
+}) {
+  return (
+    <div className="global-search-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="global-search-dialog" role="dialog" aria-modal="true" aria-label="Pencarian global">
+        <div className="global-search-field">
+          <Search size={21} aria-hidden="true" />
+          <input
+            ref={inputRef}
+            autoFocus
+            type="search"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="Cari invoice, produk, pelanggan..."
+            aria-label="Cari data bisnis"
+          />
+          <kbd>ESC</kbd>
+          <button type="button" className="global-search-close" onClick={onClose} aria-label="Tutup pencarian"><X size={18} /></button>
+        </div>
+        <div className="global-search-content">
+          {!query.trim() ? (
+            <p className="global-search-hint">Cari invoice, produk, restoran, supplier, batch, pembayaran, dan transaksi.</p>
+          ) : results.length ? (
+            <>
+              <p className="global-search-caption">{results.length} hasil teratas</p>
+              <div className="global-search-results">
+                {results.map((result, index) => (
+                  <button className="global-search-result" type="button" key={`${result.kind}-${result.title}-${index}`} onClick={() => onSelect(result)}>
+                    <span className="global-search-result-icon"><Search size={17} /></span>
+                    <span className="global-search-result-copy">
+                      <small>{result.kind} · {moduleLabels[result.module]}</small>
+                      <strong>{result.title}</strong>
+                      <span>{result.detail || result.page}</span>
+                    </span>
+                    <ArrowUpRight size={16} className="global-search-result-arrow" />
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="global-search-empty"><Search size={22} /><strong>Tidak ada hasil</strong><span>Coba kata kunci atau nomor transaksi lain.</span></div>
+          )}
+        </div>
+        <footer className="global-search-footer"><span>Tekan <kbd>⌘ K</kbd> atau <kbd>Ctrl K</kbd> untuk mencari kapan saja</span><button type="button" onClick={onClose}>Tutup <kbd>Esc</kbd></button></footer>
+      </section>
+    </div>
+  );
+}
+
 function DashboardContent() {
   const { state: business, accountUsers, actions, storageError, retryStorage } = useLocalBusiness();
   const [module, setModule] = useState<Module>("overview");
   const [activeNav, setActiveNav] = useState<string | null>(null);
-  const [query] = useState("");
+  const [activityQuery, setActivityQuery] = useState("");
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
+  const globalSearchInput = useRef<HTMLInputElement>(null);
   const [range, setRange] = useState<OverviewRange>("Bulan ini");
   const dashboard = useMemo(() => buildOverview(business, range), [business, range]);
+  const globalSearchResults = useMemo(() => searchBusiness(business, globalSearchQuery), [business, globalSearchQuery]);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [createRequest, setCreateRequest] = useState<{
     module: Module;
@@ -810,6 +877,20 @@ function DashboardContent() {
   const [lapakPeriod, setLapakPeriod] = useState<LapakPeriod>("daily");
   const requestId = useRef(0);
   const [toast, setToast] = useState<{ message: string; tone: "success" | "error" | "info" } | null>(null);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setGlobalSearchQuery("");
+        setGlobalSearchOpen(true);
+      } else if (event.key === "Escape") {
+        setGlobalSearchOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const heading = useMemo(() => {
     if (module === "lapak")
@@ -862,6 +943,11 @@ function DashboardContent() {
     );
   };
 
+  const openSearchResult = (result: GlobalSearchResult) => {
+    navigateTo(result.module, result.page, false, result.invoiceId, result.batchId);
+    setGlobalSearchOpen(false);
+  };
+
   const notify = (message: string, tone: "success" | "error" | "info" = "info") => {
     const notification = { message, tone };
     setToast(notification);
@@ -896,7 +982,7 @@ function DashboardContent() {
               className="top-icon"
               aria-label="Cari"
               type="button"
-              onClick={() => notify("Pencarian global sedang disiapkan")}
+              onClick={() => { setGlobalSearchQuery(""); setGlobalSearchOpen(true); }}
             >
               <Search size={19} strokeWidth={1.9} />
             </button>
@@ -911,16 +997,27 @@ function DashboardContent() {
             </button>
             <button
               className="top-icon"
-              aria-label="Perlu perhatian"
+              aria-label="Pengaturan"
+              title="Pengaturan"
               type="button"
-              onClick={() => notify("Tidak ada peringatan baru")}
+              onClick={() => navigateTo("resto", "Pengaturan")}
             >
-              <Info size={19} strokeWidth={1.9} />
+              <Settings size={19} strokeWidth={1.9} />
             </button>
           </div>
           <AccountMenu />
         </div>
       </header>
+      {globalSearchOpen && (
+        <GlobalSearchDialog
+          query={globalSearchQuery}
+          results={globalSearchResults}
+          inputRef={globalSearchInput}
+          onQueryChange={setGlobalSearchQuery}
+          onClose={() => setGlobalSearchOpen(false)}
+          onSelect={openSearchResult}
+        />
+      )}
       <div className="body-layout">
         {module !== "overview" && (
           <aside
@@ -1040,7 +1137,8 @@ function DashboardContent() {
               </div>
               <div className="lower-grid">
                 <ActivityTable
-                  query={query}
+                  query={activityQuery}
+                  onQueryChange={setActivityQuery}
                   dashboard={dashboard}
                   onNavigate={navigateTo}
                 />

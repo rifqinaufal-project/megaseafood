@@ -31,9 +31,11 @@ export function createRemoteBusinessStore(api: ApiClient, options: Options) {
   const serverSnapshot: BusinessSnapshot = { state: emptyBusinessState(), accountUsers: [], status: "loading", loadError: null, storageError: null };
   let snapshot: BusinessSnapshot = serverSnapshot;
   let version = 0;
+  let accountsCount = 0;
   let dirty = false;
   let saving = false;
   let loading = false;
+  let checking = false;
   let generation = 0;
   const listeners = new Set<() => void>();
 
@@ -42,22 +44,26 @@ export function createRemoteBusinessStore(api: ApiClient, options: Options) {
     listeners.forEach((listener) => listener());
   };
 
-  async function resync(message: string | null, gen: number) {
+  async function resync(message: string | null, gen: number, onlyIfClean = false) {
+    if (onlyIfClean && (dirty || saving)) return;
     const response = await api("GET", "/api/business");
     if (gen !== generation) return;
     if (response.status === 401) return options.onUnauthorized();
+    // A local save may start while the GET is in flight. Never replace it.
+    if (onlyIfClean && (dirty || saving)) return;
     if (response.status === 200 && response.body && "state" in response.body) {
       try {
         const state = response.body.state === null ? emptyBusinessState() : normalizeBusinessState(response.body.state);
         version = Number(response.body.version) || 0;
         dirty = false;
         const accountUsers = Array.isArray(response.body.accountUsers) ? response.body.accountUsers.filter(isAuthAccount) : [];
+        accountsCount = accountUsers.length;
         return publish({ state, accountUsers, status: "ready", loadError: null, storageError: message });
       } catch {
         /* jatuh ke pesan galat di bawah */
       }
     }
-    publish({ ...snapshot, storageError: response.status === 0 ? UNREACHABLE : "Data terbaru tidak dapat dimuat dari server. Muat ulang halaman." });
+    publish({ ...snapshot, storageError: response.status === 0 ? UNREACHABLE : "Data terbaru tidak dapat dimuat. Coba lagi sebentar." });
   }
 
   async function flush() {
@@ -75,7 +81,12 @@ export function createRemoteBusinessStore(api: ApiClient, options: Options) {
           continue;
         }
         if (response.status === 401) return options.onUnauthorized();
-        if (response.status === 409) return await resync(messageOf(response, "Data berubah di tempat lain. Perubahan belum disimpan."), gen);
+        if (response.status === 409) {
+          // Keep the local state visible. A refresh must be an explicit action and
+          // must never silently discard a change that has not been saved.
+          dirty = true;
+          return publish({ ...snapshot, storageError: messageOf(response, "Data berubah di perangkat atau tab lain. Perubahan lokal tetap aman dan belum tersimpan.") });
+        }
         dirty = true;
         return publish({ ...snapshot, storageError: response.status === 0 ? UNSAVED_OFFLINE : messageOf(response, "Gagal menyimpan ke server. Perubahan belum tersimpan.") });
       }
@@ -99,6 +110,7 @@ export function createRemoteBusinessStore(api: ApiClient, options: Options) {
       version = response.body.state === null || response.body.state === undefined ? 0 : Number(response.body.version) || 0;
       const state = version === 0 ? emptyBusinessState() : normalizeBusinessState(response.body.state);
       const accountUsers = Array.isArray(response.body.accountUsers) ? response.body.accountUsers.filter(isAuthAccount) : [];
+      accountsCount = accountUsers.length;
       publish({ state, accountUsers, status: "ready", loadError: null, storageError: null });
     } catch {
       publish({ ...serverSnapshot, status: "failed", loadError: "Data di server tidak dapat dibaca atau formatnya rusak. Penyimpanan diblokir agar data lama tidak tertimpa." });
@@ -120,12 +132,15 @@ export function createRemoteBusinessStore(api: ApiClient, options: Options) {
     reset() {
       generation += 1;
       version = 0;
+      accountsCount = 0;
       dirty = false;
       saving = false;
       loading = false;
+      checking = false;
       publish(serverSnapshot);
     },
 
+    /** Retry penyimpanan atau ambil ulang data saat diminta dari pesan error. */
     reload() {
       if (snapshot.status !== "ready") {
         loading = false;
@@ -133,6 +148,25 @@ export function createRemoteBusinessStore(api: ApiClient, options: Options) {
       }
       if (dirty) return void flush();
       void resync(null, generation);
+    },
+
+    /** Cek versi ringan; state penuh hanya diambil jika versi server berubah. */
+    async checkForUpdates() {
+      if (snapshot.status !== "ready" || dirty || saving || loading || checking) return;
+      checking = true;
+      const gen = generation;
+      try {
+        const response = await api("GET", "/api/business/version");
+        if (gen !== generation) return;
+        if (response.status === 401) return options.onUnauthorized();
+        if (response.status !== 200 || !response.body) return;
+        const remoteVersion = Number(response.body.version);
+        const remoteAccountsCount = Number(response.body.accountsCount) || 0;
+        if (remoteVersion !== version || remoteAccountsCount !== accountsCount)
+          await resync(null, gen, true);
+      } finally {
+        if (gen === generation) checking = false;
+      }
     },
 
     update(updater: BusinessUpdater) {

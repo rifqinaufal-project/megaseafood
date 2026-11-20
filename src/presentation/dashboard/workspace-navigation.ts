@@ -26,6 +26,5 @@ export const workspaceNavLabels: Record<Module, readonly string[]> = {
     "Restoran",
     "Supplier",
     "Laporan",
-    "Pengaturan",
   ],
 };

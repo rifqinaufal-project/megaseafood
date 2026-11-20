@@ -16,8 +16,22 @@ export function useLocalBusiness() {
   const authenticated = auth.status === "authenticated";
 
   useEffect(() => {
-    if (authenticated) void store.load();
-    else store.reset();
+    if (!authenticated) {
+      store.reset();
+      return;
+    }
+    void store.load();
+    const syncWhenVisible = () => {
+      if (document.visibilityState === "visible") void store.checkForUpdates();
+    };
+    const interval = window.setInterval(syncWhenVisible, 5_000);
+    window.addEventListener("focus", syncWhenVisible);
+    document.addEventListener("visibilitychange", syncWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", syncWhenVisible);
+      document.removeEventListener("visibilitychange", syncWhenVisible);
+    };
   }, [authenticated]);
 
   return {

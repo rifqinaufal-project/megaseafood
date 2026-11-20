@@ -32,7 +32,6 @@ test("workspace navigation has one clear menu per module", () => {
     "Restoran",
     "Supplier",
     "Laporan",
-    "Pengaturan",
   ]);
 
   for (const labels of Object.values(workspaceNavLabels)) {
@@ -58,7 +57,6 @@ test("visible workspace labels resolve to their existing page implementations", 
       Restoran: "Restaurants",
       Supplier: "Suppliers",
       Laporan: "Laporan Resto",
-      Pengaturan: "Pengaturan Resto",
     },
   };
 
@@ -70,6 +68,7 @@ test("visible workspace labels resolve to their existing page implementations", 
       );
     }
   }
+  assert.equal(resolveWorkspacePage("resto", "Pengaturan"), "Pengaturan Resto");
 });
 
 test("legacy page aliases remain resolvable", () => {
