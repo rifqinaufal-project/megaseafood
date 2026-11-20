@@ -1,4 +1,5 @@
 import { BusinessPersistenceError, type BusinessUpdater } from "@/src/application/ports/business-store";
+import type { AuthAccount } from "@/src/domain/auth-account";
 import { emptyBusinessState, type BusinessState } from "@/src/domain/business-state";
 import { messageOf, type ApiClient } from "@/src/infrastructure/client/api";
 import { normalizeBusinessState } from "@/src/infrastructure/repositories/local-business-store";
@@ -6,6 +7,7 @@ import { normalizeBusinessState } from "@/src/infrastructure/repositories/local-
 export type BusinessStatus = "loading" | "ready" | "failed";
 export type BusinessSnapshot = {
   state: BusinessState;
+  accountUsers: AuthAccount[];
   status: BusinessStatus;
   loadError: string | null;
   storageError: string | null;
@@ -19,8 +21,14 @@ type Options = {
 const UNREACHABLE = "Server tidak dapat dihubungi. Periksa koneksi internet lalu coba lagi.";
 const UNSAVED_OFFLINE = "Perubahan belum tersimpan ke server karena koneksi terputus. Data di layar aman dan akan dicoba disimpan lagi; tekan Periksa ulang data bila perlu.";
 
+function isAuthAccount(value: unknown): value is AuthAccount {
+  if (!value || typeof value !== "object") return false;
+  const account = value as Record<string, unknown>;
+  return typeof account.id === "string" && typeof account.username === "string" && typeof account.createdAt === "string";
+}
+
 export function createRemoteBusinessStore(api: ApiClient, options: Options) {
-  const serverSnapshot: BusinessSnapshot = { state: emptyBusinessState(), status: "loading", loadError: null, storageError: null };
+  const serverSnapshot: BusinessSnapshot = { state: emptyBusinessState(), accountUsers: [], status: "loading", loadError: null, storageError: null };
   let snapshot: BusinessSnapshot = serverSnapshot;
   let version = 0;
   let dirty = false;
@@ -43,7 +51,8 @@ export function createRemoteBusinessStore(api: ApiClient, options: Options) {
         const state = response.body.state === null ? emptyBusinessState() : normalizeBusinessState(response.body.state);
         version = Number(response.body.version) || 0;
         dirty = false;
-        return publish({ state, status: "ready", loadError: null, storageError: message });
+        const accountUsers = Array.isArray(response.body.accountUsers) ? response.body.accountUsers.filter(isAuthAccount) : [];
+        return publish({ state, accountUsers, status: "ready", loadError: null, storageError: message });
       } catch {
         /* jatuh ke pesan galat di bawah */
       }
@@ -89,7 +98,8 @@ export function createRemoteBusinessStore(api: ApiClient, options: Options) {
     try {
       version = response.body.state === null || response.body.state === undefined ? 0 : Number(response.body.version) || 0;
       const state = version === 0 ? emptyBusinessState() : normalizeBusinessState(response.body.state);
-      publish({ state, status: "ready", loadError: null, storageError: null });
+      const accountUsers = Array.isArray(response.body.accountUsers) ? response.body.accountUsers.filter(isAuthAccount) : [];
+      publish({ state, accountUsers, status: "ready", loadError: null, storageError: null });
     } catch {
       publish({ ...serverSnapshot, status: "failed", loadError: "Data di server tidak dapat dibaca atau formatnya rusak. Penyimpanan diblokir agar data lama tidak tertimpa." });
     }

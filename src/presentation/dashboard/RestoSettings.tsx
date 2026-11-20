@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Building2, Pencil, Plus, Power, Save, UserRound } from "lucide-react";
+import { Building2, Save, UserRound } from "lucide-react";
 import type { BusinessCommands } from "@/src/application/use-cases/business-commands";
-import type { AppUser, BusinessState, CompanyProfile, UserRole } from "@/src/domain/business-state";
-import { BANK_OPTIONS, USER_ROLES, auditActionLabels, currentUser, userRoleLabels } from "@/src/domain/settings";
-import { Cell, FormField, Modal, ModalActions, PageHead, Pager, SearchBox, StatusChip, Table, Tabs, matches, paginate, report, type Notify } from "@/src/presentation/dashboard/resto-ui";
+import type { AuthAccount } from "@/src/domain/auth-account";
+import type { BusinessState, CompanyProfile } from "@/src/domain/business-state";
+import { BANK_OPTIONS, auditActionLabels, currentUser } from "@/src/domain/settings";
+import { Cell, FormField, PageHead, Pager, SearchBox, StatusChip, Table, Tabs, matches, paginate, report, type Notify } from "@/src/presentation/dashboard/resto-ui";
 
 type SettingsTab = "company" | "users" | "audit";
-type Props = { business: BusinessState; commands: BusinessCommands; onNotify: Notify };
+type Props = { business: BusinessState; accountUsers?: AuthAccount[]; commands: BusinessCommands; onNotify: Notify };
 
 const dateTime = (value: string) => {
   const date = new Date(value);
@@ -116,78 +117,39 @@ function CompanyForm({ business, commands, onNotify }: Props) {
   );
 }
 
-function UserDialog({ commands, onNotify, onClose, user }: Omit<Props, "business"> & { onClose: () => void; user?: AppUser }) {
-  const [name, setName] = useState(user?.name ?? "");
-  const [email, setEmail] = useState(user?.email ?? "");
-  const [role, setRole] = useState<UserRole>(user?.role ?? "STAFF");
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    const input = { name, email, role };
-    const result = user ? commands.updateUser(user.id, input) : commands.addUser(input);
-    if (report(onNotify, result)) onClose();
-  };
-  return (
-    <Modal title={user ? "Edit pengguna" : "Tambah pengguna"} eyebrow="Pengaturan / Pengguna" onClose={onClose}>
-      <form onSubmit={submit}>
-        <div className="form-grid">
-          <FormField label="Nama *" span>
-            <input required autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Nama lengkap" />
-          </FormField>
-          <FormField label="Email *">
-            <input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="nama@bisnis.id" />
-          </FormField>
-          <FormField label="Peran">
-            <select value={role} onChange={(event) => setRole(event.target.value as UserRole)}>
-              {USER_ROLES.map((item) => <option key={item} value={item}>{userRoleLabels[item]}</option>)}
-            </select>
-          </FormField>
-        </div>
-        <ModalActions onCancel={onClose} submitLabel={user ? "Simpan perubahan" : "Tambah pengguna"} />
-      </form>
-    </Modal>
-  );
-}
-
-function UsersPanel({ business, commands, onNotify }: Props) {
-  const [dialog, setDialog] = useState<{ user?: AppUser } | null>(null);
+function UsersPanel({ business, accountUsers }: Props) {
   const active = currentUser(business);
+  const accounts = accountUsers ?? [];
   return (
     <>
       <section className="panel settings-profile">
         <div className="ie-section-head">
           <i className="side-icon"><UserRound size={16} /></i>
           <div>
-            <h2>Profil akun</h2>
-            <p>Aplikasi ini berjalan lokal tanpa login. Akun di bawah dipakai untuk mencatat siapa yang melakukan perubahan.</p>
+            <h2>Akun login</h2>
+            <p>Daftar akun yang dapat masuk ke aplikasi. Setiap perubahan dicatat pada Audit log.</p>
           </div>
         </div>
         <dl className="settings-profile-grid">
-          <div><dt>Nama</dt><dd>{active?.name ?? "—"}</dd></div>
-          <div><dt>Email</dt><dd>{active?.email || "—"}</dd></div>
-          <div><dt>Peran</dt><dd>{active ? userRoleLabels[active.role] : "—"}</dd></div>
+          <div><dt>Akun aktif</dt><dd>{accounts.length || (active ? 1 : 0)}</dd></div>
+          <div><dt>Login saat ini</dt><dd>{accounts[0]?.username ?? active?.name ?? "—"}</dd></div>
+          <div><dt>Akses data</dt><dd>Satu data bisnis bersama</dd></div>
         </dl>
       </section>
       <section className="panel">
         <div className="resto-toolbar resource-toolbar">
           <h2 className="panel-title">Daftar pengguna</h2>
-          <button className="primary-button compact" type="button" onClick={() => setDialog({})}><Plus size={15} /> Tambah pengguna</button>
         </div>
-        <Table columns={["Nama", "Email", "Peran", "Status", "Aksi"]} count={business.users.length} empty="Belum ada pengguna.">
-          {business.users.map((user) => (
-            <tr key={user.id}>
-              <Cell label="Nama" className="resource-primary-cell"><strong>{user.name}</strong></Cell>
-              <Cell label="Email">{user.email || "—"}</Cell>
-              <Cell label="Peran">{userRoleLabels[user.role]}</Cell>
-              <Cell label="Status"><StatusChip tone={user.status === "ACTIVE" ? "lunas" : "nonaktif"}>{user.status === "ACTIVE" ? "Aktif" : "Nonaktif"}</StatusChip></Cell>
-              <Cell label="Aksi" className="row-actions">
-                <button className="icon-button" type="button" aria-label={`Edit ${user.name}`} title="Edit" onClick={() => setDialog({ user })}><Pencil size={15} /></button>
-                <button className="icon-button" type="button" aria-label={`${user.status === "ACTIVE" ? "Nonaktifkan" : "Aktifkan"} ${user.name}`} title={user.status === "ACTIVE" ? "Nonaktifkan" : "Aktifkan"} onClick={() => report(onNotify, commands.toggleUserStatus(user.id))}><Power size={15} /></button>
-              </Cell>
+        <Table columns={["Username", "Dibuat", "Status"]} count={accounts.length} empty="Belum ada akun login.">
+          {accounts.map((account) => (
+            <tr key={account.id}>
+              <Cell label="Username" className="resource-primary-cell"><strong>{account.username}</strong></Cell>
+              <Cell label="Dibuat" className="mono">{dateTime(account.createdAt)}</Cell>
+              <Cell label="Status"><StatusChip tone="lunas">Aktif</StatusChip></Cell>
             </tr>
           ))}
         </Table>
       </section>
-      {dialog && <UserDialog commands={commands} onNotify={onNotify} user={dialog.user} onClose={() => setDialog(null)} />}
     </>
   );
 }

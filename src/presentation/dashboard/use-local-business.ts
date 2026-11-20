@@ -22,6 +22,7 @@ export function useLocalBusiness() {
 
   return {
     state: snapshot.state,
+    accountUsers: snapshot.accountUsers,
     status: snapshot.status,
     loadError: snapshot.loadError,
     storageError: snapshot.storageError,

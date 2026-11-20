@@ -792,7 +792,7 @@ function QuickAdd({
 }
 
 function DashboardContent() {
-  const { state: business, actions, storageError, retryStorage } = useLocalBusiness();
+  const { state: business, accountUsers, actions, storageError, retryStorage } = useLocalBusiness();
   const [module, setModule] = useState<Module>("overview");
   const [activeNav, setActiveNav] = useState<string | null>(null);
   const [query] = useState("");
@@ -1056,8 +1056,9 @@ function DashboardContent() {
             <WorkspacePage
               key={`${module}-${activeNav}-${createRequest?.id ?? "view"}`}
               module={module}
-               page={activeNav ?? ""}
+              page={activeNav ?? ""}
               business={business}
+              accountUsers={accountUsers}
               commands={actions}
               onNotify={notify}
               onNavigate={navigateTo}
@@ -1065,9 +1066,9 @@ function DashboardContent() {
                 createRequest?.module === module &&
                 createRequest.page === activeNav && createRequest.openForm
               }
-               initialInvoiceId={createRequest?.invoiceId}
-               initialBatchId={createRequest?.batchId}
-               initialCreateBatch={
+              initialInvoiceId={createRequest?.invoiceId}
+              initialBatchId={createRequest?.batchId}
+              initialCreateBatch={
                 createRequest?.module === "lapak" &&
                 createRequest.openForm &&
                 (createRequest.page === "Batch" ||

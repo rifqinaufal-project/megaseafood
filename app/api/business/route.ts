@@ -12,9 +12,20 @@ export async function GET() {
     const user = await currentUser();
     if (!user) return unauthorized();
     const sql = await getSql();
-    const rows = await sql`SELECT data, version FROM shared_business_state WHERE id = 1`;
+    const [rows, accountRows] = await Promise.all([
+      sql`SELECT data, version FROM shared_business_state WHERE id = 1`,
+      sql`SELECT id, username, created_at FROM app_users ORDER BY created_at ASC`,
+    ]);
     const row = rows[0];
-    return json(row ? { state: row.data, version: Number(row.version) } : { state: null, version: 0 });
+    return json({
+      state: row?.data ?? null,
+      version: row ? Number(row.version) : 0,
+      accountUsers: accountRows.map((account) => ({
+        id: String(account.id),
+        username: String(account.username),
+        createdAt: new Date(account.created_at).toISOString(),
+      })),
+    });
   } catch (error) {
     return failure(error);
   }

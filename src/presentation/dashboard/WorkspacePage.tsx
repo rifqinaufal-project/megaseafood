@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import type { Module } from "@/src/domain/dashboard";
+import type { AuthAccount } from "@/src/domain/auth-account";
 import {
   formatRupiah,
   today,
@@ -42,6 +43,7 @@ type WorkspacePageProps = {
   module: Module;
   page: string;
   business: BusinessState;
+  accountUsers?: AuthAccount[];
   commands: BusinessCommands;
   onNotify: Notify;
   onNavigate?: (
@@ -2128,6 +2130,7 @@ export default function WorkspacePage({
   module,
   page,
   business,
+  accountUsers,
   commands,
   onNotify,
   onNavigate,
@@ -2225,6 +2228,7 @@ export default function WorkspacePage({
       return (
         <RestoSettingsPage
           business={business}
+          accountUsers={accountUsers}
           commands={commands}
           onNotify={onNotify}
         />
