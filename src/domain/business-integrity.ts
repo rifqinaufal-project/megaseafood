@@ -39,6 +39,19 @@ export function reserveDocumentNumber(state: BusinessState, prefix: string, widt
   };
 }
 
+export function reserveSourcingNumber(state: BusinessState) {
+  const maximum = state.sourcings.reduce(
+    (max, item) => Math.max(max, item.sequence),
+    state.numberSequences?.SOURCING ?? 0,
+  );
+  const sequence = maximum + 1;
+  if (!Number.isSafeInteger(sequence)) throw new Error("Nomor pengadaan melampaui batas");
+  return {
+    sequence,
+    numberSequences: { ...state.numberSequences, SOURCING: sequence },
+  };
+}
+
 // Persist high-water marks before a record can be deleted or moved to another date.
 export function retainDocumentSequences(state: BusinessState): BusinessState {
   const numberSequences = { ...state.numberSequences };
@@ -51,6 +64,7 @@ export function retainDocumentSequences(state: BusinessState): BusinessState {
     const match = /^(BAT-\d{6}-|(?:INV|RCV)\/\d{4}\/\d{2}\/)(\d+)$/.exec(number);
     if (match) numberSequences[match[1]] = Math.max(numberSequences[match[1]] ?? 0, Number(match[2]));
   }
+  for (const item of state.sourcings) numberSequences.SOURCING = Math.max(numberSequences.SOURCING ?? 0, item.sequence);
   return { ...state, numberSequences };
 }
 

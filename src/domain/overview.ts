@@ -22,8 +22,8 @@ function lapakFigures(state: BusinessState, keep: (date: string) => boolean) {
   const sourcings = state.sourcings.filter((item) => keep(item.date));
   const expenses = state.lapakExpenses.filter((item) => keep(item.date));
   const revenue = sum(commissions, (item) => item.amount) + sum(sales, (item) => item.totalAmount);
-  const cost = sum(sourcings, (item) => item.totalCost) + sum(expenses, (item) => item.amount);
-  const batchIds = new Set([...commissions, ...sales, ...sourcings, ...expenses].map((item) => item.batchId));
+  const cost = sum(sourcings, (item) => item.total) + sum(expenses, (item) => item.amount);
+  const batchIds = new Set([...commissions, ...sales, ...expenses].map((item) => item.batchId));
   return { revenue, cost, profit: revenue - cost, batches: batchIds.size, records: commissions.length + sales.length + sourcings.length + expenses.length };
 }
 
@@ -68,6 +68,13 @@ function recentActivities(state: BusinessState): ActivityRow[] {
         status: "Selesai" as const,
         date: item.date,
       })),
+    ...state.sourcings.map((item) => ({
+      id: `SOURCING-${item.sequence}`,
+      activity: `${item.sourceType === "BENGKELAN" ? "Bengkelan" : "Pengadaan"} · ${item.name} · ${item.type}`,
+      amount: money(item.total),
+      status: "Tercatat" as const,
+      date: item.date,
+    })),
     ...state.operatingExpenses.map((item) => ({
       id: item.id.toUpperCase(),
       activity: `Biaya operasional · ${item.description}`,
@@ -110,7 +117,7 @@ export function buildOverview(state: BusinessState, range: OverviewRange, asOf =
   const restoIn = sum(state.invoices, (item) => item.paidAmount);
   const cashOut =
     sum(state.supplierPayments, (item) => item.amount) +
-    sum(state.sourcings, (item) => item.paidAmount) +
+    sum(state.sourcings, (item) => item.payment1 + item.payment2 + item.payment3) +
     sum(state.operatingExpenses, (item) => item.amount) +
     sum(state.lapakExpenses, (item) => item.amount);
 

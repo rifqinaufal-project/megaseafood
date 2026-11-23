@@ -247,6 +247,40 @@ button { cursor: pointer; }
 .batch-table-actions { display: flex; align-items: center; justify-content: flex-end; gap: 3px; }
 .batch-table-actions .text-link { margin-right: 4px; font-size: 11px; white-space: nowrap; }
 .batch-table-actions .icon-button { width: 32px; height: 32px; }
+.table-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 3px; }
+.table-row-actions .icon-button { width: 32px; height: 32px; }
+.sourcing-record-list { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
+.sourcing-record { padding: 22px; border: 1px solid var(--line); border-radius: 22px; background: #fff; }
+.sourcing-record-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.sourcing-record-identity { min-width: 0; }
+.sourcing-record-kicker { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+.sourcing-type-badge { display: inline-flex; align-items: center; min-height: 24px; padding: 0 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; }
+.sourcing-record h3 { margin: 12px 0 0; color: var(--ink); font-size: 18px; letter-spacing: -.3px; overflow-wrap: anywhere; }
+.sourcing-record-identity p { margin: 5px 0 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.sourcing-record-total { flex: 0 0 auto; min-width: 150px; text-align: right; }
+.sourcing-record-total span, .sourcing-record-details span, .sourcing-payment-summary-card span, .sourcing-record-note > span { display: block; color: var(--faint); font-size: 10.5px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase; }
+.sourcing-record-total strong { display: block; margin-top: 7px; color: var(--ink); font-size: 20px; letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
+.sourcing-record-details { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 20px; padding: 16px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.sourcing-record-details > div { min-width: 0; }
+.sourcing-record-details strong { display: block; margin-top: 6px; color: var(--ink); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.sourcing-record-details > div + div { padding-left: 14px; border-left: 1px solid var(--line); }
+.sourcing-outstanding { color: var(--accent) !important; }
+.sourcing-paid { color: var(--green) !important; }
+.sourcing-payment-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.sourcing-payment-summary-card { min-width: 0; padding: 14px; border-radius: 16px; background: #f8f9fb; }
+.sourcing-payment-summary-card strong { display: block; margin-top: 7px; color: var(--ink); font-size: 14px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.sourcing-payment-summary-card small { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.sourcing-record-note { display: flex; align-items: baseline; gap: 10px; margin-top: 16px; padding: 12px 14px; border-radius: 14px; background: #fbfbfa; }
+.sourcing-record-note p { margin: 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.sourcing-record-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 16px; }
+.sourcing-record-footer > span { color: var(--faint); font-size: 11px; }
+.sourcing-record-actions { display: flex; align-items: center; gap: 8px; }
+.sourcing-action-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 0 13px; border: 1px solid transparent; border-radius: 10px; font-size: 12px; font-weight: 700; transition: background .16s ease, border-color .16s ease, color .16s ease, transform .16s ease; }
+.sourcing-action-button:hover { transform: translateY(-1px); }
+.sourcing-edit-button { border-color: #d5e1f4; background: #edf3ff; color: var(--accent); }
+.sourcing-edit-button:hover { border-color: #b7cce9; background: #e2ecff; color: var(--accent-deep); }
+.sourcing-delete-button { border-color: #f0d2d2; background: #fff1f1; color: var(--red); }
+.sourcing-delete-button:hover { border-color: #e7b4b4; background: #ffe5e5; color: #9d2d2d; }
 
 @media (min-width: 921px) {
   .body-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; transition: grid-template-columns 360ms cubic-bezier(0.22, 1, 0.36, 1), gap 360ms cubic-bezier(0.22, 1, 0.36, 1); }
@@ -536,12 +570,27 @@ td strong { color: var(--ink); font-size: 12.5px; font-weight: 600; }
 .form-item-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .form-item-heading strong { color: var(--ink); font-size: 13px; }
 .form-item-card .form-grid { gap: 12px; }
+.sourcing-form-item { padding: 18px; }
+.sourcing-form-sections { display: flex; flex-direction: column; gap: 14px; }
+.sourcing-form-section { padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
+.sourcing-form-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+.sourcing-form-section-heading strong { color: var(--ink); font-size: 13px; }
+.sourcing-form-section-heading span { color: var(--faint); font-size: 11px; text-align: right; }
+.sourcing-detail-grid { gap: 12px; }
+.sourcing-payment-list { display: flex; flex-direction: column; gap: 10px; }
+.sourcing-payment-block { padding: 14px; border: 1px solid #ececea; border-radius: 14px; background: #fbfbfa; }
+.sourcing-payment-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 11px; }
+.sourcing-payment-heading strong { color: var(--ink); font-size: 12px; }
+.sourcing-payment-heading span { color: var(--faint); font-size: 10.5px; }
+.sourcing-payment-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.sourcing-note-section { padding-bottom: 14px; }
 .add-item-button { margin-top: 14px; }
 .form-field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
 .form-field > span { color: var(--ink); font-size: 12px; font-weight: 700; }
 .form-field input, .form-field select, .form-field textarea { width: 100%; min-height: 44px; border: 1px solid #e5e5e2; border-radius: 14px; outline: 0; background: #fbfbfa; color: var(--ink); padding: 0 13px; font-size: 12.5px; }
 .form-field textarea { padding-top: 12px; resize: vertical; }
 .form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.form-field input[readonly] { color: var(--muted); background: #f1f1ef; cursor: default; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 9px; padding-top: 22px; margin-top: 22px; border-top: 1px solid var(--line); }
 .modal-actions .primary-button, .modal-actions .secondary-outline-button { height: 44px; }
 .toast {
@@ -897,6 +946,21 @@ td strong { color: var(--ink); font-size: 12.5px; font-weight: 600; }
   .batch-item .item-actions { margin-left: auto; }
   .lapak-batch-group { padding: 18px 16px 8px; }
   .lapak-group-heading { flex-wrap: wrap; gap: 8px; }
+  .sourcing-record { padding: 18px; border-radius: 18px; }
+  .sourcing-record-head { display: block; }
+  .sourcing-record-total { margin-top: 16px; text-align: left; }
+  .sourcing-record-details { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .sourcing-record-details > div + div { padding-left: 0; border-left: 0; }
+  .sourcing-record-details > div:last-child { grid-column: 1 / -1; padding-top: 12px; border-top: 1px solid var(--line); }
+  .sourcing-payment-summary { grid-template-columns: 1fr; }
+  .sourcing-record-note { display: block; }
+  .sourcing-record-note p { margin-top: 6px; }
+  .sourcing-record-footer { align-items: flex-start; flex-direction: column; }
+  .sourcing-record-footer .sourcing-record-actions { width: 100%; }
+  .sourcing-record-actions .sourcing-action-button { flex: 1; }
+  .sourcing-form-section-heading { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .sourcing-form-section-heading span { text-align: left; }
+  .sourcing-payment-fields { grid-template-columns: 1fr; gap: 10px; }
 
   .modal-backdrop { padding: 12px; }
   .quick-modal { padding: 22px; border-radius: 22px; }

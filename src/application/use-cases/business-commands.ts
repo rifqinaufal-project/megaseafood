@@ -1,7 +1,7 @@
 import { makeId, today, type BusinessState, type CompanyProfile, type ReceiptItem, type StockMovement, type StockMovementType, type UserRole } from "@/src/domain/business-state";
 import { USER_ROLES, appendAuditLog } from "@/src/domain/settings";
 import { calculateReceiptWeightedAverageCost, receiptSubtotal, skuFromName, validateReceiptItems, validateStockAdjustment } from "@/src/domain/inventory";
-import { isBusinessDate, reserveDocumentNumber, retainDocumentSequences } from "@/src/domain/business-integrity";
+import { isBusinessDate, reserveDocumentNumber, reserveSourcingNumber, retainDocumentSequences } from "@/src/domain/business-integrity";
 import { BusinessPersistenceError, type BusinessUpdater } from "@/src/application/ports/business-store";
 import { calculateInvoice, invoiceStatus, restoreInvoiceStock, type InvoiceInput } from "@/src/domain/invoice";
 
@@ -28,6 +28,70 @@ export type SupplierInput = { name: string; contactName: string; phone: string; 
 export type RestaurantInput = { name: string; contactName: string; phone: string; email?: string; address?: string; notes?: string; paymentTermDays: number };
 export type UserInput = { name: string; email: string; role: UserRole };
 export type SupplierPaymentInput = { receiptId: string; date: string; amount: number; method: string; reference: string };
+export type SourcingInput = {
+  date: string;
+  sourceType: "SUPPLIER" | "BENGKELAN";
+  name: string;
+  type: string;
+  weight: number;
+  unit: string;
+  price: number;
+  payment1: number;
+  payment1Date: string;
+  payment2: number;
+  payment2Date: string;
+  payment3: number;
+  payment3Date: string;
+  note: string;
+};
+
+export function sourcingTotal(input: Pick<SourcingInput, "weight" | "price">): number {
+  return input.weight * input.price;
+}
+
+export function validateSourcingInput(input: SourcingInput): string | null {
+  if (!isBusinessDate(input.date)) return "Tanggal pengadaan wajib valid";
+  if (!["SUPPLIER", "BENGKELAN"].includes(input.sourceType)) return "Pilih sumber pengadaan";
+  if (!input.name.trim() || !input.type.trim() || !input.unit.trim()) return "Nama, jenis, dan satuan wajib diisi";
+  if (!Number.isFinite(input.weight) || input.weight <= 0) return "Bobot harus lebih dari 0";
+  if (!Number.isFinite(input.price) || input.price <= 0) return "Harga harus lebih dari 0";
+  const total = sourcingTotal(input);
+  if (!Number.isFinite(total) || total <= 0) return "Jumlah pengadaan tidak valid";
+
+  const payments = [
+    [input.payment1, input.payment1Date, "pertama"],
+    [input.payment2, input.payment2Date, "kedua"],
+    [input.payment3, input.payment3Date, "ketiga"],
+  ] as const;
+  let paidTotal = 0;
+  for (const [amount, date, label] of payments) {
+    if (!Number.isFinite(amount) || amount < 0) return `Pembayaran ${label} tidak valid`;
+    if (date && (!isBusinessDate(date) || date < input.date)) return `Tanggal pembayaran ${label} tidak valid`;
+    if (amount > 0 && !date) return `Tanggal pembayaran ${label} wajib diisi`;
+    paidTotal += amount;
+  }
+  if (paidTotal > sourcingTotal(input)) return "Total pembayaran tidak boleh melebihi jumlah pengadaan";
+  return null;
+}
+
+export function normalizedSourcingInput(input: SourcingInput): Omit<SourcingInput, never> {
+  return {
+    date: input.date,
+    sourceType: input.sourceType,
+    name: input.name.trim(),
+    type: input.type.trim(),
+    weight: input.weight,
+    unit: input.unit.trim(),
+    price: input.price,
+    payment1: input.payment1,
+    payment1Date: input.payment1Date?.trim() ?? "",
+    payment2: input.payment2,
+    payment2Date: input.payment2Date?.trim() ?? "",
+    payment3: input.payment3,
+    payment3Date: input.payment3Date?.trim() ?? "",
+    note: input.note.trim(),
+  };
+}
 
 export type BusinessCommands = {
   runTransaction: (execute: (commands: BusinessCommands) => CommandResult) => CommandResult;
@@ -37,8 +101,8 @@ export type BusinessCommands = {
   addCommission: (input: { batchId: string; date: string; partner: string; amount: number; note: string }) => CommandResult;
   updateCommission: (id: string, input: { batchId: string; date: string; partner: string; amount: number; note: string }) => CommandResult;
   deleteCommission: (id: string) => CommandResult;
-  addSourcing: (input: { batchId: string; date: string; sourceType: "SUPPLIER" | "BENGKELAN"; sourceName: string; productName: string; quantity: number; unit: string; unitCost: number; paidAmount: number; note: string }) => CommandResult;
-  updateSourcing: (id: string, input: { batchId: string; date: string; sourceType: "SUPPLIER" | "BENGKELAN"; sourceName: string; productName: string; quantity: number; unit: string; unitCost: number; paidAmount: number; note: string }) => CommandResult;
+  addSourcing: (input: SourcingInput) => CommandResult;
+  updateSourcing: (id: string, input: SourcingInput) => CommandResult;
   deleteSourcing: (id: string) => CommandResult;
   addLapakSale: (input: { batchId: string; date: string; productName: string; quantity: number; unit: string; sellingPrice: number; unitCost: number }) => CommandResult;
   updateLapakSale: (id: string, input: { batchId: string; date: string; productName: string; quantity: number; unit: string; sellingPrice: number; unitCost: number }) => CommandResult;
@@ -150,19 +214,19 @@ export function createBusinessCommands(persistState: (updater: BusinessUpdater) 
     },
     deleteBatch: (id) => {
       if (!getState().batches.some((batch) => batch.id === id)) return { ok: false, message: "Batch tidak ditemukan" };
-      setState((state) => ({ ...state, batches: state.batches.filter((batch) => batch.id !== id), commissions: state.commissions.filter((item) => item.batchId !== id), sourcings: state.sourcings.filter((item) => item.batchId !== id), lapakSales: state.lapakSales.filter((item) => item.batchId !== id), lapakExpenses: state.lapakExpenses.filter((item) => item.batchId !== id) }));
+      setState((state) => ({ ...state, batches: state.batches.filter((batch) => batch.id !== id), commissions: state.commissions.filter((item) => item.batchId !== id), lapakSales: state.lapakSales.filter((item) => item.batchId !== id), lapakExpenses: state.lapakExpenses.filter((item) => item.batchId !== id) }));
       return { ok: true, message: "Batch dan seluruh transaksinya berhasil dihapus" };
     },
     addCommission: (input) => {
       const batch = getState().batches.find((item) => item.id === input.batchId);
       if (!batch) return { ok: false, message: "Pilih batch Lapak yang tersedia" };
-      if (!input.partner.trim() || input.amount <= 0) return { ok: false, message: "Partner dan jumlah komisi wajib diisi" };
+      if (!input.partner.trim() || !Number.isFinite(input.amount) || input.amount === 0) return { ok: false, message: "Partner dan jumlah komisi wajib diisi; komisi boleh positif atau negatif" };
       setState((state) => ({ ...state, commissions: [...state.commissions, { id: makeId("commission"), ...input, partner: input.partner.trim() }] }));
       return { ok: true, message: "Komisi berhasil dicatat" };
     },
     updateCommission: (id, input) => {
       if (!getState().batches.some((batch) => batch.id === input.batchId)) return { ok: false, message: "Pilih batch Lapak yang tersedia" };
-      if (!input.partner.trim() || input.amount <= 0) return { ok: false, message: "Partner dan jumlah komisi wajib diisi" };
+      if (!input.partner.trim() || !Number.isFinite(input.amount) || input.amount === 0) return { ok: false, message: "Partner dan jumlah komisi wajib diisi; komisi boleh positif atau negatif" };
       if (!getState().commissions.some((item) => item.id === id)) return { ok: false, message: "Komisi tidak ditemukan" };
       setState((state) => ({ ...state, commissions: state.commissions.map((item) => item.id === id ? { ...item, ...input, partner: input.partner.trim() } : item) }));
       return { ok: true, message: "Komisi berhasil diperbarui" };
@@ -173,21 +237,25 @@ export function createBusinessCommands(persistState: (updater: BusinessUpdater) 
       return { ok: true, message: "Komisi berhasil dihapus" };
     },
     addSourcing: (input) => {
-      const batch = getState().batches.find((item) => item.id === input.batchId);
-      if (!batch) return { ok: false, message: "Pilih batch Lapak yang tersedia" };
-      if (!input.sourceName.trim() || !input.productName.trim() || input.quantity <= 0 || input.unitCost <= 0 || input.paidAmount < 0) return { ok: false, message: "Sumber, produk, quantity, dan biaya pengadaan wajib valid" };
-      const totalCost = input.quantity * input.unitCost;
-      const paidAmount = Math.min(input.paidAmount, totalCost);
-      setState((state) => ({ ...state, sourcings: [...state.sourcings, { id: makeId("sourcing"), ...input, sourceName: input.sourceName.trim(), productName: input.productName.trim(), totalCost, paidAmount, outstandingAmount: totalCost - paidAmount }] }));
-      return { ok: true, message: "Pengadaan berhasil dicatat tanpa mengubah inventory" };
+      const validation = validateSourcingInput(input);
+      if (validation) return { ok: false, message: validation };
+      const id = makeId("sourcing");
+      setState((state) => {
+        const reserved = reserveSourcingNumber(state);
+        const total = sourcingTotal(input);
+        return {
+          ...state,
+          numberSequences: reserved.numberSequences,
+          sourcings: [...state.sourcings, { id, sequence: reserved.sequence, ...normalizedSourcingInput(input), total }],
+        };
+      });
+      return { ok: true, id, message: "Pengadaan berhasil dicatat tanpa mengubah inventory" };
     },
     updateSourcing: (id, input) => {
-      if (!getState().batches.some((batch) => batch.id === input.batchId)) return { ok: false, message: "Pilih batch Lapak yang tersedia" };
-      if (!input.sourceName.trim() || !input.productName.trim() || input.quantity <= 0 || input.unitCost <= 0 || input.paidAmount < 0) return { ok: false, message: "Sumber, produk, quantity, dan biaya pengadaan wajib valid" };
       if (!getState().sourcings.some((item) => item.id === id)) return { ok: false, message: "Pengadaan tidak ditemukan" };
-      const totalCost = input.quantity * input.unitCost;
-      const paidAmount = Math.min(input.paidAmount, totalCost);
-      setState((state) => ({ ...state, sourcings: state.sourcings.map((item) => item.id === id ? { ...item, ...input, sourceName: input.sourceName.trim(), productName: input.productName.trim(), totalCost, paidAmount, outstandingAmount: totalCost - paidAmount } : item) }));
+      const validation = validateSourcingInput(input);
+      if (validation) return { ok: false, message: validation };
+      setState((state) => ({ ...state, sourcings: state.sourcings.map((item) => item.id === id ? { ...item, ...normalizedSourcingInput(input), total: sourcingTotal(input) } : item) }));
       return { ok: true, message: "Pengadaan berhasil diperbarui" };
     },
     deleteSourcing: (id) => {

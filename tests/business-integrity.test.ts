@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createBusinessCommands } from "../src/application/use-cases/business-commands";
-import { seedBusinessState, type BusinessState } from "../src/domain/business-state";
+import { formatRupiah, seedBusinessState, type BusinessState } from "../src/domain/business-state";
 import { addCalendarDays, isBusinessDate, localDate, receiptOutstanding } from "../src/domain/business-integrity";
 import WorkspacePage from "../src/presentation/dashboard/WorkspacePage";
 import { resolveWorkspacePage } from "../src/presentation/dashboard/workspace-routing";
@@ -68,6 +68,131 @@ test("invalid calendar dates and non-finite amounts are rejected without mutatio
   assert.equal(commands.addOperatingExpense({ date: "2026-11-11", category: "Es", description: "Es", amount: Infinity }).ok, false);
   assert.equal(commands.addRestaurant({ name: "Resto", contactName: "", phone: "", paymentTermDays: 1.5 }).ok, false);
   assert.equal(getState(), initial);
+});
+
+test("negative commissions and standalone sourcing are accepted with automatic numbers", () => {
+  const { commands, getState } = memoryCommands();
+  assert.equal(formatRupiah("-125000"), "-125.000");
+  assert.equal(commands.addCommission({ batchId: "batch-42", date: "2026-06-12", partner: "Koreksi", amount: -125000, note: "Retur" }).ok, true);
+  const result = commands.addSourcing({
+    date: "2026-06-13",
+    sourceType: "BENGKELAN",
+    name: "Bengkel Muara",
+    type: "Perbaikan box",
+    weight: 2,
+    unit: "unit",
+    price: 150000,
+    payment1: 100000,
+    payment1Date: "2026-06-13",
+    payment2: 0,
+    payment2Date: "",
+    payment3: 0,
+    payment3Date: "",
+    note: "Selesai sore",
+  });
+  assert.equal(result.ok, true);
+  const sourcing = getState().sourcings.at(-1)!;
+  assert.equal(sourcing.sequence, 2);
+  assert.equal(sourcing.total, 300000);
+  assert.equal("batchId" in sourcing, false);
+  commands.deleteBatch("batch-42");
+  assert.equal(getState().sourcings.some((item) => item.id === sourcing.id), true);
+  assert.equal(getState().commissions.some((item) => item.amount === -125000), false);
+  commands.deleteSourcing(sourcing.id);
+  const next = commands.addSourcing({
+    date: "2026-06-14",
+    sourceType: "SUPPLIER",
+    name: "Supplier Baru",
+    type: "Cumi",
+    weight: 1,
+    unit: "kg",
+    price: 50000,
+    payment1: 0,
+    payment1Date: "",
+    payment2: 0,
+    payment2Date: "",
+    payment3: 0,
+    payment3Date: "",
+    note: "",
+  });
+  assert.equal(next.ok, true);
+  assert.equal(getState().sourcings.at(-1)!.sequence, 3);
+});
+
+test("legacy sourcing records migrate to the standalone payment structure", () => {
+  const legacy = {
+    ...seedBusinessState(),
+    sourcings: [{
+      id: "legacy-sourcing",
+      batchId: "batch-42",
+      date: "2026-06-12",
+      sourceType: "SUPPLIER",
+      sourceName: "CV Lama",
+      productName: "Udang",
+      quantity: 10,
+      unit: "kg",
+      unitCost: 72000,
+      totalCost: 720000,
+      paidAmount: 300000,
+      outstandingAmount: 420000,
+      note: "Migrasi",
+    }],
+  };
+  const migrated = normalizeBusinessState(legacy);
+  assert.deepEqual(migrated.sourcings[0], {
+    id: "legacy-sourcing",
+    sequence: 1,
+    date: "2026-06-12",
+    sourceType: "SUPPLIER",
+    name: "CV Lama",
+    type: "Udang",
+    weight: 10,
+    unit: "kg",
+    price: 72000,
+    total: 720000,
+    payment1: 300000,
+    payment1Date: "2026-06-12",
+    payment2: 0,
+    payment2Date: "",
+    payment3: 0,
+    payment3Date: "",
+    note: "Migrasi",
+  });
+  assert.equal(migrated.numberSequences?.SOURCING, 1);
+});
+
+test("standalone sourcing renders its fields without a batch column", () => {
+  const { commands, getState } = memoryCommands();
+  const html = renderToStaticMarkup(createElement(WorkspacePage, {
+    module: "lapak",
+    page: "Pengadaan",
+    business: getState(),
+    commands,
+    onNotify: () => {},
+  initialFormOpen: true,
+  }));
+  assert.doesNotMatch(html, /No \(otomatis\)/);
+  assert.match(html, /Pembayaran 1 \(Rp\)/);
+  assert.match(html, /Tanggal pembayaran 1/);
+  assert.match(html, /Pembayaran 2 \(Rp\)/);
+  assert.match(html, /Tanggal pembayaran 2/);
+  assert.match(html, /Pembayaran 3 \(Rp\)/);
+  assert.match(html, /Tanggal pembayaran 3/);
+  assert.match(html, /Daftar pengadaan/);
+  assert.doesNotMatch(html, /Pilih batch Lapak/);
+  assert.doesNotMatch(html, /Batch Pasar Muara Baru/);
+  const listing = renderToStaticMarkup(createElement(WorkspacePage, {
+    module: "lapak",
+    page: "Pengadaan",
+    business: getState(),
+    commands,
+    onNotify: () => {},
+  }));
+  assert.match(listing, /sourcing-record/);
+  assert.match(listing, />Edit<\/span>/);
+  assert.match(listing, />Hapus<\/span>/);
+  assert.doesNotMatch(listing, /sourcing-table/);
+  assert.doesNotMatch(listing, /<th>No<\/th>/);
 });
 
 test("batch note edits preserve the number even when there are several batches on a date", () => {
@@ -204,7 +329,8 @@ test("batch list shows each batch's name and income/cost totals without CRUD met
   assert.match(html, /BAT-100626-001/);
   assert.match(html, /Batch Pasar Muara Baru/);
   assert.match(html, /Rp 4\.200\.000/);
-  assert.match(html, /Rp 3\.876\.000/);
+  assert.match(html, /Rp 420\.000/);
+  assert.doesNotMatch(html, /Rp 3\.876\.000/);
   assert.match(html, /Pendapatan/);
   assert.match(html, /Biaya/);
   assert.doesNotMatch(html, /Mode data|CRUD|terhubung ke batch/);

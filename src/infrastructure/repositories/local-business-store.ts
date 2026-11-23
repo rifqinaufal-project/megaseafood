@@ -10,7 +10,7 @@ type StoreSnapshot = { state: BusinessState; storageError: string | null };
 const fields = {
   batches: ["batchNumber", "startDate", "notes"],
   commissions: ["batchId", "date", "partner", "note"],
-  sourcings: ["batchId", "date", "sourceType", "sourceName", "productName", "unit", "note"],
+  sourcings: ["date", "sourceType", "name", "type", "unit", "payment1Date", "payment2Date", "payment3Date", "note"],
   lapakSales: ["batchId", "date", "customerLabel", "paymentStatus"],
   lapakExpenses: ["batchId", "date", "expenseName", "notes"],
   products: ["sku", "name", "category", "size", "unit", "status"],
@@ -30,7 +30,7 @@ const fields = {
 const companyFields = ["name", "address", "phone", "email", "website", "npwp", "bankName", "bankAccount", "bankHolder"] as const;
 const amounts = {
   batches: [], commissions: ["amount"],
-  sourcings: ["quantity", "unitCost", "totalCost", "paidAmount", "outstandingAmount"],
+  sourcings: ["weight", "price", "total", "payment1", "payment2", "payment3"],
   lapakSales: ["totalAmount"], lapakExpenses: ["amount"],
   products: ["defaultSellingPrice", "averageHpp", "latestPurchaseCost", "stockBalance", "minimumStock"],
   suppliers: [], restaurants: ["paymentTermDays"],
@@ -43,12 +43,14 @@ const amounts = {
   users: [], auditLogs: [],
 } as const;
 // Dates that may legitimately be empty (e.g. no receipt due date).
-const optionalDates = new Set(["receipts.dueDate"]);
+const optionalDates = new Set(["receipts.dueDate", "sourcings.payment1Date", "sourcings.payment2Date", "sourcings.payment3Date"]);
 // Movements store signed quantities and balances can be reconciled to zero.
 const signedAmounts = new Set(["stockMovements.quantity"]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
+
+const signedAmountsWithCommission = new Set([...signedAmounts, "commissions.amount"]);
 
 // Fills fields introduced after v3 so data saved by older builds stays readable.
 // Entries (and lists) that are already current keep their identity, so unchanged data is never rewritten.
@@ -81,6 +83,62 @@ function migrateLegacyState(value: Record<string, unknown>): Record<string, unkn
     const items = typeof productId === "string" ? [{ productId, manualQuantity: manualWeight, digitalQuantity: digitalWeight, unitCost: unitPurchasePrice }] : entry.items;
     return { ...rest, items, supplierReference: entry.supplierReference ?? "", dueDate: entry.dueDate ?? "", notes: entry.notes ?? "" };
   });
+  const rawSourcings = value.sourcings;
+  if (!Array.isArray(rawSourcings)) {
+    migrated.sourcings = [];
+  } else {
+    const configuredSequence = isRecord(value.numberSequences) && typeof value.numberSequences.SOURCING === "number" && Number.isSafeInteger(value.numberSequences.SOURCING) && value.numberSequences.SOURCING >= 0
+      ? value.numberSequences.SOURCING
+      : 0;
+    let nextSequence = configuredSequence;
+    const usedSequences = new Set<number>();
+    const sequences = rawSourcings.map((entry) => {
+      const candidate = isRecord(entry) && typeof entry.sequence === "number" && Number.isSafeInteger(entry.sequence) && entry.sequence > 0
+        ? entry.sequence
+        : null;
+      if (candidate !== null && !usedSequences.has(candidate)) {
+        usedSequences.add(candidate);
+        nextSequence = Math.max(nextSequence, candidate);
+        return candidate;
+      }
+      do nextSequence += 1; while (usedSequences.has(nextSequence));
+      usedSequences.add(nextSequence);
+      return nextSequence;
+    });
+    const migratedSourcings = rawSourcings.map((entry, index) => {
+      if (!isRecord(entry)) return entry;
+      const currentFields = ["date", "sourceType", "name", "type", "weight", "unit", "price", "total", "payment1", "payment1Date", "payment2", "payment2Date", "payment3", "payment3Date", "note"];
+      if (currentFields.every((field) => field in entry) && entry.sequence === sequences[index]) return entry;
+      const number = (candidate: unknown, fallback: number) => typeof candidate === "number" && Number.isFinite(candidate) ? candidate : fallback;
+      const text = (candidate: unknown, fallback = "") => typeof candidate === "string" ? candidate : fallback;
+      const weight = number(entry.weight, number(entry.quantity, 0));
+      const price = number(entry.price, number(entry.unitCost, 0));
+      const oldTotal = number(entry.total, number(entry.totalCost, 0));
+      const total = weight > 0 && price > 0 ? weight * price : oldTotal;
+      const payment1 = number(entry.payment1, number(entry.paidAmount, 0));
+      const payment1Date = text(entry.payment1Date, payment1 > 0 ? text(entry.date) : "");
+      return {
+        id: text(entry.id),
+        sequence: sequences[index],
+        date: text(entry.date),
+        sourceType: entry.sourceType === "SUPPLIER" ? "SUPPLIER" : "BENGKELAN",
+        name: text(entry.name, text(entry.sourceName)),
+        type: text(entry.type, text(entry.productName)),
+        weight,
+        unit: text(entry.unit, "kg"),
+        price,
+        total,
+        payment1,
+        payment1Date,
+        payment2: number(entry.payment2, 0),
+        payment2Date: text(entry.payment2Date),
+        payment3: number(entry.payment3, 0),
+        payment3Date: text(entry.payment3Date),
+        note: text(entry.note),
+      };
+    });
+    if (migratedSourcings.some((entry, index) => entry !== rawSourcings[index])) migrated.sourcings = migratedSourcings;
+  }
   migrate("supplierPayments", () => null);
   migrate("stockMovements", () => null);
   migrate("customerPrices", () => null);
@@ -112,7 +170,29 @@ export function normalizeBusinessState(input: unknown): BusinessState {
         if (["date", "startDate", "dueDate"].includes(field) && !emptyAllowed && !isBusinessDate(entry[field] as string)) throw new Error(`Tanggal ${key} tidak valid`);
       }
       for (const field of amounts[key]) {
-        if (typeof entry[field] !== "number" || !Number.isFinite(entry[field]) || (!signedAmounts.has(`${key}.${field}`) && (entry[field] as number) < 0)) throw new Error(`Angka ${key}.${field} tidak valid`);
+        if (typeof entry[field] !== "number" || !Number.isFinite(entry[field]) || (!signedAmountsWithCommission.has(`${key}.${field}`) && (entry[field] as number) < 0)) throw new Error(`Angka ${key}.${field} tidak valid`);
+      }
+      if (key === "sourcings") {
+        if (!Number.isSafeInteger(entry.sequence) || (entry.sequence as number) <= 0) throw new Error("Nomor pengadaan tidak valid");
+        if (!["SUPPLIER", "BENGKELAN"].includes(entry.sourceType as string)) throw new Error("Sumber pengadaan tidak valid");
+        if (!(entry.name as string).trim() || !(entry.type as string).trim() || !(entry.unit as string).trim()) throw new Error("Detail pengadaan tidak valid");
+        const calculatedTotal = (entry.weight as number) * (entry.price as number);
+        if (!Number.isFinite(calculatedTotal) || calculatedTotal <= 0) throw new Error("Jumlah pengadaan tidak valid");
+        const paymentDates = ["payment1Date", "payment2Date", "payment3Date"];
+        for (const field of paymentDates) {
+          const paymentDate = entry[field];
+          if (typeof paymentDate !== "string" || (paymentDate && (!isBusinessDate(paymentDate) || paymentDate < (entry.date as string)))) throw new Error("Tanggal pembayaran pengadaan tidak valid");
+        }
+        const payments = [
+          [entry.payment1, entry.payment1Date],
+          [entry.payment2, entry.payment2Date],
+          [entry.payment3, entry.payment3Date],
+        ];
+        for (const [amount, paymentDate] of payments) {
+          if ((amount as number) > 0 && !(paymentDate as string)) throw new Error("Tanggal pembayaran pengadaan wajib diisi");
+        }
+        const paid = (entry.payment1 as number) + (entry.payment2 as number) + (entry.payment3 as number);
+        if (paid > calculatedTotal) throw new Error("Pembayaran pengadaan melebihi jumlah");
       }
       if (key === "restaurants" && (!Number.isSafeInteger(entry.paymentTermDays) || (entry.paymentTermDays as number) > 3650)) throw new Error("Termin restoran tidak valid");
       if ((key === "invoices" || key === "payments") && entry.revision !== undefined && (!Number.isSafeInteger(entry.revision) || (entry.revision as number) < 0)) throw new Error("Revisi transaksi tidak valid");
@@ -147,10 +227,14 @@ export function normalizeBusinessState(input: unknown): BusinessState {
   if (!record(value.company) || companyFields.some((field) => typeof (value.company as Record<string, unknown>)[field] !== "string")) throw new Error("Profil bisnis tidak valid");
   if (value.numberSequences !== undefined && (!record(value.numberSequences) || Object.values(value.numberSequences).some((number) => !Number.isSafeInteger(number) || (number as number) < 0))) throw new Error("Urutan nomor tidak valid");
   const state = value as unknown as BusinessState;
+  const normalizedSourcings = state.sourcings.every((item) => item.total === item.weight * item.price)
+    ? state.sourcings
+    : state.sourcings.map((item) => ({ ...item, total: item.weight * item.price }));
   return retainDocumentSequences({
     ...state,
     // Remove only obsolete batch lifecycle properties; preserve all business data.
     batches: state.batches.map((batch) => ({ id: batch.id, batchNumber: batch.batchNumber, startDate: batch.startDate, notes: batch.notes })),
+    sourcings: normalizedSourcings,
   });
 }
 

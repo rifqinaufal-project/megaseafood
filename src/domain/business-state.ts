@@ -21,17 +21,23 @@ export interface Commission {
 
 export interface Sourcing {
   id: string;
-  batchId: string;
+  /** Nomor baris otomatis; tidak diisi manual oleh pengguna. */
+  sequence: number;
   date: string;
+  /** Sumber baris: supplier atau bengkelan. */
   sourceType: "SUPPLIER" | "BENGKELAN";
-  sourceName: string;
-  productName: string;
-  quantity: number;
+  name: string;
+  type: string;
+  weight: number;
   unit: string;
-  unitCost: number;
-  totalCost: number;
-  paidAmount: number;
-  outstandingAmount: number;
+  price: number;
+  total: number;
+  payment1: number;
+  payment1Date: string;
+  payment2: number;
+  payment2Date: string;
+  payment3: number;
+  payment3Date: string;
   note: string;
 }
 
@@ -311,9 +317,12 @@ export const numberValue = (value: string | number) => {
 
 export const formatRupiah = (value: string | number) => {
   if (typeof value === "string") {
-    const digits = value.replace(/\D/g, "");
-    if (!digits) return "";
-    return Number(digits).toLocaleString("id-ID");
+    const trimmed = value.trim();
+    const negative = trimmed.startsWith("-");
+    const digits = trimmed.replace(/\D/g, "");
+    if (!digits) return negative ? "-" : "";
+    const formatted = Number(digits).toLocaleString("id-ID");
+    return negative ? `-${formatted}` : formatted;
   }
   return Number.isFinite(value) ? Math.round(value).toLocaleString("id-ID") : "";
 };
@@ -353,7 +362,7 @@ export const seedBusinessState = (): BusinessState => ({
     { id: "commission-2", batchId: "batch-41", date: "2026-06-11", partner: "Bu Sari Seafood", amount: 2750000, note: "Komisi tetap" },
   ],
   sourcings: [
-    { id: "sourcing-1", batchId: "batch-42", date: "2026-06-12", sourceType: "SUPPLIER", sourceName: "CV Laut Jaya", productName: "Udang Vaname", quantity: 48, unit: "kg", unitCost: 72000, totalCost: 3456000, paidAmount: 2500000, outstandingAmount: 956000, note: "" },
+    { id: "sourcing-1", sequence: 1, date: "2026-06-12", sourceType: "SUPPLIER", name: "CV Laut Jaya", type: "Udang Vaname", weight: 48, unit: "kg", price: 72000, total: 3456000, payment1: 2500000, payment1Date: "2026-06-12", payment2: 0, payment2Date: "", payment3: 0, payment3Date: "", note: "" },
   ],
   lapakSales: [],
   lapakExpenses: [

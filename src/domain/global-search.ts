@@ -53,9 +53,9 @@ export function searchBusiness(state: BusinessState, query: string, limit = 18):
   }, [commission.partner, commission.date, commission.note, commission.id]);
 
   for (const sourcing of state.sourcings) add({
-    kind: "Pengadaan", title: sourcing.productName, detail: `${sourcing.sourceName} · ${sourcing.date} · Rp ${formatRupiah(sourcing.totalCost)}`,
-    module: "lapak", page: "Pengadaan", batchId: sourcing.batchId,
-  }, [sourcing.productName, sourcing.sourceName, sourcing.date, sourcing.note, sourcing.id]);
+    kind: sourcing.sourceType === "BENGKELAN" ? "Bengkelan" : "Pengadaan", title: sourcing.name, detail: `${sourcing.type} · ${sourcing.date} · Rp ${formatRupiah(sourcing.total)}`,
+    module: "lapak", page: "Pengadaan",
+  }, [sourcing.name, sourcing.type, sourcing.sourceType, sourcing.date, sourcing.note, sourcing.id, sourcing.sequence]);
 
   for (const sale of state.lapakSales) {
     const products = sale.items.map((item) => item.productName).join(", ");

@@ -188,13 +188,13 @@ function LapakDashboard({
   );
   const salesTotal = sales.reduce((sum, item) => sum + item.totalAmount, 0);
   const sourcingTotal = sourcings.reduce(
-    (sum, item) => sum + item.totalCost,
+    (sum, item) => sum + item.total,
     0,
   );
   const expenseTotal = expenses.reduce((sum, item) => sum + item.amount, 0);
   const batchIds = [
     ...new Set(
-      [...commissions, ...sourcings, ...sales, ...expenses].map(
+      [...commissions, ...sales, ...expenses].map(
         (item) => item.batchId,
       ),
     ),
@@ -275,9 +275,6 @@ function LapakDashboard({
                 .filter((item) => item.batchId === batchId)
                 .reduce((sum, item) => sum + item.totalAmount, 0);
               const batchCosts =
-                sourcings
-                  .filter((item) => item.batchId === batchId)
-                  .reduce((sum, item) => sum + item.totalCost, 0) +
                 expenses
                   .filter((item) => item.batchId === batchId)
                   .reduce((sum, item) => sum + item.amount, 0);

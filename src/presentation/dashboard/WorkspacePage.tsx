@@ -70,6 +70,10 @@ const moneyFields = new Set([
   "amount",
   "unitCost",
   "paidAmount",
+  "price",
+  "payment1",
+  "payment2",
+  "payment3",
   "sellingPrice",
   "unitPurchasePrice",
   "discount",
@@ -103,7 +107,7 @@ const pageMeta: Record<
   "Sourcing & Bengkelan": {
     title: "Pengadaan & Bengkelan",
     description:
-      "Catat barang dari supplier atau bengkelan untuk kebutuhan batch Lapak.",
+      "Catat pengadaan dari supplier atau bengkelan sebagai alur mandiri di luar batch.",
     action: "Tambah pengadaan",
   },
   "B2C Sales": {
@@ -191,6 +195,22 @@ const pageMeta: Record<
 
 function fieldLabel(key: string) {
   if (key === "paidAmount") return "Sudah dibayar";
+  const labels: Record<string, string> = {
+    sourceType: "Sumber",
+    name: "Nama",
+    type: "Jenis",
+    weight: "Bobot",
+    price: "Harga",
+    total: "Jumlah",
+    payment1: "Pembayaran 1",
+    payment1Date: "Tanggal pembayaran 1",
+    payment2: "Pembayaran 2",
+    payment2Date: "Tanggal pembayaran 2",
+    payment3: "Pembayaran 3",
+    payment3Date: "Tanggal pembayaran 3",
+    note: "Catatan",
+  };
+  if (labels[key]) return labels[key];
   return key
     .replace(/([A-Z])/g, " $1")
     .replace(/^./, (value) => value.toUpperCase());
@@ -205,6 +225,7 @@ function Field({
   suggestions,
   placeholder,
   required = false,
+  readOnly = false,
 }: {
   name: string;
   value: string;
@@ -214,6 +235,7 @@ function Field({
   suggestions?: string[];
   placeholder?: string;
   required?: boolean;
+  readOnly?: boolean;
 }) {
   const isMoney = moneyFields.has(name);
   const listId = useId();
@@ -244,6 +266,7 @@ function Field({
           step={type === "number" ? "any" : undefined}
           inputMode={isMoney ? "numeric" : undefined}
           value={isMoney ? formatRupiah(value) : value}
+          readOnly={readOnly}
           onChange={(event) =>
             onChange(
               isMoney ? formatRupiah(event.target.value) : event.target.value,
@@ -285,6 +308,13 @@ function ModalForm({
     batchId: initialBatchId ?? "",
     sourceType: "BENGKELAN",
     unit: "kg",
+    weight: "1",
+    payment1: "0",
+    payment1Date: "",
+    payment2: "0",
+    payment2Date: "",
+    payment3: "0",
+    payment3Date: "",
     quantity: "1",
     marginQuantity: "0",
     discount: "0",
@@ -357,13 +387,14 @@ function ModalForm({
   );
 
   const validateItem = (item: FormValue) => {
+    const needsBatch = ["Commission", "Expenses", "B2C Sales"].includes(page);
     const batch = batches.find((candidate) => candidate.id === item.batchId);
-    if (!batch) return "Pilih batch Lapak yang tersedia";
+    if (needsBatch && !batch) return "Pilih batch Lapak yang tersedia";
     if (
       page === "Commission" &&
-      (!item.partner?.trim() || asMoney(item.amount || "") <= 0)
+      (!item.partner?.trim() || asMoney(item.amount || "") === 0)
     )
-      return "Partner dan jumlah komisi wajib diisi";
+      return "Partner dan jumlah komisi wajib diisi; komisi boleh positif atau negatif";
     if (
       page === "Expenses" &&
       (!item.expenseName?.trim() || asMoney(item.amount || "") <= 0)
@@ -379,13 +410,15 @@ function ModalForm({
       return "Produk, quantity, dan harga penjualan wajib valid";
     if (
       page === "Sourcing & Bengkelan" &&
-      (!item.sourceName?.trim() ||
-        !item.productName?.trim() ||
-        asNumber(item.quantity || "0") <= 0 ||
-        asMoney(item.unitCost || "") <= 0 ||
-        asMoney(item.paidAmount || "") < 0)
+      (!item.name?.trim() ||
+        !item.type?.trim() ||
+        asNumber(item.weight || "0") <= 0 ||
+        asMoney(item.price || "") <= 0 ||
+        asMoney(item.payment1 || "") < 0 ||
+        asMoney(item.payment2 || "") < 0 ||
+        asMoney(item.payment3 || "") < 0)
     )
-      return "Sumber, produk, quantity, dan biaya pengadaan wajib valid";
+      return "Nama, jenis, bobot, dan harga pengadaan wajib valid";
     return null;
   };
 
@@ -417,17 +450,21 @@ function ModalForm({
           }
           if (page === "Sourcing & Bengkelan") {
             const input = {
-              batchId: item.batchId,
               date: item.date || today(),
               sourceType: (item.sourceType || "BENGKELAN") as
                 | "SUPPLIER"
                 | "BENGKELAN",
-              sourceName: item.sourceName || "",
-              productName: item.productName || "",
-              quantity: asNumber(item.quantity || "0"),
+              name: item.name || "",
+              type: item.type || "",
+              weight: asNumber(item.weight || "0"),
               unit: item.unit || "kg",
-              unitCost: asMoney(item.unitCost || ""),
-              paidAmount: asMoney(item.paidAmount || ""),
+              price: asMoney(item.price || ""),
+              payment1: asMoney(item.payment1 || ""),
+              payment1Date: item.payment1Date || "",
+              payment2: asMoney(item.payment2 || ""),
+              payment2Date: item.payment2Date || "",
+              payment3: asMoney(item.payment3 || ""),
+              payment3Date: item.payment3Date || "",
               note: item.note || "",
             };
             result = editRecord
@@ -532,10 +569,129 @@ function ModalForm({
     if (result.ok) onClose();
   };
 
+  const renderSourcingPayment = (
+    item: FormValue,
+    index: number,
+    paymentNumber: 1 | 2 | 3,
+  ) => {
+    const amountKey = `payment${paymentNumber}`;
+    const dateKey = `payment${paymentNumber}Date`;
+    return (
+      <div className="sourcing-payment-block" key={amountKey}>
+        <div className="sourcing-payment-heading">
+          <strong>Tahap pembayaran {paymentNumber}</strong>
+          <span>{paymentNumber === 1 ? "Pembayaran awal" : "Opsional"}</span>
+        </div>
+        <div className="sourcing-payment-fields">
+          <Field
+            name={amountKey}
+            type="number"
+            value={item[amountKey] || ""}
+            onChange={(value) => setItem(index, amountKey, value)}
+          />
+          <Field
+            name={dateKey}
+            type="date"
+            value={item[dateKey] || ""}
+            onChange={(value) => setItem(index, dateKey, value)}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  const renderSourcingFields = (item: FormValue, index: number) => (
+    <div className="sourcing-form-sections">
+      <section className="sourcing-form-section">
+        <div className="sourcing-form-section-heading">
+          <strong>Detail pengadaan</strong>
+          <span>Isi sumber, barang atau pekerjaan, serta nilainya.</span>
+        </div>
+        <div className="form-grid sourcing-detail-grid">
+          <Field
+            name="date"
+            type="date"
+            value={item.date || ""}
+            onChange={(value) => setItem(index, "date", value)}
+          />
+          <Field
+            name="sourceType"
+            options={[
+              { label: "Bengkelan", value: "BENGKELAN" },
+              { label: "Supplier", value: "SUPPLIER" },
+            ]}
+            value={item.sourceType || "BENGKELAN"}
+            onChange={(value) => setItem(index, "sourceType", value)}
+          />
+          <Field
+            name="name"
+            suggestions={recentSuggestions(state.sourcings.map((entry) => entry.name))}
+            value={item.name || ""}
+            onChange={(value) => setItem(index, "name", value)}
+            placeholder="Nama supplier atau bengkelan"
+          />
+          <Field
+            name="type"
+            suggestions={recentSuggestions(state.sourcings.map((entry) => entry.type))}
+            value={item.type || ""}
+            onChange={(value) => setItem(index, "type", value)}
+            placeholder="Jenis seafood / pekerjaan"
+          />
+          <Field
+            name="weight"
+            type="number"
+            value={item.weight || ""}
+            onChange={(value) => setItem(index, "weight", value)}
+          />
+          <Field
+            name="unit"
+            value={item.unit || "kg"}
+            onChange={(value) => setItem(index, "unit", value)}
+          />
+          <Field
+            name="price"
+            type="number"
+            value={item.price || ""}
+            onChange={(value) => setItem(index, "price", value)}
+          />
+          <Field
+            name="total"
+            type="number"
+            value={String(asNumber(item.weight || "0") * asMoney(item.price || ""))}
+            onChange={() => {}}
+            readOnly
+          />
+        </div>
+      </section>
+      <section className="sourcing-form-section">
+        <div className="sourcing-form-section-heading">
+          <strong>Pembayaran</strong>
+          <span>Nominal dan tanggal selalu disimpan sebagai satu pasangan.</span>
+        </div>
+        <div className="sourcing-payment-list">
+          {([1, 2, 3] as const).map((paymentNumber) =>
+            renderSourcingPayment(item, index, paymentNumber),
+          )}
+        </div>
+      </section>
+      <section className="sourcing-form-section sourcing-note-section">
+        <Field
+          name="note"
+          value={item.note || ""}
+          onChange={(value) => setItem(index, "note", value)}
+          placeholder="Catatan tambahan"
+        />
+      </section>
+    </div>
+  );
+
   const renderItemFields = (item: FormValue, index: number) => (
-    <div className="form-item-card" key={`item-${index}`}>
+    <div
+      className={`form-item-card${page === "Sourcing & Bengkelan" ? " sourcing-form-item" : ""}`}
+      key={`item-${index}`}
+    >
       <div className="form-item-heading">
-        <strong>Item {index + 1}</strong>
+        <strong>{page === "Sourcing & Bengkelan" ? "Pengadaan" : `Item ${index + 1}`}</strong>
         {items.length > 1 && (
           <button
             className="text-link"
@@ -550,140 +706,99 @@ function ModalForm({
           </button>
         )}
       </div>
-      <div className="form-grid">
-        <Field
-          name="batchId"
-          options={batches.map((batch) => ({
-            label: batch.batchNumber,
-            value: batch.id,
-          }))}
-          value={item.batchId || ""}
-          onChange={(value) => setItem(index, "batchId", value)}
-        />
-        <Field
-          name="date"
-          type="date"
-          value={item.date || ""}
-          onChange={(value) => setItem(index, "date", value)}
-        />
-        {page === "Commission" && (
-          <>
-            <Field
-              name="partner"
-              suggestions={recentSuggestions(state.commissions.map((entry) => entry.partner))}
-              value={item.partner || ""}
-              onChange={(value) => setItem(index, "partner", value)}
-              placeholder="Nama supplier atau pedagang"
-            />
-            <Field
-              name="amount"
-              type="number"
-              value={item.amount || ""}
-              onChange={(value) => setItem(index, "amount", value)}
-              placeholder="0"
-            />
-          </>
-        )}
-        {page === "Expenses" && (
-          <>
-            <Field
-              name="expenseName"
-              suggestions={recentSuggestions(state.lapakExpenses.map((entry) => entry.expenseName))}
-              value={item.expenseName || ""}
-              onChange={(value) => setItem(index, "expenseName", value)}
-              placeholder="Es, plastik, transportasi..."
-            />
-            <Field
-              name="amount"
-              type="number"
-              value={item.amount || ""}
-              onChange={(value) => setItem(index, "amount", value)}
-              placeholder="0"
-            />
-            <Field
-              name="notes"
-              suggestions={recentSuggestions(state.lapakExpenses.map((entry) => entry.notes))}
-              value={item.notes || ""}
-              onChange={(value) => setItem(index, "notes", value)}
-              placeholder="Catatan"
-            />
-          </>
-        )}
-        {page === "B2C Sales" && (
-          <>
-            <Field
-              name="productName"
-              suggestions={recentSuggestions(state.lapakSales.flatMap((entry) => entry.items.map((line) => line.productName)))}
-              value={item.productName || ""}
-              onChange={(value) => setItem(index, "productName", value)}
-              placeholder="Nama produk"
-            />
-            <Field
-              name="quantity"
-              type="number"
-              value={item.quantity || ""}
-              onChange={(value) => setItem(index, "quantity", value)}
-            />
-            <Field
-              name="sellingPrice"
-              type="number"
-              value={item.sellingPrice || ""}
-              onChange={(value) => setItem(index, "sellingPrice", value)}
-            />
-            <Field
-              name="unitCost"
-              type="number"
-              value={item.unitCost || ""}
-              onChange={(value) => setItem(index, "unitCost", value)}
-            />
-          </>
-        )}
-        {page === "Sourcing & Bengkelan" && (
-          <>
-            <Field
-              name="sourceType"
-              options={[
-                { label: "Bengkelan", value: "BENGKELAN" },
-                { label: "Supplier", value: "SUPPLIER" },
-              ]}
-              value={item.sourceType || "BENGKELAN"}
-              onChange={(value) => setItem(index, "sourceType", value)}
-            />
-            <Field
-              name="sourceName"
-              suggestions={recentSuggestions(state.sourcings.map((entry) => entry.sourceName))}
-              value={item.sourceName || ""}
-              onChange={(value) => setItem(index, "sourceName", value)}
-              placeholder="Nama sumber"
-            />
-            <Field
-              name="productName"
-              suggestions={recentSuggestions(state.sourcings.map((entry) => entry.productName))}
-              value={item.productName || ""}
-              onChange={(value) => setItem(index, "productName", value)}
-              placeholder="Nama seafood"
-            />
-            <Field
-              name="quantity"
-              type="number"
-              value={item.quantity || ""}
-              onChange={(value) => setItem(index, "quantity", value)}
-            />
-            <Field
-              name="unitCost"
-              type="number"
-              value={item.unitCost || ""}
-              onChange={(value) => setItem(index, "unitCost", value)}
-            />
-            <Field
-              name="paidAmount"
-              type="number"
-              value={item.paidAmount || ""}
-              onChange={(value) => setItem(index, "paidAmount", value)}
-            />
-          </>
-        )}
-      </div>
+      {page === "Sourcing & Bengkelan" ? (
+        renderSourcingFields(item, index)
+      ) : (
+        <div className="form-grid">
+          <Field
+            name="batchId"
+            options={batches.map((batch) => ({
+              label: batch.batchNumber,
+              value: batch.id,
+            }))}
+            value={item.batchId || ""}
+            onChange={(value) => setItem(index, "batchId", value)}
+          />
+          <Field
+            name="date"
+            type="date"
+            value={item.date || ""}
+            onChange={(value) => setItem(index, "date", value)}
+          />
+          {page === "Commission" && (
+            <>
+              <Field
+                name="partner"
+                suggestions={recentSuggestions(state.commissions.map((entry) => entry.partner))}
+                value={item.partner || ""}
+                onChange={(value) => setItem(index, "partner", value)}
+                placeholder="Nama supplier atau pedagang"
+              />
+              <Field
+                name="amount"
+                type="number"
+                value={item.amount || ""}
+                onChange={(value) => setItem(index, "amount", value)}
+                placeholder="0"
+              />
+            </>
+          )}
+          {page === "Expenses" && (
+            <>
+              <Field
+                name="expenseName"
+                suggestions={recentSuggestions(state.lapakExpenses.map((entry) => entry.expenseName))}
+                value={item.expenseName || ""}
+                onChange={(value) => setItem(index, "expenseName", value)}
+                placeholder="Es, plastik, transportasi..."
+              />
+              <Field
+                name="amount"
+                type="number"
+                value={item.amount || ""}
+                onChange={(value) => setItem(index, "amount", value)}
+                placeholder="0"
+              />
+              <Field
+                name="notes"
+                suggestions={recentSuggestions(state.lapakExpenses.map((entry) => entry.notes))}
+                value={item.notes || ""}
+                onChange={(value) => setItem(index, "notes", value)}
+                placeholder="Catatan"
+              />
+            </>
+          )}
+          {page === "B2C Sales" && (
+            <>
+              <Field
+                name="productName"
+                suggestions={recentSuggestions(state.lapakSales.flatMap((entry) => entry.items.map((line) => line.productName)))}
+                value={item.productName || ""}
+                onChange={(value) => setItem(index, "productName", value)}
+                placeholder="Nama produk"
+              />
+              <Field
+                name="quantity"
+                type="number"
+                value={item.quantity || ""}
+                onChange={(value) => setItem(index, "quantity", value)}
+              />
+              <Field
+                name="sellingPrice"
+                type="number"
+                value={item.sellingPrice || ""}
+                onChange={(value) => setItem(index, "sellingPrice", value)}
+              />
+              <Field
+                name="unitCost"
+                type="number"
+                value={item.unitCost || ""}
+                onChange={(value) => setItem(index, "unitCost", value)}
+              />
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 
@@ -1042,15 +1157,23 @@ function getRows(page: string, state: BusinessState) {
     };
   if (page === "Sourcing & Bengkelan")
     return {
-      columns: ["Tanggal", "Batch", "Sumber", "Produk", "Total", "Outstanding"],
+      columns: ["Tanggal", "Sumber", "Nama", "Jenis", "Bobot", "Harga", "Jumlah", "Pembayaran 1 (Rp)", "Tanggal pembayaran 1", "Pembayaran 2 (Rp)", "Tanggal pembayaran 2", "Pembayaran 3 (Rp)", "Tanggal pembayaran 3", "Sisa", "Catatan"],
       rows: state.sourcings.map((item) => [
         item.date,
-        state.batches.find((batch) => batch.id === item.batchId)?.batchNumber ??
-          "-",
-        item.sourceName,
-        item.productName,
-        money(item.totalCost),
-        money(item.outstandingAmount),
+        item.sourceType === "BENGKELAN" ? "Bengkelan" : "Supplier",
+        item.name,
+        item.type,
+        `${item.weight} ${item.unit}`,
+        money(item.price),
+        money(item.total),
+        money(item.payment1),
+        item.payment1Date || "-",
+        money(item.payment2),
+        item.payment2Date || "-",
+        money(item.payment3),
+        item.payment3Date || "-",
+        money(item.total - item.payment1 - item.payment2 - item.payment3),
+        item.note,
       ]),
     };
   if (page === "B2C Sales")
@@ -1269,7 +1392,6 @@ function BatchCreateWorkspace({
     ["Expenses", "Catat pengeluaran"],
     ["Commission", "Catat komisi"],
     ["B2C Sales", "Catat penjualan"],
-    ["Sourcing & Bengkelan", "Catat pengadaan"],
   ];
   return (
     <div className="workspace-page batch-create-workspace">
@@ -1370,18 +1492,6 @@ function BatchCreateWorkspace({
               Belum ada penjualan. Gunakan tombol “Catat penjualan” di header.
             </div>
           </section>
-          <section className="panel">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">Transaksi batch</p>
-                <h2>Pengadaan &amp; Bengkelan</h2>
-              </div>
-              <span className="resource-count">0 transaksi</span>
-            </div>
-            <div className="empty-state">
-              Belum ada pengadaan. Gunakan tombol “Catat pengadaan” di header.
-            </div>
-          </section>
         </div>
       )}
       <div className="modal-actions batch-create-actions">
@@ -1458,9 +1568,6 @@ function BatchListPage({
                   const salesRevenue = state.lapakSales
                     .filter((item) => item.batchId === batch.id)
                     .reduce((sum, item) => sum + item.totalAmount, 0);
-                  const sourcingCost = state.sourcings
-                    .filter((item) => item.batchId === batch.id)
-                    .reduce((sum, item) => sum + item.totalCost, 0);
                   const expenseCost = state.lapakExpenses
                     .filter((item) => item.batchId === batch.id)
                     .reduce((sum, item) => sum + item.amount, 0);
@@ -1496,7 +1603,7 @@ function BatchListPage({
                         {money(commissionRevenue + salesRevenue)}
                       </td>
                       <td className="batch-table-amount">
-                        {money(sourcingCost + expenseCost)}
+                        {money(expenseCost)}
                       </td>
                       <td>
                         <div
@@ -1581,7 +1688,6 @@ function BatchDetail({
   const commissions = state.commissions.filter(
     (item) => item.batchId === batch.id,
   );
-  const sourcings = state.sourcings.filter((item) => item.batchId === batch.id);
   const sales = state.lapakSales.filter((item) => item.batchId === batch.id);
   const expenses = state.lapakExpenses.filter(
     (item) => item.batchId === batch.id,
@@ -1590,16 +1696,11 @@ function BatchDetail({
     (sum, item) => sum + item.amount,
     0,
   );
-  const sourcingTotal = sourcings.reduce(
-    (sum, item) => sum + item.totalCost,
-    0,
-  );
   const salesTotal = sales.reduce((sum, item) => sum + item.totalAmount, 0);
   const expenseTotal = expenses.reduce((sum, item) => sum + item.amount, 0);
   const actions = [
     ["Expenses", "Tambah pengeluaran"],
     ["Commission", "Tambah komisi"],
-    ["Sourcing & Bengkelan", "Tambah pengadaan"],
     ["B2C Sales", "Tambah penjualan"],
   ];
   return (
@@ -1649,8 +1750,8 @@ function BatchDetail({
         </div>
         <div className="resource-stat">
           <span>Total biaya</span>
-          <strong>{money(sourcingTotal + expenseTotal)}</strong>
-          <small>{sourcings.length + expenses.length} catatan</small>
+          <strong>{money(expenseTotal)}</strong>
+          <small>{expenses.length} catatan</small>
         </div>
       </div>
       <div className="batch-detail-grid">
@@ -1748,53 +1849,6 @@ function BatchDetail({
           <div className="panel-heading">
             <div>
               <p className="eyebrow">Transaksi batch</p>
-              <h2>Pengadaan &amp; Bengkelan</h2>
-            </div>
-            <span className="resource-count">{sourcings.length} data</span>
-          </div>
-          {sourcings.length ? (
-            <div className="batch-item-list">
-              {sourcings.map((item) => (
-                <div className="batch-item" key={item.id}>
-                  <div>
-                    <strong>{item.productName}</strong>
-                    <small>
-                      {item.date} · {item.sourceName} · {item.quantity}{" "}
-                      {item.unit}
-                    </small>
-                  </div>
-                  <b>{money(item.totalCost)}</b>
-                  <div className="item-actions">
-                    <button
-                      className="icon-button"
-                      type="button"
-                      aria-label="Edit pengadaan"
-                      onClick={() => onEdit("Sourcing & Bengkelan", item.id)}
-                    >
-                      <Edit2 size={15} />
-                    </button>
-                    <button
-                      className="icon-button danger-button"
-                      type="button"
-                      aria-label="Hapus pengadaan"
-                      onClick={() => onDelete("Sourcing & Bengkelan", item.id)}
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="empty-state">
-              Belum ada pengadaan untuk batch ini.
-            </div>
-          )}
-        </section>
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Transaksi batch</p>
               <h2>Penjualan B2C</h2>
             </div>
             <span className="resource-count">{sales.length} data</span>
@@ -1843,6 +1897,149 @@ function BatchDetail({
           )}
         </section>
       </div>
+    </div>
+  );
+}
+
+function SourcingWorkspacePage({
+  state,
+  onAdd,
+  onExport,
+  onEdit,
+  onDelete,
+}: {
+  state: BusinessState;
+  onAdd: () => void;
+  onExport: () => void;
+  onEdit: (page: string, id: string) => void;
+  onDelete: (page: string, id: string) => void;
+}) {
+  const rows = [...state.sourcings].sort((a, b) => b.date.localeCompare(a.date) || b.sequence - a.sequence);
+  const total = rows.reduce((sum, item) => sum + item.total, 0);
+  const paid = rows.reduce((sum, item) => sum + item.payment1 + item.payment2 + item.payment3, 0);
+  const outstanding = total - paid;
+  return (
+    <div className="workspace-page sourcing-workspace">
+      <div className="workspace-page-head">
+        <div>
+          <p className="eyebrow">Lapak / Pengadaan &amp; Bengkelan</p>
+          <h1>Pengadaan &amp; Bengkelan</h1>
+          <p>Catat pengadaan mandiri dengan jumlah dan tiga tahap pembayaran.</p>
+        </div>
+        <div className="workspace-actions">
+          <button className="secondary-outline-button" type="button" onClick={onExport}>
+            <Download size={15} /> Export
+          </button>
+          <button className="primary-button" type="button" onClick={onAdd}>
+            <Plus size={16} /> Tambah pengadaan
+          </button>
+        </div>
+      </div>
+      <div className="resource-stats">
+        <div className="resource-stat">
+          <span>Total pengadaan</span>
+          <strong>{money(total)}</strong>
+          <small>{rows.length} catatan tercatat</small>
+        </div>
+        <div className="resource-stat">
+          <span>Total pembayaran</span>
+          <strong>{money(paid)}</strong>
+          <small>tahap 1–3</small>
+        </div>
+        <div className="resource-stat">
+          <span>Sisa pembayaran</span>
+          <strong>{money(outstanding)}</strong>
+          <small>belum dibayar</small>
+        </div>
+      </div>
+      <section className="panel resource-panel">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">Data mandiri</p>
+            <h2>Daftar pengadaan</h2>
+          </div>
+          <span className="resource-count">{rows.length} data</span>
+        </div>
+        {rows.length ? (
+          <div className="sourcing-record-list" aria-label="Daftar pengadaan dan bengkelan">
+            {rows.map((item) => {
+              const itemPaid = item.payment1 + item.payment2 + item.payment3;
+              const outstanding = item.total - itemPaid;
+              const payments = [
+                { label: "Pembayaran 1 (Rp)", amount: item.payment1, date: item.payment1Date },
+                { label: "Pembayaran 2 (Rp)", amount: item.payment2, date: item.payment2Date },
+                { label: "Pembayaran 3 (Rp)", amount: item.payment3, date: item.payment3Date },
+              ];
+              return (
+                <article className="sourcing-record" key={item.id}>
+                  <div className="sourcing-record-head">
+                    <div className="sourcing-record-identity">
+                      <div className="sourcing-record-kicker">
+                        <span className="sourcing-type-badge">
+                          {item.sourceType === "BENGKELAN" ? "Bengkelan" : "Supplier"}
+                        </span>
+                        <span>{item.date}</span>
+                      </div>
+                      <h3>{item.name}</h3>
+                      <p>{item.type}</p>
+                    </div>
+                    <div className="sourcing-record-total">
+                      <span>Total pengadaan</span>
+                      <strong>{money(item.total)}</strong>
+                    </div>
+                  </div>
+                  <div className="sourcing-record-details">
+                    <div>
+                      <span>Bobot</span>
+                      <strong>{item.weight.toLocaleString("id-ID")} {item.unit}</strong>
+                    </div>
+                    <div>
+                      <span>Harga per unit</span>
+                      <strong>{money(item.price)}</strong>
+                    </div>
+                    <div>
+                      <span>Sisa pembayaran</span>
+                      <strong className={outstanding > 0 ? "sourcing-outstanding" : "sourcing-paid"}>
+                        {money(outstanding)}
+                      </strong>
+                    </div>
+                  </div>
+                  <div className="sourcing-payment-summary">
+                    {payments.map((payment) => (
+                      <div className="sourcing-payment-summary-card" key={payment.label}>
+                        <span>{payment.label}</span>
+                        <strong>{money(payment.amount)}</strong>
+                        <small>{payment.date || "Tanggal belum dicatat"}</small>
+                      </div>
+                    ))}
+                  </div>
+                  {item.note && (
+                    <div className="sourcing-record-note">
+                      <span>Catatan</span>
+                      <p>{item.note}</p>
+                    </div>
+                  )}
+                  <div className="sourcing-record-footer">
+                    <span>Pembayaran tersusun dalam tiga tahap</span>
+                    <div className="sourcing-record-actions">
+                      <button className="sourcing-action-button sourcing-edit-button" type="button" aria-label={`Edit pengadaan ${item.name}`} onClick={() => onEdit("Sourcing & Bengkelan", item.id)}>
+                        <Edit2 size={15} />
+                        <span>Edit</span>
+                      </button>
+                      <button className="sourcing-action-button sourcing-delete-button" type="button" aria-label={`Hapus pengadaan ${item.name}`} onClick={() => onDelete("Sourcing & Bengkelan", item.id)}>
+                        <Trash2 size={15} />
+                        <span>Hapus</span>
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="empty-state">Belum ada data pengadaan. Gunakan tombol tambah untuk mencatat baris pertama.</div>
+        )}
+      </section>
     </div>
   );
 }
@@ -2023,18 +2220,7 @@ function GroupedLapakPage({
               amount: item.totalAmount,
             })),
         };
-      return {
-        batch,
-        items: state.sourcings
-          .filter((item) => item.batchId === batch.id)
-          .map((item) => ({
-            id: item.id,
-            date: item.date,
-            title: item.productName,
-            detail: `${item.sourceName} · ${item.quantity} ${item.unit}`,
-            amount: item.totalCost,
-          })),
-      };
+      return { batch, items: [] };
     })
     .filter((group) => group.items.length > 0);
   const labels: Record<
@@ -2055,12 +2241,6 @@ function GroupedLapakPage({
       title: "Penjualan Lapak",
       description: "Semua penjualan B2C ditampilkan berdasarkan batch terkait.",
       action: "Tambah penjualan",
-    },
-    "Sourcing & Bengkelan": {
-      title: "Pengadaan & Bengkelan",
-      description:
-        "Semua pengadaan dari supplier dan bengkelan ditampilkan berdasarkan batch terkait.",
-      action: "Tambah pengadaan",
     },
   };
   const meta = labels[page];
@@ -2183,6 +2363,21 @@ export default function WorkspacePage({
       ),
     };
   }, [business, effectivePage, search]);
+  const exportTable = () => {
+    const csv = [table.columns, ...table.rows]
+      .map((row) =>
+        row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(","),
+      )
+      .join("\n");
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(
+      new Blob([csv], { type: "text/csv;charset=utf-8" }),
+    );
+    link.download = `${effectivePage.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-")}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    onNotify(`${table.rows.length} data berhasil diexport`);
+  };
   const openForm = (targetPage: string, batchId?: string) => {
     if (targetPage === "Batches") {
       setCreateBatchMode(true);
@@ -2295,11 +2490,34 @@ export default function WorkspacePage({
         onUpdated={() => setEditingBatchId(null)}
       />
     );
+  if (module === "lapak" && effectivePage === "Sourcing & Bengkelan")
+    return (
+      <>
+        <SourcingWorkspacePage
+          state={business}
+          onAdd={() => openForm(effectivePage)}
+          onExport={exportTable}
+          onEdit={editLapakRecord}
+          onDelete={deleteLapakRecord}
+        />
+        {formOpen && (
+          <ModalForm
+            page={formPage}
+            editRecord={editRecord}
+            state={business}
+            commands={commands}
+            onClose={() => {
+              setFormOpen(false);
+              setEditRecord(undefined);
+            }}
+            onNotify={onNotify}
+          />
+        )}
+      </>
+    );
   if (
     module === "lapak" &&
-    ["Expenses", "Commission", "B2C Sales", "Sourcing & Bengkelan"].includes(
-      effectivePage,
-    )
+    ["Expenses", "Commission", "B2C Sales"].includes(effectivePage)
   )
     return (
       <>
@@ -2473,22 +2691,6 @@ export default function WorkspacePage({
                 direction: "neutral" as const,
               },
             ];
-
-  const exportTable = () => {
-    const csv = [table.columns, ...table.rows]
-      .map((row) =>
-        row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(","),
-      )
-      .join("\n");
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(
-      new Blob([csv], { type: "text/csv;charset=utf-8" }),
-    );
-    link.download = `${effectivePage.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-")}.csv`;
-    link.click();
-    URL.revokeObjectURL(link.href);
-    onNotify(`${table.rows.length} data berhasil diexport`);
-  };
 
   return (
     <div className="workspace-page" data-page-key={effectivePage}>
