@@ -323,19 +323,6 @@ export default function TagihanWorkspace({
           <p>Kelola transaksi kredit, debit, dan sisa tagihan pelanggan.</p>
         </div>
         <div className="workspace-actions">
-          <LapakPeriodControl
-            period={period}
-            anchor={anchor}
-            onPeriod={(next) => {
-              setPeriod(next);
-              setPage(1);
-            }}
-            onAnchor={(next) => {
-              setAnchor(next);
-              setPage(1);
-            }}
-            variant="bar"
-          />
           <button
             className="secondary-outline-button"
             type="button"
@@ -361,6 +348,22 @@ export default function TagihanWorkspace({
             <Plus size={16} /> Tambah Transaksi
           </button>
         </div>
+      </div>
+
+      <div className="lapak-period-toolbar">
+        <LapakPeriodControl
+          period={period}
+          anchor={anchor}
+          onPeriod={(next) => {
+            setPeriod(next);
+            setPage(1);
+          }}
+          onAnchor={(next) => {
+            setAnchor(next);
+            setPage(1);
+          }}
+          variant="bar"
+        />
       </div>
 
       <div className="resource-stats metric-grid ledger-stats">

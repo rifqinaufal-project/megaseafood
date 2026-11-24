@@ -316,14 +316,19 @@ button { cursor: pointer; }
 .lapak-period-bar { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; width: 100%; }
 .lapak-period-head { justify-content: flex-start; }
 .lapak-period-bar { margin-bottom: 16px; }
-.workspace-page-head > .lapak-period-head { width: auto; align-items: flex-end; }
-.workspace-actions .lapak-period-bar { flex-basis: 100%; order: 10; justify-content: flex-end; margin-top: 4px; }
-.workspace-actions .lapak-period-bar > * { align-self: flex-end; }
-.batch-period-row { margin: -4px 0 16px; }
-.workspace-page-head .lapak-period-head .period-switcher,
-.workspace-page-head .lapak-period-bar .period-switcher { box-shadow: none; padding: 4px; }
-.workspace-page-head .lapak-period-head .period-switcher button,
-.workspace-page-head .lapak-period-bar .period-switcher button { padding: 7px 12px; }
+.lapak-period-toolbar {
+  margin: 22px 0 18px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: 0 5px 18px rgba(20, 32, 43, .045);
+}
+.lapak-period-toolbar .lapak-period-bar { margin: 0; }
+.lapak-period-toolbar .period-caption { margin: 0; }
+.lapak-period-heading { display: flex; flex-direction: column; gap: 3px; }
+.lapak-period-heading strong { color: var(--ink); font-size: 13px; letter-spacing: -.1px; }
+.lapak-period-heading span { color: var(--faint); font-size: 11px; }
 .period-picker { display: inline-flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
 .period-picker input,
 .period-month-picker select { border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; font-size: 12px; color: var(--ink); background: var(--card); }
@@ -1118,9 +1123,6 @@ td strong { color: var(--ink); font-size: 12.5px; font-weight: 600; }
   .lapak-period-head { justify-content: flex-start; width: 100%; }
   .lapak-period-bar .period-switcher { width: 100%; justify-content: space-between; }
   .lapak-period-bar .period-switcher button { flex: 1; padding-left: 8px; padding-right: 8px; }
-  .workspace-actions .lapak-period-bar,
-  .batch-period-row,
-  .batch-period-row .lapak-period-bar { justify-content: flex-start; }
   .lapak-month-figures { gap: 14px; width: 100%; }
   .sourcing-table-wrap { overflow: visible; }
   .sourcing-record-table { display: block; min-width: 0; }

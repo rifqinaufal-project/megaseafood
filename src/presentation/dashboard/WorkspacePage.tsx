@@ -1525,7 +1525,7 @@ function BatchListPage({
           <Plus size={16} /> Buat batch
         </button>
       </div>
-      <div className="lapak-period-bar batch-period-row">
+      <div className="lapak-period-toolbar">
         <LapakPeriodControl
           period={period}
           anchor={anchor}
@@ -1761,7 +1761,7 @@ function BatchDetail({
           </button>
         </div>
       </div>
-      <div className="lapak-period-bar">
+      <div className="lapak-period-toolbar">
         <LapakPeriodControl
           period={period}
           anchor={anchor}
@@ -2071,13 +2071,6 @@ function SourcingWorkspacePage({
           </p>
         </div>
         <div className="workspace-actions">
-          <LapakPeriodControl
-            period={period}
-            anchor={anchor}
-            onPeriod={setPeriod}
-            onAnchor={setAnchor}
-            variant="bar"
-          />
           <button
             className="secondary-outline-button"
             type="button"
@@ -2089,6 +2082,15 @@ function SourcingWorkspacePage({
             <Plus size={16} /> Tambah pengadaan
           </button>
         </div>
+      </div>
+      <div className="lapak-period-toolbar">
+        <LapakPeriodControl
+          period={period}
+          anchor={anchor}
+          onPeriod={setPeriod}
+          onAnchor={setAnchor}
+          variant="bar"
+        />
       </div>
       <div className="resource-stats">
         <div className="resource-stat">
@@ -2440,6 +2442,11 @@ function GroupedLapakPage({
           <h1>{meta.title}</h1>
           <p>{meta.description}</p>
         </div>
+        <button className="primary-button" type="button" onClick={onAdd}>
+          <Plus size={16} /> {meta.action}
+        </button>
+      </div>
+      <div className="lapak-period-toolbar">
         <LapakPeriodControl
           period={period}
           anchor={anchor}
@@ -2447,9 +2454,6 @@ function GroupedLapakPage({
           onAnchor={setAnchor}
           variant="bar"
         />
-        <button className="primary-button" type="button" onClick={onAdd}>
-          <Plus size={16} /> {meta.action}
-        </button>
       </div>
       <LapakSummaryCards page={page} state={state} range={range} />
       {groups.length ? (

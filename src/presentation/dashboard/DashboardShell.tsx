@@ -42,9 +42,7 @@ import {
 } from "@/src/domain/business-state";
 import AccountMenu from "@/src/presentation/auth/AccountMenu";
 import {
-  PERIOD_LABELS,
   inRange,
-  periodLabel,
   periodRange,
   type LapakPeriod,
 } from "@/src/domain/lapak-periods";
@@ -146,7 +144,6 @@ function StatCard({ stat }: { stat: DashboardSnapshot["stats"][number] }) {
   );
 }
 
-const periodLabels = PERIOD_LABELS;
 const money = (amount: number) => `Rp ${formatRupiah(amount)}`;
 
 function LapakDashboard({
@@ -204,18 +201,17 @@ function LapakDashboard({
             periode.
           </p>
         </div>
+      </div>
+      <div className="lapak-period-toolbar">
         <LapakPeriodControl
           period={period}
           anchor={anchor}
           onPeriod={onPeriodChange}
           onAnchor={() => undefined}
           showAnchor={false}
+          variant="bar"
         />
       </div>
-      <p className="period-caption">
-        Periode {periodLabels[period].toLowerCase()} ·{" "}
-        {period === "Semua" ? "seluruh data" : periodLabel(period, anchor)}
-      </p>
       <div className="resource-stats">
         <div className="resource-stat">
           <span>Pendapatan</span>
