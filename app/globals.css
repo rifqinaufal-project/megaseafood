@@ -758,10 +758,9 @@ button {
 }
 .batch-dashboard-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1.5fr) repeat(
-      2,
-      minmax(130px, 1fr)
-    ) auto auto;
+  grid-template-columns:
+    minmax(180px, 1.5fr) repeat(2, minmax(130px, 1fr))
+    auto auto;
   align-items: center;
   gap: 16px;
   border: 0;
@@ -843,10 +842,13 @@ button {
   padding: 10px 12px;
 }
 .batch-list-table th:first-child {
-  width: 42%;
+  width: 16%;
 }
-.batch-list-table th:nth-child(2),
-.batch-list-table th:nth-child(3) {
+.batch-list-table th:nth-child(2) {
+  width: 34%;
+}
+.batch-list-table th:nth-child(3),
+.batch-list-table th:nth-child(4) {
   width: 19%;
 }
 .batch-list-table th:last-child {
@@ -881,6 +883,12 @@ button {
   font-size: 12.5px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+.batch-list-table .batch-table-date {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .batch-list-table .batch-table-identity small {
   display: block;
@@ -4705,6 +4713,14 @@ td strong {
     padding: 0;
     border: 0;
   }
+  .batch-list-table td.batch-table-date {
+    grid-column: 1 / -1;
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
   .batch-list-table td.batch-table-identity {
     grid-column: 1 / -1;
   }
@@ -4717,10 +4733,10 @@ td strong {
     letter-spacing: 0.7px;
     text-transform: uppercase;
   }
-  .batch-list-table td:nth-child(2)::before {
+  .batch-list-table td:nth-child(3)::before {
     content: "Pendapatan";
   }
-  .batch-list-table td:nth-child(3)::before {
+  .batch-list-table td:nth-child(4)::before {
     content: "Biaya";
   }
   .batch-list-table td:last-child {
