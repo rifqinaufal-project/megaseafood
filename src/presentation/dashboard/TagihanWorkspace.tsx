@@ -25,7 +25,15 @@ import {
   type LapakSale,
 } from "@/src/domain/business-state";
 import type { BusinessCommands } from "@/src/application/use-cases/business-commands";
-import { groupByMonth, monthKey, monthLabel } from "@/src/domain/lapak-periods";
+import {
+  groupByMonth,
+  inRange as inPeriodRange,
+  monthKey,
+  monthLabel,
+  periodRange,
+  type LapakPeriod,
+} from "@/src/domain/lapak-periods";
+import LapakPeriodControl from "@/src/presentation/dashboard/LapakPeriodControl";
 
 type Notify = (message: string, tone?: "success" | "error" | "info") => void;
 
@@ -146,6 +154,9 @@ export default function TagihanWorkspace({
   const [toDate, setToDate] = useState("");
   const [sort, setSort] = useState<"nama" | "tanggal" | "nominal">("nama");
   const [page, setPage] = useState(1);
+  const [period, setPeriod] = useState<LapakPeriod>("Semua");
+  const [anchor, setAnchor] = useState(today());
+  const range = useMemo(() => periodRange(period, anchor), [period, anchor]);
 
   const groups = useMemo(
     () => buildLedgerGroups(business.lapakSales),
@@ -158,7 +169,7 @@ export default function TagihanWorkspace({
    */
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    const inRange = (date: string) =>
+    const inManualRange = (date: string) =>
       (!fromDate || date >= fromDate) && (!toDate || date <= toDate);
     const visible = groups
       .map((group) => ({
@@ -166,7 +177,8 @@ export default function TagihanWorkspace({
         lines: group.lines.filter(
           (line) =>
             (kind === "ALL" || line.row.kind === kind) &&
-            inRange(line.row.date),
+            inPeriodRange(line.row.date, range) &&
+            inManualRange(line.row.date),
         ),
       }))
       .filter((group) => group.lines.length > 0)
@@ -182,7 +194,7 @@ export default function TagihanWorkspace({
     if (sort === "nominal")
       return [...visible].sort((a, b) => b.restan - a.restan);
     return visible;
-  }, [groups, search, kind, fromDate, toDate, sort]);
+  }, [groups, search, kind, fromDate, toDate, sort, range]);
 
   /**
    * Buku Tagihan is read per month, like the spreadsheet it replaces. A card belongs to the month of
@@ -207,7 +219,34 @@ export default function TagihanWorkspace({
     [filtered],
   );
 
-  const totals = ledgerTotals(groups);
+  // Summary cards describe what is on screen: the selected period, or the whole book on "Semua".
+  const totals = useMemo(() => {
+    if (!range) return ledgerTotals(groups);
+    const scoped = groups
+      .map((group) => {
+        const lines = group.lines.filter((line) =>
+          inPeriodRange(line.row.date, range),
+        );
+        return {
+          ...group,
+          lines,
+          credit: lines
+            .filter((line) => line.row.kind === "KREDIT")
+            .reduce((sum, line) => sum + line.row.amount, 0),
+          debit: lines
+            .filter((line) => line.row.kind === "DEBIT")
+            .reduce((sum, line) => sum + line.row.amount, 0),
+        };
+      })
+      .filter((group) => group.lines.length > 0);
+    return {
+      customers: scoped.length,
+      credit: scoped.reduce((sum, group) => sum + group.credit, 0),
+      debit: scoped.reduce((sum, group) => sum + group.debit, 0),
+      // Restan is the customer's real balance, it never shrinks just because a period is picked.
+      restan: ledgerTotals(groups).restan,
+    };
+  }, [groups, range]);
   const pageCount = Math.max(1, Math.ceil(monthGroups.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
   const pageMonths = monthGroups.slice(
@@ -215,7 +254,11 @@ export default function TagihanWorkspace({
     currentPage * PAGE_SIZE,
   );
   const filtersActive =
-    kind !== "ALL" || !!fromDate || !!toDate || !!search.trim();
+    period !== "Semua" ||
+    kind !== "ALL" ||
+    !!fromDate ||
+    !!toDate ||
+    !!search.trim();
 
   const exportCsv = () => {
     const rows: string[][] = [
@@ -312,28 +355,36 @@ export default function TagihanWorkspace({
           {
             title: "Total Pelanggan",
             value: totals.customers.toLocaleString("id-ID"),
-            detail: "pelanggan dengan catatan tagihan (semua data)",
+            detail: range
+              ? "pelanggan pada periode ini"
+              : "pelanggan dengan catatan tagihan",
             icon: <Users size={16} />,
             tone: "",
           },
           {
             title: "Total Kredit",
             value: money(totals.credit),
-            detail: "akumulasi tagihan (semua data)",
+            detail: range
+              ? "kredit pada periode ini"
+              : "akumulasi seluruh tagihan",
             icon: <ArrowUpRight size={16} />,
             tone: "is-credit",
           },
           {
             title: "Total Debit",
             value: money(totals.debit),
-            detail: "akumulasi pembayaran (semua data)",
+            detail: range
+              ? "pembayaran pada periode ini"
+              : "akumulasi seluruh pembayaran",
             icon: <ArrowDownLeft size={16} />,
             tone: "is-debit",
           },
           {
             title: "Total Restan",
             value: money(totals.restan),
-            detail: "kredit dikurangi debit (semua data)",
+            detail: range
+              ? "saldo aktual, semua periode"
+              : "kredit dikurangi debit",
             icon: <Wallet size={16} />,
             tone: totals.restan > 0 ? "is-open" : "is-settled",
           },
@@ -356,6 +407,18 @@ export default function TagihanWorkspace({
 
       <section className="panel resource-panel ledger-panel">
         <div className="resource-toolbar ledger-toolbar">
+          <LapakPeriodControl
+            period={period}
+            anchor={anchor}
+            onPeriod={(next) => {
+              setPeriod(next);
+              setPage(1);
+            }}
+            onAnchor={(next) => {
+              setAnchor(next);
+              setPage(1);
+            }}
+          />
           <label className="table-search">
             <Search size={16} />
             <input
@@ -383,30 +446,34 @@ export default function TagihanWorkspace({
               <option value="DEBIT">Debit</option>
             </select>
           </label>
-          <label className="ledger-filter">
-            <span>Dari</span>
-            <input
-              type="date"
-              value={fromDate}
-              aria-label="Tanggal mulai"
-              onChange={(event) => {
-                setFromDate(event.target.value);
-                setPage(1);
-              }}
-            />
-          </label>
-          <label className="ledger-filter">
-            <span>Sampai</span>
-            <input
-              type="date"
-              value={toDate}
-              aria-label="Tanggal akhir"
-              onChange={(event) => {
-                setToDate(event.target.value);
-                setPage(1);
-              }}
-            />
-          </label>
+          {period === "Semua" && (
+            <>
+              <label className="ledger-filter">
+                <span>Dari</span>
+                <input
+                  type="date"
+                  value={fromDate}
+                  aria-label="Tanggal mulai"
+                  onChange={(event) => {
+                    setFromDate(event.target.value);
+                    setPage(1);
+                  }}
+                />
+              </label>
+              <label className="ledger-filter">
+                <span>Sampai</span>
+                <input
+                  type="date"
+                  value={toDate}
+                  aria-label="Tanggal akhir"
+                  onChange={(event) => {
+                    setToDate(event.target.value);
+                    setPage(1);
+                  }}
+                />
+              </label>
+            </>
+          )}
           <label className="ledger-filter">
             <span>Urutkan</span>
             <select
@@ -426,6 +493,8 @@ export default function TagihanWorkspace({
               onClick={() => {
                 setSearch("");
                 setKind("ALL");
+                setPeriod("Semua");
+                setAnchor(today());
                 setFromDate("");
                 setToDate("");
                 setPage(1);

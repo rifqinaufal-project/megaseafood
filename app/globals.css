@@ -310,6 +310,17 @@ button { cursor: pointer; }
 .ledger-filter select:focus, .ledger-filter input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .ledger-reset { margin-left: auto; }
 
+/* ---------- Lapak: pemilih periode (Harian, Mingguan, Bulanan, Semua) ---------- */
+.lapak-period-bar { margin-bottom: 16px; }
+.lapak-period-control { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.lapak-period-switch { display: inline-flex; padding: 3px; gap: 2px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface, #fff); }
+.lapak-period-button { border: 0; background: transparent; color: var(--muted); font-size: 12px; font-weight: 600; padding: 6px 13px; border-radius: 999px; cursor: pointer; transition: background .15s ease, color .15s ease; }
+.lapak-period-button:hover { color: var(--ink); }
+.lapak-period-button.is-active { background: var(--ink, #14202b); color: #fff; }
+.lapak-period-date { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
+.lapak-period-date input { border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; font-size: 12px; color: var(--ink); background: var(--surface, #fff); }
+.lapak-period-caption { color: var(--faint); font-size: 12px; }
+
 /* ---------- Lapak: pengelompokan per bulan (Tagihan, Komisi, Pengadaan, Pengeluaran) ---------- */
 .lapak-month { display: flex; flex-direction: column; gap: 12px; }
 .lapak-month + .lapak-month { margin-top: 22px; }
@@ -1093,6 +1104,8 @@ td strong { color: var(--ink); font-size: 12.5px; font-weight: 600; }
   .lapak-batch-group { padding: 18px 16px 8px; }
   .lapak-group-heading { flex-wrap: wrap; gap: 8px; }
   .lapak-month-head { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .lapak-period-control { gap: 8px; }
+  .lapak-period-button { padding: 6px 10px; }
   .lapak-month-figures { gap: 14px; width: 100%; }
   .sourcing-table-wrap { overflow: visible; }
   .sourcing-record-table { display: block; min-width: 0; }

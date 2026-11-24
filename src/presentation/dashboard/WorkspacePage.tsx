@@ -29,7 +29,14 @@ import {
 import type { BusinessCommands } from "@/src/application/use-cases/business-commands";
 import { receiptOutstanding } from "@/src/domain/business-integrity";
 import { resolveWorkspacePage } from "@/src/presentation/dashboard/workspace-routing";
-import { groupByMonth } from "@/src/domain/lapak-periods";
+import {
+  groupByMonth,
+  inRange,
+  periodRange,
+  type DateRange,
+  type LapakPeriod,
+} from "@/src/domain/lapak-periods";
+import LapakPeriodControl from "@/src/presentation/dashboard/LapakPeriodControl";
 import InvoiceWorkspace from "@/src/presentation/dashboard/InvoiceWorkspace";
 import TagihanWorkspace from "@/src/presentation/dashboard/TagihanWorkspace";
 import { RestoReportsPage } from "@/src/presentation/dashboard/RestoReports";
@@ -1829,9 +1836,13 @@ function SourcingWorkspacePage({
     paymentNumber: 1 | 2 | 3;
   } | null>(null);
   const [paymentDraft, setPaymentDraft] = useState({ amount: "", date: "" });
-  const rows = [...state.sourcings].sort(
-    (a, b) => b.date.localeCompare(a.date) || b.sequence - a.sequence,
-  );
+  const [period, setPeriod] = useState<LapakPeriod>("Semua");
+  const [anchor, setAnchor] = useState(today());
+  const range = useMemo(() => periodRange(period, anchor), [period, anchor]);
+  // Harian/mingguan/bulanan narrow the list; "Semua" keeps the whole book grouped by month.
+  const rows = [...state.sourcings]
+    .filter((item) => inRange(item.date, range))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.sequence - a.sequence);
   const months = groupByMonth(
     rows,
     (item) => item.date,
@@ -1992,11 +2003,21 @@ function SourcingWorkspacePage({
           </button>
         </div>
       </div>
+      <div className="lapak-period-bar">
+        <LapakPeriodControl
+          period={period}
+          anchor={anchor}
+          onPeriod={setPeriod}
+          onAnchor={setAnchor}
+        />
+      </div>
       <div className="resource-stats">
         <div className="resource-stat">
           <span>Total pengadaan</span>
           <strong>{money(total)}</strong>
-          <small>{rows.length} catatan tercatat</small>
+          <small>
+            {rows.length} catatan {range ? "pada periode ini" : "tercatat"}
+          </small>
         </div>
         <div className="resource-stat">
           <span>Total pembayaran</span>
@@ -2178,14 +2199,18 @@ function SourcingWorkspacePage({
 function LapakSummaryCards({
   page,
   state,
+  range,
 }: {
   page: string;
   state: BusinessState;
+  range: DateRange | null;
 }) {
   const cards =
     page === "Commission"
       ? (() => {
-          const commissions = state.commissions;
+          const commissions = state.commissions.filter((item) =>
+            inRange(item.date, range),
+          );
           const total = commissions.reduce((sum, item) => sum + item.amount, 0);
           const partners = new Set(
             commissions.map((item) => item.partner.trim()).filter(Boolean),
@@ -2194,7 +2219,9 @@ function LapakSummaryCards({
             {
               label: "Total komisi",
               value: money(total),
-              detail: `${commissions.length} catatan tercatat`,
+              detail: range
+                ? `${commissions.length} catatan pada periode ini`
+                : `${commissions.length} catatan tercatat`,
             },
             {
               label: "Partner penerima",
@@ -2210,14 +2237,18 @@ function LapakSummaryCards({
         })()
       : page === "Expenses"
         ? (() => {
-            const expenses = state.lapakExpenses;
+            const expenses = state.lapakExpenses.filter((item) =>
+              inRange(item.date, range),
+            );
             const total = expenses.reduce((sum, item) => sum + item.amount, 0);
             const batches = new Set(expenses.map((item) => item.batchId)).size;
             return [
               {
                 label: "Total pengeluaran",
                 value: money(total),
-                detail: `${expenses.length} catatan tercatat`,
+                detail: range
+                  ? `${expenses.length} catatan pada periode ini`
+                  : `${expenses.length} catatan tercatat`,
               },
               {
                 label: "Batch terdampak",
@@ -2264,6 +2295,9 @@ function GroupedLapakPage({
   onEdit: (page: string, id: string) => void;
   onDelete: (page: string, id: string) => void;
 }) {
+  const [period, setPeriod] = useState<LapakPeriod>("Semua");
+  const [anchor, setAnchor] = useState(today());
+  const range = useMemo(() => periodRange(period, anchor), [period, anchor]);
   const batchNumber = (batchId: string) =>
     state.batches.find((batch) => batch.id === batchId)?.batchNumber ?? "";
   const entries =
@@ -2286,9 +2320,11 @@ function GroupedLapakPage({
             amount: item.amount,
           }))
         : [];
+  // Harian/mingguan/bulanan narrow the list; "Semua" keeps the whole book grouped by month.
+  const visible = entries.filter((item) => inRange(item.date, range));
   // Client reads both pages per month, so the month is the outer group and batch stays as metadata.
   const groups = groupByMonth(
-    entries,
+    visible,
     (item) => item.date,
     (item) => item.amount,
   ).map((month) => ({
@@ -2329,7 +2365,15 @@ function GroupedLapakPage({
           <Plus size={16} /> {meta.action}
         </button>
       </div>
-      <LapakSummaryCards page={page} state={state} />
+      <LapakSummaryCards page={page} state={state} range={range} />
+      <div className="lapak-period-bar">
+        <LapakPeriodControl
+          period={period}
+          anchor={anchor}
+          onPeriod={setPeriod}
+          onAnchor={setAnchor}
+        />
+      </div>
       {groups.length ? (
         <div className="lapak-group-list">
           {groups.map((group) => (

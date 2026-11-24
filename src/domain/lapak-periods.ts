@@ -1,7 +1,6 @@
 /**
- * Month grouping for the Lapak module (Tagihan, Komisi, Pengadaan, Pengeluaran).
- * Every page groups its records by month so the monthly subtotals line up with the
- * way the business owner reviews the book each month.
+ * Period handling for the Lapak module (Tagihan, Komisi, Pengadaan, Pengeluaran).
+ * Pages can be read per day, per week, per month, or as the whole book grouped by month.
  */
 
 export const MONTH_LABELS = [
@@ -18,6 +17,24 @@ export const MONTH_LABELS = [
   "November",
   "Desember",
 ] as const;
+
+const DAY_LABELS = [
+  "Minggu",
+  "Senin",
+  "Selasa",
+  "Rabu",
+  "Kamis",
+  "Jumat",
+  "Sabtu",
+] as const;
+
+export const LAPAK_PERIODS = [
+  "Harian",
+  "Mingguan",
+  "Bulanan",
+  "Semua",
+] as const;
+export type LapakPeriod = (typeof LAPAK_PERIODS)[number];
 
 /** `2026-11-20` becomes `2026-11`, the grouping key. */
 export const monthKey = (date: string) => {
@@ -38,6 +55,93 @@ export const monthShortLabel = (key: string) => {
   if (!match) return key || "Tanpa tanggal";
   return `${MONTH_LABELS[Number(match[2]) - 1]?.slice(0, 3) ?? match[2]} ${match[1]}`;
 };
+
+/** `2026-11-20` becomes `20 November 2026`. */
+export const dayLabel = (date: string) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || "");
+  if (!match) return date || "Tanpa tanggal";
+  return `${Number(match[3])} ${MONTH_LABELS[Number(match[2]) - 1] ?? match[2]} ${match[1]}`;
+};
+
+/** Shift a `YYYY-MM-DD` string without going through time zones. */
+export const shiftDays = (date: string, days: number) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || "");
+  if (!match) return date;
+  const shifted = new Date(
+    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + days),
+  );
+  return shifted.toISOString().slice(0, 10);
+};
+
+/** Monday of the week that contains `date`; the business week starts on Monday. */
+export const startOfWeek = (date: string) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || "");
+  if (!match) return date;
+  const weekday = new Date(
+    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])),
+  ).getUTCDay();
+  return shiftDays(date, -((weekday + 6) % 7));
+};
+
+export type DateRange = { from: string; to: string };
+
+/**
+ * Resolves the inclusive date range of a period around `anchor`.
+ * "Semua" returns null because the whole book is shown and grouped by month instead.
+ */
+export function periodRange(
+  period: LapakPeriod,
+  anchor: string,
+): DateRange | null {
+  if (period === "Harian") return { from: anchor, to: anchor };
+  if (period === "Mingguan") {
+    const from = startOfWeek(anchor);
+    return { from, to: shiftDays(from, 6) };
+  }
+  if (period === "Bulanan") {
+    const match = /^(\d{4})-(\d{2})/.exec(anchor || "");
+    if (!match) return null;
+    const lastDay = new Date(
+      Date.UTC(Number(match[1]), Number(match[2]), 0),
+    ).getUTCDate();
+    return {
+      from: `${match[1]}-${match[2]}-01`,
+      to: `${match[1]}-${match[2]}-${String(lastDay).padStart(2, "0")}`,
+    };
+  }
+  return null;
+}
+
+/** Human label for the range being shown, e.g. "Senin, 24 November 2026" or "23–29 November 2026". */
+export function periodLabel(period: LapakPeriod, anchor: string): string {
+  if (period === "Semua") return "Semua periode";
+  const range = periodRange(period, anchor);
+  if (!range) return "Semua periode";
+  if (period === "Harian") {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(range.from);
+    const weekday = match
+      ? DAY_LABELS[
+          new Date(
+            Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])),
+          ).getUTCDay()
+        ]
+      : "";
+    return weekday
+      ? `${weekday}, ${dayLabel(range.from)}`
+      : dayLabel(range.from);
+  }
+  if (period === "Bulanan") return monthLabel(monthKey(range.from));
+  const sameMonth = monthKey(range.from) === monthKey(range.to);
+  if (sameMonth) {
+    const from = Number(range.from.slice(8, 10));
+    const to = Number(range.to.slice(8, 10));
+    return `${from}–${to} ${monthLabel(monthKey(range.from))}`;
+  }
+  return `${dayLabel(range.from)} – ${dayLabel(range.to)}`;
+}
+
+export const inRange = (date: string, range: DateRange | null) =>
+  !range || (date >= range.from && date <= range.to);
 
 export type MonthGroup<T> = {
   key: string;

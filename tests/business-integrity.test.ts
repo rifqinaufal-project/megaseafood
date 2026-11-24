@@ -7,7 +7,7 @@ import { formatRupiah, seedBusinessState, type BusinessState } from "../src/doma
 import { addCalendarDays, isBusinessDate, localDate, receiptOutstanding } from "../src/domain/business-integrity";
 import WorkspacePage from "../src/presentation/dashboard/WorkspacePage";
 import { buildLedgerGroups } from "../src/presentation/dashboard/TagihanWorkspace";
-import { groupByMonth } from "../src/domain/lapak-periods";
+import { groupByMonth, inRange, periodLabel, periodRange, shiftDays, startOfWeek } from "../src/domain/lapak-periods";
 import { resolveWorkspacePage } from "../src/presentation/dashboard/workspace-routing";
 import { BUSINESS_STORAGE_KEY, createLocalBusinessStore, normalizeBusinessState } from "../src/infrastructure/repositories/local-business-store";
 
@@ -407,6 +407,37 @@ test("legacy lapak sales migrate to one kredit row plus one debit row per paymen
   // Restan of the old data is preserved: 180.000 - 100.000 and 60.000.
   const restan = migrated.lapakSales.reduce((sum, row) => sum + (row.kind === "KREDIT" ? row.amount : -row.amount), 0);
   assert.equal(restan, 140000);
+});
+
+test("period ranges follow the calendar without time-zone drift", () => {
+  assert.deepEqual(periodRange("Harian", "2026-11-24"), { from: "2026-11-24", to: "2026-11-24" });
+  // Senin–Minggu: 24 Nov 2026 jatuh pada Selasa, jadi minggunya mulai 23 November.
+  assert.equal(startOfWeek("2026-11-24"), "2026-11-23");
+  assert.deepEqual(periodRange("Mingguan", "2026-11-24"), { from: "2026-11-23", to: "2026-11-29" });
+  assert.deepEqual(periodRange("Bulanan", "2026-02-10"), { from: "2026-02-01", to: "2026-02-28" });
+  assert.deepEqual(periodRange("Bulanan", "2026-12-31"), { from: "2026-12-01", to: "2026-12-31" });
+  assert.equal(periodRange("Semua", "2026-11-24"), null);
+  assert.equal(shiftDays("2026-12-31", 1), "2027-01-01");
+  assert.equal(periodLabel("Harian", "2026-11-24"), "Selasa, 24 November 2026");
+  assert.equal(periodLabel("Mingguan", "2026-11-24"), "23–29 November 2026");
+  assert.equal(periodLabel("Bulanan", "2026-11-24"), "November 2026");
+  assert.equal(periodLabel("Semua", "2026-11-24"), "Semua periode");
+  // Batas rentang inklusif di kedua ujung.
+  const week = periodRange("Mingguan", "2026-11-24");
+  assert.equal(inRange("2026-11-23", week), true);
+  assert.equal(inRange("2026-11-29", week), true);
+  assert.equal(inRange("2026-11-30", week), false);
+});
+
+test("every lapak page offers Harian, Mingguan, Bulanan, and Semua", () => {
+  const { commands, getState } = memoryCommands();
+  for (const page of ["Tagihan", "Komisi", "Pengeluaran", "Pengadaan"]) {
+    const html = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page, business: getState(), commands, onNotify: () => {} }));
+    for (const option of ["Harian", "Mingguan", "Bulanan", "Semua"]) assert.match(html, new RegExp(`>${option}<`), `${page} tanpa pilihan ${option}`);
+    // "Semua" aktif secara default dan menyebut pengelompokan per bulan.
+    assert.match(html, /is-active"[^>]*>Semua</, `${page} tidak default ke Semua`);
+    assert.match(html, /Dikelompokkan per bulan/);
+  }
 });
 
 test("month grouping puts the newest month first and keeps undated rows last", () => {
