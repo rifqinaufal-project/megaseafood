@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowUpRight,
   Bell,
@@ -49,6 +50,8 @@ import {
   type LapakPeriod,
 } from "@/src/domain/lapak-periods";
 import LapakPeriodControl from "@/src/presentation/dashboard/LapakPeriodControl";
+import SummaryStats from "@/src/presentation/dashboard/components/SummaryStats";
+import WorkspaceHeader from "@/src/presentation/dashboard/components/WorkspaceHeader";
 import { useLocalBusiness } from "@/src/presentation/dashboard/use-local-business";
 import WorkspacePage from "@/src/presentation/dashboard/WorkspacePage";
 import { RestoDashboardPage } from "@/src/presentation/dashboard/RestoReports";
@@ -57,6 +60,10 @@ import {
   moduleLabels,
   workspaceNavLabels,
 } from "@/src/presentation/dashboard/workspace-navigation";
+import {
+  dashboardLocationFromPath,
+  dashboardPathForTarget,
+} from "@/src/presentation/dashboard/workspace-routing";
 
 const navItems: Record<
   Module,
@@ -209,40 +216,35 @@ function LapakDashboard({
   }));
   return (
     <div className="workspace-page lapak-dashboard">
-      <div className="workspace-page-head">
-        <div>
-          <p className="eyebrow">Lapak / Dashboard</p>
-          <h1>Dashboard Lapak</h1>
-          <p>
-            Ringkasan komisi, penjualan, pengadaan, dan biaya berdasarkan
-            periode.
-          </p>
-        </div>
-      </div>
-      <div className="resource-stats">
-        <div className="resource-stat">
-          <span>Pendapatan</span>
-          <strong>Rp {formatRupiah(commissionTotal + salesTotal)}</strong>
-          <small>{commissions.length + sales.length} transaksi</small>
-        </div>
-        <div className="resource-stat">
-          <span>Total biaya</span>
-          <strong>Rp {formatRupiah(expenseTotal)}</strong>
-          <small>{expenses.length} pengeluaran</small>
-        </div>
-        <div className="resource-stat">
-          <span>Profit kotor</span>
-          <strong>
-            Rp {formatRupiah(commissionTotal + salesTotal - expenseTotal)}
-          </strong>
-          <small>{batchIds.length} batch terlibat</small>
-        </div>
-        <div className="resource-stat">
-          <span>Pengadaan &amp; Bengkelan</span>
-          <strong>Rp {formatRupiah(sourcingTotal)}</strong>
-          <small>{sourcings.length} catatan · terpisah dari profit</small>
-        </div>
-      </div>
+      <WorkspaceHeader
+        eyebrow="Lapak / Dashboard"
+        title="Dashboard Lapak"
+        description="Ringkasan komisi, penjualan, pengadaan, dan biaya berdasarkan periode."
+      />
+      <SummaryStats
+        stats={[
+          {
+            label: "Pendapatan",
+            value: `Rp ${formatRupiah(commissionTotal + salesTotal)}`,
+            detail: `${commissions.length + sales.length} transaksi`,
+          },
+          {
+            label: "Total biaya",
+            value: `Rp ${formatRupiah(expenseTotal)}`,
+            detail: `${expenses.length} pengeluaran`,
+          },
+          {
+            label: "Profit kotor",
+            value: `Rp ${formatRupiah(commissionTotal + salesTotal - expenseTotal)}`,
+            detail: `${batchIds.length} batch terlibat`,
+          },
+          {
+            label: "Pengadaan & Bengkelan",
+            value: `Rp ${formatRupiah(sourcingTotal)}`,
+            detail: `${sourcings.length} catatan · terpisah dari profit`,
+          },
+        ]}
+      />
       <div className="lapak-period-toolbar">
         <LapakPeriodControl
           period={period}
@@ -655,6 +657,7 @@ type NavigateTarget = (
   openForm?: boolean,
   invoiceId?: string,
   batchId?: string,
+  formPage?: string,
 ) => void;
 
 function OverviewAttentionPanel({
@@ -934,16 +937,25 @@ function GlobalSearchDialog({
   );
 }
 
-function DashboardContent() {
+type BusinessSession = ReturnType<typeof useLocalBusiness>;
+
+function DashboardContent({ session }: { session: BusinessSession }) {
   const {
     state: business,
     accountUsers,
     actions,
     storageError,
     retryStorage,
-  } = useLocalBusiness();
-  const [module, setModule] = useState<Module>("overview");
-  const [activeNav, setActiveNav] = useState<string | null>(null);
+  } = session;
+  const pathname = usePathname();
+  const router = useRouter();
+  const location = useMemo(
+    () => dashboardLocationFromPath(pathname),
+    [pathname],
+  );
+  const requestId = useRef(0);
+  const activeModule = location.module;
+  const activeNav = location.page;
   const [activityQuery, setActivityQuery] = useState("");
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
@@ -958,16 +970,34 @@ function DashboardContent() {
     [business, globalSearchQuery],
   );
   const [showQuickAdd, setShowQuickAdd] = useState(false);
-  const [createRequest, setCreateRequest] = useState<{
+  const [lapakPeriod, setLapakPeriod] = useState<LapakPeriod>("Semua");
+  const [pendingRequest, setPendingRequest] = useState<{
     module: Module;
     page: string;
     id: number;
     openForm: boolean;
     invoiceId?: string;
     batchId?: string;
+    formPage?: string;
   } | null>(null);
-  const [lapakPeriod, setLapakPeriod] = useState<LapakPeriod>("Semua");
-  const requestId = useRef(0);
+  const routeRequest = useMemo(() => {
+    if (!location.invoiceId && !location.batchId) return null;
+    return {
+      module: location.module,
+      page: location.page ?? "",
+      id: 0,
+      openForm: false,
+      invoiceId: location.invoiceId,
+      batchId: location.batchId,
+      formPage: undefined,
+    };
+  }, [location]);
+  const createRequest =
+    routeRequest ??
+    (pendingRequest?.module === activeModule &&
+    pendingRequest.page === (activeNav ?? "")
+      ? pendingRequest
+      : null);
   const [toast, setToast] = useState<{
     message: string;
     tone: "success" | "error" | "info";
@@ -988,13 +1018,13 @@ function DashboardContent() {
   }, []);
 
   const heading = useMemo(() => {
-    if (module === "lapak")
+    if (activeModule === "lapak")
       return {
         title: "Dashboard Lapak",
         subtitle:
           "Pantau batch, komisi, penjualan, dan biaya operasional Lapak.",
       };
-    if (module === "resto")
+    if (activeModule === "resto")
       return {
         title: "Dashboard Resto & Online",
         subtitle:
@@ -1004,13 +1034,10 @@ function DashboardContent() {
       title: "Ringkasan bisnis",
       subtitle: "Pantau performa Lapak dan Resto & Online dalam satu tempat.",
     };
-  }, [module]);
+  }, [activeModule]);
 
   const changeModule = (next: Module) => {
-    if (!confirmDiscardChanges()) return;
-    setModule(next);
-    setActiveNav(next === "overview" ? null : "Dashboard");
-    setCreateRequest(null);
+    navigateTo(next, next === "overview" ? "" : "Dashboard");
   };
 
   const navigateTo = (
@@ -1019,12 +1046,12 @@ function DashboardContent() {
     openForm = false,
     invoiceId?: string,
     batchId?: string,
+    formPage?: string,
   ) => {
     if (!confirmDiscardChanges()) return;
-    setModule(nextModule);
-    setActiveNav(page);
+    router.push(dashboardPathForTarget(nextModule, page, invoiceId, batchId));
     setShowQuickAdd(false);
-    setCreateRequest(
+    setPendingRequest(
       openForm || invoiceId || batchId
         ? {
             module: nextModule,
@@ -1033,6 +1060,7 @@ function DashboardContent() {
             openForm,
             invoiceId,
             batchId,
+            formPage,
           }
         : null,
     );
@@ -1063,7 +1091,7 @@ function DashboardContent() {
 
   return (
     <div
-      className={`app-shell ${module === "overview" ? "overview-shell" : "module-shell"}`}
+      className={`app-shell ${activeModule === "overview" ? "overview-shell" : "module-shell"}`}
     >
       <header className="app-header">
         <BrandPill />
@@ -1077,12 +1105,12 @@ function DashboardContent() {
                   : ShoppingBag;
             return (
               <button
-                className={module === key ? "selected" : ""}
+                className={activeModule === key ? "selected" : ""}
                 onClick={() => changeModule(key)}
                 role="tab"
                 aria-label={moduleLabels[key]}
                 title={moduleLabels[key]}
-                aria-selected={module === key}
+                aria-selected={activeModule === key}
                 type="button"
                 key={key}
               >
@@ -1140,23 +1168,27 @@ function DashboardContent() {
         />
       )}
       <div className="body-layout">
-        {module !== "overview" && (
+        {activeModule !== "overview" && (
           <aside
             className="icon-rail sidebar-enter"
-            aria-label={`Navigasi ${moduleLabels[module]}`}
+            aria-label={`Navigasi ${moduleLabels[activeModule]}`}
           >
             <div className="sidebar-heading">
               <span className="sidebar-kicker">Workspace aktif</span>
-              <strong>{moduleLabels[module]}</strong>
+              <strong>{moduleLabels[activeModule]}</strong>
               <small>
-                {moduleDescriptions[module as Exclude<Module, "overview">]}
+                {
+                  moduleDescriptions[
+                    activeModule as Exclude<Module, "overview">
+                  ]
+                }
               </small>
             </div>
             <nav
               className="sidebar-nav"
-              aria-label={`Menu ${moduleLabels[module]}`}
+              aria-label={`Menu ${moduleLabels[activeModule]}`}
             >
-              {navItems[module].map((item) => {
+              {navItems[activeModule].map((item) => {
                 const Icon = item.icon;
                 return (
                   <button
@@ -1166,7 +1198,7 @@ function DashboardContent() {
                     title={item.label}
                     aria-label={item.label}
                     aria-current={activeNav === item.label ? "page" : undefined}
-                    onClick={() => navigateTo(module, item.label)}
+                    onClick={() => navigateTo(activeModule, item.label)}
                   >
                     <Icon size={20} strokeWidth={1.9} />
                     <span className="rail-label">{item.label}</span>
@@ -1190,7 +1222,7 @@ function DashboardContent() {
         )}
         <main
           className="main-content"
-          key={`${module}-${activeNav ?? "overview"}`}
+          key={`${activeModule}-${activeNav ?? "overview"}`}
         >
           {storageError && (
             <div className="storage-error" role="alert">
@@ -1207,14 +1239,14 @@ function DashboardContent() {
               </button>
             </div>
           )}
-          {module === "overview" && activeNav === null ? (
+          {activeModule === "overview" && activeNav === null ? (
             <>
               <div className="welcome-row">
                 <div>
                   <p className="eyebrow">
-                    {module === "overview"
+                    {activeModule === "overview"
                       ? "Global overview"
-                      : module === "lapak"
+                      : activeModule === "lapak"
                         ? "Lapak module"
                         : "Resto & Online module"}
                   </p>
@@ -1288,19 +1320,19 @@ function DashboardContent() {
                 />
               </div>
             </>
-          ) : activeNav === "Dashboard" && module === "lapak" ? (
+          ) : activeNav === "Dashboard" && activeModule === "lapak" ? (
             <LapakDashboard
               business={business}
               period={lapakPeriod}
               onPeriodChange={setLapakPeriod}
               onNavigate={navigateTo}
             />
-          ) : activeNav === "Dashboard" && module === "resto" ? (
+          ) : activeNav === "Dashboard" && activeModule === "resto" ? (
             <RestoDashboardPage business={business} onNavigate={navigateTo} />
           ) : (
             <WorkspacePage
-              key={`${module}-${activeNav}-${createRequest?.id ?? "view"}`}
-              module={module}
+              key={`${activeModule}-${activeNav}-${createRequest?.id || createRequest?.invoiceId || createRequest?.batchId || "view"}`}
+              module={activeModule}
               page={activeNav ?? ""}
               business={business}
               accountUsers={accountUsers}
@@ -1308,15 +1340,17 @@ function DashboardContent() {
               onNotify={notify}
               onNavigate={navigateTo}
               initialFormOpen={
-                createRequest?.module === module &&
+                createRequest?.module === activeModule &&
                 createRequest.page === activeNav &&
                 createRequest.openForm
               }
               initialInvoiceId={createRequest?.invoiceId}
               initialBatchId={createRequest?.batchId}
+              initialFormPage={createRequest?.formPage}
               initialCreateBatch={
                 createRequest?.module === "lapak" &&
                 createRequest.openForm &&
+                !createRequest.batchId &&
                 (createRequest.page === "Batch" ||
                   createRequest.page === "Batches")
               }
@@ -1350,8 +1384,9 @@ function DashboardContent() {
 }
 
 export default function DashboardShell() {
-  const { status, loadError, retryStorage } = useLocalBusiness();
-  if (status === "ready") return <DashboardContent />;
+  const session = useLocalBusiness();
+  const { status, loadError, retryStorage } = session;
+  if (status === "ready") return <DashboardContent session={session} />;
   return (
     <main className="auth-page" aria-busy={status === "loading"}>
       {status === "failed" ? (

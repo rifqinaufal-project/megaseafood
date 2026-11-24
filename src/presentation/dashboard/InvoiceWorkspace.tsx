@@ -29,6 +29,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import type { BusinessCommands } from "@/src/application/use-cases/business-commands";
+import type { Module } from "@/src/domain/dashboard";
 import { DIRECT_COST_CATEGORIES, directCostLabel } from "@/src/domain/settings";
 import { downloadInvoicePdf } from "@/src/presentation/dashboard/invoice-pdf";
 import { invoiceWhatsappLink } from "@/src/presentation/dashboard/invoice-share";
@@ -73,6 +74,13 @@ type Props = {
   business: BusinessState;
   commands: BusinessCommands;
   onNotify: Notify;
+  onNavigate?: (
+    module: Module,
+    page: string,
+    openForm?: boolean,
+    invoiceId?: string,
+    batchId?: string,
+  ) => void;
   page: "Invoices" | "Payments";
   initialFormOpen?: boolean;
   initialInvoiceId?: string;
@@ -1835,6 +1843,7 @@ export default function InvoiceWorkspace({
   business,
   commands,
   onNotify,
+  onNavigate,
   page,
   initialFormOpen = false,
   initialInvoiceId,
@@ -1865,11 +1874,18 @@ export default function InvoiceWorkspace({
     setView("detail");
     setPaymentForm(null);
     setDeleteOpen(false);
+    onNavigate?.("resto", "Invoice", false, id);
   };
   const navigate = (action: () => void) => {
     if (confirmDiscardChanges()) action();
   };
-  const openInvoice = (id: string) => navigate(() => showInvoice(id));
+  const openInvoice = (id: string) => {
+    if (onNavigate) {
+      onNavigate("resto", "Invoice", false, id);
+      return;
+    }
+    navigate(() => showInvoice(id));
+  };
   const requestPayment = (form: { invoiceId?: string; payment?: Payment }) =>
     navigate(() => {
       setDeleteOpen(false);
@@ -1916,11 +1932,13 @@ export default function InvoiceWorkspace({
                 })
               }
               onBack={() =>
-                navigate(() => {
-                  setPaymentForm(null);
-                  setDeleteOpen(false);
-                  setView("list");
-                })
+                onNavigate
+                  ? onNavigate("resto", "Invoice")
+                  : navigate(() => {
+                      setPaymentForm(null);
+                      setDeleteOpen(false);
+                      setView("list");
+                    })
               }
               onPayment={() => requestPayment({ invoiceId: invoice.id })}
               onDelete={() =>
@@ -1946,8 +1964,12 @@ export default function InvoiceWorkspace({
                 {...{ invoice, business, commands, onNotify }}
                 onCancel={() => setDeleteOpen(false)}
                 onDeleted={() => {
-                  setView("list");
                   setDeleteOpen(false);
+                  if (onNavigate) {
+                    onNavigate("resto", "Invoice");
+                  } else {
+                    setView("list");
+                  }
                 }}
               />
             )}
@@ -2014,12 +2036,14 @@ export default function InvoiceWorkspace({
   const tabLabel = (label: string, count?: number) =>
     count === undefined ? label : `${label} ${count}`;
   const goInvoice = (id: string, next: "detail" | "edit" | "delete") =>
-    navigate(() => {
-      setSelectedId(id);
-      setPaymentForm(null);
-      setDeleteOpen(next === "delete");
-      setView(next === "edit" ? "edit" : "detail");
-    });
+    next === "detail" && onNavigate
+      ? onNavigate("resto", "Invoice", false, id)
+      : navigate(() => {
+          setSelectedId(id);
+          setPaymentForm(null);
+          setDeleteOpen(next === "delete");
+          setView(next === "edit" ? "edit" : "detail");
+        });
   const exportInvoices = () => {
     downloadCsv(
       "invoice-resto",

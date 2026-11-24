@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Module } from "../src/domain/dashboard";
-import { resolveWorkspacePage } from "../src/presentation/dashboard/workspace-routing";
+import {
+  dashboardLocationFromPath,
+  dashboardPathForTarget,
+  resolveWorkspacePage,
+} from "../src/presentation/dashboard/workspace-routing";
 import {
   moduleLabels,
   workspaceNavLabels,
@@ -40,7 +44,10 @@ test("workspace navigation has one clear menu per module", () => {
 });
 
 test("visible workspace labels resolve to their existing page implementations", () => {
-  const visiblePages: Record<Exclude<Module, "overview">, Record<string, string>> = {
+  const visiblePages: Record<
+    Exclude<Module, "overview">,
+    Record<string, string>
+  > = {
     lapak: {
       Batch: "Batches",
       Tagihan: "B2C Sales",
@@ -82,10 +89,16 @@ test("legacy page aliases remain resolvable", () => {
   ]) {
     assert.equal(resolveWorkspacePage("lapak", page), page);
   }
-  assert.equal(resolveWorkspacePage("lapak", "Pengadaan"), "Sourcing & Bengkelan");
+  assert.equal(
+    resolveWorkspacePage("lapak", "Pengadaan"),
+    "Sourcing & Bengkelan",
+  );
   // Halaman Buku Tagihan sempat tampil sebagai "Penjualan"; shortcut lama tetap jalan.
   assert.equal(resolveWorkspacePage("lapak", "Penjualan"), "B2C Sales");
-  assert.equal(resolveWorkspacePage("lapak", "Bengkelan"), "Sourcing & Bengkelan");
+  assert.equal(
+    resolveWorkspacePage("lapak", "Bengkelan"),
+    "Sourcing & Bengkelan",
+  );
   assert.equal(resolveWorkspacePage("lapak", "Laporan"), "Laporan Lapak");
   for (const page of [
     "Stock, Price & Cost",
@@ -101,4 +114,48 @@ test("legacy page aliases remain resolvable", () => {
     assert.equal(resolveWorkspacePage("resto", page), page);
   }
   assert.equal(resolveWorkspacePage("resto", "Expenses"), "Operating Expenses");
+});
+
+test("dashboard routes round-trip visible workspace navigation", () => {
+  const cases = [
+    ["/dashboard", { module: "overview", page: null }],
+    ["/dashboard/lapak", { module: "lapak", page: "Dashboard" }],
+    ["/dashboard/lapak/batch", { module: "lapak", page: "Batch" }],
+    [
+      "/dashboard/lapak/batch/batch-42",
+      { module: "lapak", page: "Batch", batchId: "batch-42" },
+    ],
+    [
+      "/dashboard/resto/invoice/inv-1",
+      { module: "resto", page: "Invoice", invoiceId: "inv-1" },
+    ],
+  ] as const;
+
+  for (const [path, expected] of cases) {
+    assert.deepEqual(dashboardLocationFromPath(path), expected);
+  }
+  assert.equal(
+    dashboardPathForTarget("lapak", "Batch"),
+    "/dashboard/lapak/batch",
+  );
+  assert.equal(
+    dashboardPathForTarget("lapak", "Batch", undefined, "batch-42"),
+    "/dashboard/lapak/batch/batch-42",
+  );
+  assert.equal(
+    dashboardPathForTarget("resto", "Invoice", "inv-1"),
+    "/dashboard/resto/invoice/inv-1",
+  );
+  assert.equal(
+    dashboardPathForTarget("lapak", "Komisi", undefined, "batch-42"),
+    "/dashboard/lapak/komisi",
+  );
+  assert.equal(
+    dashboardPathForTarget("resto", "Invoices"),
+    "/dashboard/resto/invoice",
+  );
+  assert.deepEqual(dashboardLocationFromPath("/dashboard/resto/invoices"), {
+    module: "resto",
+    page: "Invoice",
+  });
 });

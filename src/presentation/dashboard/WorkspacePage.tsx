@@ -40,6 +40,8 @@ import {
   type LapakPeriod,
 } from "@/src/domain/lapak-periods";
 import LapakPeriodControl from "@/src/presentation/dashboard/LapakPeriodControl";
+import SummaryStats from "@/src/presentation/dashboard/components/SummaryStats";
+import WorkspaceHeader from "@/src/presentation/dashboard/components/WorkspaceHeader";
 import InvoiceWorkspace from "@/src/presentation/dashboard/InvoiceWorkspace";
 import TagihanWorkspace from "@/src/presentation/dashboard/TagihanWorkspace";
 import { RestoReportsPage } from "@/src/presentation/dashboard/RestoReports";
@@ -70,8 +72,11 @@ type WorkspacePageProps = {
     page: string,
     openForm?: boolean,
     invoiceId?: string,
+    batchId?: string,
+    formPage?: string,
   ) => void;
   initialFormOpen?: boolean;
+  initialFormPage?: string;
   initialCreateBatch?: boolean;
   initialInvoiceId?: string;
   initialBatchId?: string;
@@ -1518,16 +1523,16 @@ function BatchListPage({
   );
   return (
     <div className="workspace-page">
-      <div className="workspace-page-head">
-        <div>
-          <p className="eyebrow">Lapak / Batch</p>
-          <h1>Batch Lapak</h1>
-          <p>Lihat pendapatan dan biaya untuk setiap batch.</p>
-        </div>
-        <button className="primary-button" type="button" onClick={onCreate}>
-          <Plus size={16} /> Buat batch
-        </button>
-      </div>
+      <WorkspaceHeader
+        eyebrow="Lapak / Batch"
+        title="Batch Lapak"
+        description="Lihat pendapatan dan biaya untuk setiap batch."
+        actions={
+          <button className="primary-button" type="button" onClick={onCreate}>
+            <Plus size={16} /> Buat batch
+          </button>
+        }
+      />
       <div className="lapak-period-toolbar">
         <LapakPeriodControl
           period={period}
@@ -1762,18 +1767,21 @@ function BatchDetail({
           </button>
         </div>
       </div>
-      <div className="resource-stats batch-summary-stats">
-        <div className="resource-stat">
-          <span>Komisi</span>
-          <strong>{money(commissionTotal)}</strong>
-          <small>{commissions.length} catatan</small>
-        </div>
-        <div className="resource-stat">
-          <span>Total biaya</span>
-          <strong>{money(expenseTotal)}</strong>
-          <small>{expenses.length} catatan</small>
-        </div>
-      </div>
+      <SummaryStats
+        className="batch-summary-stats"
+        stats={[
+          {
+            label: "Komisi",
+            value: money(commissionTotal),
+            detail: `${commissions.length} catatan`,
+          },
+          {
+            label: "Total biaya",
+            value: money(expenseTotal),
+            detail: `${expenses.length} catatan`,
+          },
+        ]}
+      />
       <div className="batch-detail-grid">
         <section className="panel">
           <div className="panel-heading">
@@ -2051,27 +2059,25 @@ function SourcingWorkspacePage({
   };
   return (
     <div className="workspace-page sourcing-workspace">
-      <div className="workspace-page-head">
-        <div>
-          <p className="eyebrow">Lapak / Pengadaan &amp; Bengkelan</p>
-          <h1>Pengadaan &amp; Bengkelan</h1>
-          <p>
-            Catat pengadaan mandiri dengan jumlah dan tiga tahap pembayaran.
-          </p>
-        </div>
-        <div className="workspace-actions">
-          <button
-            className="secondary-outline-button"
-            type="button"
-            onClick={onExport}
-          >
-            <Download size={15} /> Export
-          </button>
-          <button className="primary-button" type="button" onClick={onAdd}>
-            <Plus size={16} /> Tambah pengadaan
-          </button>
-        </div>
-      </div>
+      <WorkspaceHeader
+        eyebrow="Lapak / Pengadaan &amp; Bengkelan"
+        title="Pengadaan &amp; Bengkelan"
+        description="Catat pengadaan mandiri dengan jumlah dan tiga tahap pembayaran."
+        actions={
+          <>
+            <button
+              className="secondary-outline-button"
+              type="button"
+              onClick={onExport}
+            >
+              <Download size={15} /> Export
+            </button>
+            <button className="primary-button" type="button" onClick={onAdd}>
+              <Plus size={16} /> Tambah pengadaan
+            </button>
+          </>
+        }
+      />
       <div className="lapak-period-toolbar">
         <LapakPeriodControl
           period={period}
@@ -2444,16 +2450,16 @@ function GroupedLapakPage({
   const meta = labels[page];
   return (
     <div className="workspace-page">
-      <div className="workspace-page-head">
-        <div>
-          <p className="eyebrow">Lapak / {meta.title}</p>
-          <h1>{meta.title}</h1>
-          <p>{meta.description}</p>
-        </div>
-        <button className="primary-button" type="button" onClick={onAdd}>
-          <Plus size={16} /> {meta.action}
-        </button>
-      </div>
+      <WorkspaceHeader
+        eyebrow={`Lapak / ${meta.title}`}
+        title={meta.title}
+        description={meta.description}
+        actions={
+          <button className="primary-button" type="button" onClick={onAdd}>
+            <Plus size={16} /> {meta.action}
+          </button>
+        }
+      />
       <div className="lapak-period-toolbar">
         <LapakPeriodControl
           period={period}
@@ -2553,14 +2559,17 @@ export default function WorkspacePage({
   onNotify,
   onNavigate,
   initialFormOpen = false,
+  initialFormPage,
   initialCreateBatch = false,
   initialInvoiceId,
   initialBatchId,
 }: WorkspacePageProps) {
   const effectivePage = resolveWorkspacePage(module, page);
   const [formOpen, setFormOpen] = useState(initialFormOpen);
-  const [formPage, setFormPage] = useState(effectivePage);
-  const [formBatchId, setFormBatchId] = useState<string | undefined>();
+  const [formPage, setFormPage] = useState(initialFormPage ?? effectivePage);
+  const [formBatchId, setFormBatchId] = useState<string | undefined>(
+    initialBatchId,
+  );
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(
     initialBatchId ?? null,
   );
@@ -2645,6 +2654,7 @@ export default function WorkspacePage({
       setFormPage(targetPage);
       setFormBatchId(result.id);
       setFormOpen(true);
+      onNavigate?.("lapak", "Batch", true, undefined, result.id, targetPage);
     }
   };
   const restoProps = { state: business, commands, onNotify, initialFormOpen };
@@ -2681,6 +2691,7 @@ export default function WorkspacePage({
         business={business}
         commands={commands}
         onNotify={onNotify}
+        onNavigate={onNavigate}
         page={effectivePage}
         initialFormOpen={initialFormOpen}
         initialInvoiceId={initialInvoiceId}
@@ -2699,7 +2710,11 @@ export default function WorkspacePage({
         onCancel={() => setCreateBatchMode(false)}
         onCreated={(batchId) => {
           setCreateBatchMode(false);
-          setSelectedBatchId(batchId);
+          if (onNavigate) {
+            onNavigate("lapak", "Batch", false, undefined, batchId);
+          } else {
+            setSelectedBatchId(batchId);
+          }
         }}
         onCreateAndAdd={createAndAdd}
       />
@@ -2786,7 +2801,13 @@ export default function WorkspacePage({
         <BatchDetail
           batchId={selectedBatchId}
           state={business}
-          onBack={() => setSelectedBatchId(null)}
+          onBack={() => {
+            if (onNavigate) {
+              onNavigate("lapak", "Batch");
+            } else {
+              setSelectedBatchId(null);
+            }
+          }}
           onAdd={(targetPage) => openForm(targetPage, selectedBatchId)}
           onEdit={editLapakRecord}
           onDelete={deleteLapakRecord}
@@ -2812,7 +2833,13 @@ export default function WorkspacePage({
       <BatchListPage
         state={business}
         onCreate={() => setCreateBatchMode(true)}
-        onOpen={(id) => setSelectedBatchId(id)}
+        onOpen={(id) => {
+          if (onNavigate) {
+            onNavigate("lapak", "Batch", false, undefined, id);
+          } else {
+            setSelectedBatchId(id);
+          }
+        }}
         onEdit={(id) => setEditingBatchId(id)}
         onDelete={(id) => {
           if (!window.confirm("Hapus batch beserta seluruh transaksinya?"))
@@ -2930,45 +2957,43 @@ export default function WorkspacePage({
 
   return (
     <div className="workspace-page" data-page-key={effectivePage}>
-      <div className="workspace-page-head">
-        <div>
-          <p className="eyebrow">
-            {workspaceLabel} / {page}
-          </p>
-          <h1>{meta.title}</h1>
-          <p>{meta.description}</p>
-        </div>
-        <div className="workspace-actions">
-          <button
-            className="secondary-outline-button"
-            type="button"
-            onClick={exportTable}
-          >
-            <Download size={15} /> Export
-          </button>
-          {![
-            "Laporan",
-            "Laporan Lapak",
-            "Laporan Resto",
-            "Reports",
-            "Settings",
-          ].includes(effectivePage) && (
+      <WorkspaceHeader
+        eyebrow={`${workspaceLabel} / ${page}`}
+        title={meta.title}
+        description={meta.description}
+        actions={
+          <>
             <button
-              className="primary-button"
+              className="secondary-outline-button"
               type="button"
-              onClick={() =>
-                openForm(
-                  effectivePage === "Payables"
-                    ? "Stock, Price & Cost"
-                    : effectivePage,
-                )
-              }
+              onClick={exportTable}
             >
-              <Plus size={16} /> {meta.action}
+              <Download size={15} /> Export
             </button>
-          )}
-        </div>
-      </div>
+            {![
+              "Laporan",
+              "Laporan Lapak",
+              "Laporan Resto",
+              "Reports",
+              "Settings",
+            ].includes(effectivePage) && (
+              <button
+                className="primary-button"
+                type="button"
+                onClick={() =>
+                  openForm(
+                    effectivePage === "Payables"
+                      ? "Stock, Price & Cost"
+                      : effectivePage,
+                  )
+                }
+              >
+                <Plus size={16} /> {meta.action}
+              </button>
+            )}
+          </>
+        }
+      />
       <div className="resource-stats">
         {stats.map((stat) => (
           <div className="resource-stat" key={stat.label}>

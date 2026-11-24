@@ -35,6 +35,7 @@ import {
   type LapakPeriod,
 } from "@/src/domain/lapak-periods";
 import LapakPeriodControl from "@/src/presentation/dashboard/LapakPeriodControl";
+import WorkspaceHeader from "@/src/presentation/dashboard/components/WorkspaceHeader";
 
 type Notify = (message: string, tone?: "success" | "error" | "info") => void;
 
@@ -308,39 +309,39 @@ export default function TagihanWorkspace({
 
   return (
     <div className="workspace-page ledger-page">
-      <div className="workspace-page-head">
-        <div>
-          <p className="eyebrow">Home / Buku Tagihan</p>
-          <h1>Buku Tagihan</h1>
-          <p>Kelola transaksi kredit, debit, dan sisa tagihan pelanggan.</p>
-        </div>
-        <div className="workspace-actions">
-          <button
-            className="secondary-outline-button"
-            type="button"
-            onClick={exportCsv}
-          >
-            <Download size={15} /> Export
-          </button>
-          <button
-            className="secondary-outline-button"
-            type="button"
-            onClick={() => window.print()}
-          >
-            <Printer size={15} /> Cetak
-          </button>
-          <button
-            className="primary-button"
-            type="button"
-            onClick={() => {
-              setEditing(null);
-              setFormOpen(true);
-            }}
-          >
-            <Plus size={16} /> Tambah Transaksi
-          </button>
-        </div>
-      </div>
+      <WorkspaceHeader
+        eyebrow="Home / Buku Tagihan"
+        title="Buku Tagihan"
+        description="Kelola transaksi kredit, debit, dan sisa tagihan pelanggan."
+        actions={
+          <>
+            <button
+              className="secondary-outline-button"
+              type="button"
+              onClick={exportCsv}
+            >
+              <Download size={15} /> Export
+            </button>
+            <button
+              className="secondary-outline-button"
+              type="button"
+              onClick={() => window.print()}
+            >
+              <Printer size={15} /> Cetak
+            </button>
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => {
+                setEditing(null);
+                setFormOpen(true);
+              }}
+            >
+              <Plus size={16} /> Tambah Transaksi
+            </button>
+          </>
+        }
+      />
 
       <div className="resource-stats metric-grid ledger-stats">
         {[
