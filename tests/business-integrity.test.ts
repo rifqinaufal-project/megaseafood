@@ -236,6 +236,16 @@ test("lapak sales require a customer and post a three-stage ledger", () => {
   assert.match(html, /Rp 100\.000/);
 });
 
+test("the sales page is a pure invoice book with no way to open a sales form", () => {
+  const { commands, getState } = memoryCommands();
+  commands.addLapakSale({ date: "2026-06-13", customerName: "Sri Sita", productName: "Udang", quantity: 2, unit: "kg", sellingPrice: 90000, unitCost: 70000 });
+  const html = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {} }));
+  assert.doesNotMatch(html, /Tambah penjualan/);
+  assert.doesNotMatch(html, /Catat penjualan baru/);
+  assert.doesNotMatch(html, /Product Name/);
+  assert.doesNotMatch(html, /modal-backdrop/);
+});
+
 test("the sales page is a pure invoice book with only name, date, credit, debit and restan", () => {
   const { commands, getState } = memoryCommands();
   commands.addLapakSale({ date: "2026-06-13", customerName: "Sri Sita", productName: "Udang", quantity: 2, unit: "kg", sellingPrice: 90000, unitCost: 70000 });

@@ -113,7 +113,7 @@ const pageMeta: Record<
   "B2C Sales": {
     title: "Penjualan Lapak",
     description: "Catat penjualan langsung dengan cost basis per baris.",
-    action: "Tambah penjualan",
+    action: "Buka buku tagihan",
   },
   Expenses: {
     title: "Pengeluaran Lapak",
@@ -2136,18 +2136,14 @@ function SourcingWorkspacePage({
 
 function SalesLedgerWorkspacePage({
   state,
-  onAdd,
   onExport,
-  onEdit,
   onDelete,
   onPayment,
   onNotify,
 }: {
   state: BusinessState;
-  onAdd: () => void;
   onExport: () => void;
-  onEdit: (page: string, id: string) => void;
-  onDelete: (page: string, id: string) => void;
+  onDelete: (id: string) => void;
   onPayment: (id: string, paymentNumber: 1 | 2 | 3, input: { amount: number; date: string }) => { ok: boolean; message: string };
   onNotify: Notify;
 }) {
@@ -2241,14 +2237,11 @@ function SalesLedgerWorkspacePage({
         <div>
           <p className="eyebrow">Lapak / Penjualan</p>
           <h1>Penjualan Lapak</h1>
-          <p>Buku tagihan per customer: kredit penjualan, debit pembayaran, dan restan berjalan.</p>
+          <p>Rekap buku tagihan per customer: kredit penjualan, debit pembayaran, dan restan berjalan.</p>
         </div>
         <div className="workspace-actions">
           <button className="secondary-outline-button" type="button" onClick={onExport}>
             <Download size={15} /> Export
-          </button>
-          <button className="primary-button" type="button" onClick={onAdd}>
-            <Plus size={16} /> Tambah penjualan
           </button>
         </div>
       </div>
@@ -2277,9 +2270,6 @@ function SalesLedgerWorkspacePage({
           </div>
           <div className="sales-ledger-panel-actions">
             <span className="resource-count">{visible.length} customer</span>
-            <button className="primary-button compact" type="button" onClick={onAdd}>
-              <Plus size={15} /> Tambah penjualan
-            </button>
           </div>
         </div>
         <div className="resource-toolbar">
@@ -2363,10 +2353,7 @@ function SalesLedgerWorkspacePage({
                             <div className="sales-ledger-sale-foot">
                               <span>Dibayar {money(paid)} · Restan <b className={sale.totalAmount - paid > 0 ? "sourcing-outstanding" : "sourcing-paid"}>{money(sale.totalAmount - paid)}</b></span>
                               <div className="item-actions">
-                                <button className="sourcing-action-button sourcing-edit-button" type="button" aria-label={`Edit penjualan ${sale.id}`} onClick={() => onEdit("B2C Sales", sale.id)}>
-                                  <Edit2 size={15} /> <span>Edit</span>
-                                </button>
-                                <button className="sourcing-action-button sourcing-delete-button" type="button" aria-label={`Hapus penjualan ${sale.id}`} onClick={() => onDelete("B2C Sales", sale.id)}>
+                                <button className="sourcing-action-button sourcing-delete-button" type="button" aria-label={`Hapus penjualan ${sale.id}`} onClick={() => onDelete(sale.id)}>
                                   <Trash2 size={15} /> <span>Hapus</span>
                                 </button>
                               </div>
@@ -2381,7 +2368,7 @@ function SalesLedgerWorkspacePage({
           </div>
         ) : (
           <div className="empty-state">
-            {term ? "Tidak ada customer yang cocok dengan pencarian." : "Belum ada penjualan. Gunakan tombol tambah untuk mencatat penjualan pertama."}
+            {term ? "Tidak ada customer yang cocok dengan pencarian." : "Belum ada penjualan yang tercatat."}
           </div>
         )}
       </section>
@@ -2572,7 +2559,7 @@ function GroupedLapakPage({
     "B2C Sales": {
       title: "Penjualan Lapak",
       description: "Buku tagihan per customer: kredit penjualan, debit pembayaran, dan restan.",
-      action: "Tambah penjualan",
+      action: "Buka buku tagihan",
     },
   };
   const meta = labels[page];
@@ -2854,31 +2841,16 @@ export default function WorkspacePage({
   if (module === "lapak" && effectivePage === "B2C Sales")
     return (
       <>
+        {/* Read-only invoice book: sales are recorded elsewhere, this page only reports them. */}
         <SalesLedgerWorkspacePage
           state={business}
-          onAdd={() => openForm(effectivePage)}
           onExport={exportTable}
-          onEdit={editLapakRecord}
-          onDelete={deleteLapakRecord}
+          onDelete={(id) => deleteLapakRecord("B2C Sales", id)}
           onPayment={(id, paymentNumber, input) =>
             commands.updateLapakSalePayment(id, paymentNumber, input)
           }
           onNotify={onNotify}
         />
-        {formOpen && (
-          <ModalForm
-            page={formPage}
-            editRecord={editRecord}
-            initialBatchId={formBatchId}
-            state={business}
-            commands={commands}
-            onClose={() => {
-              setFormOpen(false);
-              setEditRecord(undefined);
-            }}
-            onNotify={onNotify}
-          />
-        )}
       </>
     );
   if (
