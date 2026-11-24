@@ -28,6 +28,13 @@ export type SupplierInput = { name: string; contactName: string; phone: string; 
 export type RestaurantInput = { name: string; contactName: string; phone: string; email?: string; address?: string; notes?: string; paymentTermDays: number };
 export type UserInput = { name: string; email: string; role: UserRole };
 export type SupplierPaymentInput = { receiptId: string; date: string; amount: number; method: string; reference: string };
+export type PaymentNumber = 1 | 2 | 3;
+export type InstallmentInput = { amount: number; date: string };
+/**
+ * Supports both `updateXPayment(id, 1, input)` and the more self-contained
+ * `updateXPayment(id, { paymentNumber: 1, amount, date })` form.
+ */
+export type PaymentSlotArgument = PaymentNumber | (InstallmentInput & { paymentNumber?: PaymentNumber; slot?: PaymentNumber });
 export type SourcingInput = {
   date: string;
   sourceType: "SUPPLIER" | "BENGKELAN";
@@ -43,6 +50,23 @@ export type SourcingInput = {
   payment3: number;
   payment3Date: string;
   note: string;
+};
+
+export type LapakSaleInput = {
+  batchId: string;
+  date: string;
+  customerName: string;
+  productName: string;
+  quantity: number;
+  unit: string;
+  sellingPrice: number;
+  unitCost: number;
+  payment1?: number;
+  payment1Date?: string;
+  payment2?: number;
+  payment2Date?: string;
+  payment3?: number;
+  payment3Date?: string;
 };
 
 export function sourcingTotal(input: Pick<SourcingInput, "weight" | "price">): number {
@@ -93,6 +117,53 @@ export function normalizedSourcingInput(input: SourcingInput): Omit<SourcingInpu
   };
 }
 
+function paymentSlot(argument: PaymentSlotArgument, input?: InstallmentInput | null): { slot: PaymentNumber | null; value: InstallmentInput } {
+  if (typeof argument === "number") return { slot: argument, value: input ?? { amount: 0, date: "" } };
+  return {
+    slot: argument.paymentNumber ?? argument.slot ?? null,
+    value: { amount: argument.amount, date: argument.date },
+  };
+}
+
+function slotFields(slot: PaymentNumber): { amount: "payment1" | "payment2" | "payment3"; date: "payment1Date" | "payment2Date" | "payment3Date" } {
+  return { amount: `payment${slot}` as "payment1" | "payment2" | "payment3", date: `payment${slot}Date` as "payment1Date" | "payment2Date" | "payment3Date" };
+}
+
+function validatePaymentValue(value: InstallmentInput, recordDate: string, label: string, total: number, otherPaid: number): string | null {
+  if (!Number.isFinite(value.amount) || value.amount < 0) return `Nominal ${label} tidak valid`;
+  // An empty slot is always valid: clearing a payment never depends on a date or the remaining balance.
+  if (value.amount === 0) return null;
+  const date = value.date?.trim() ?? "";
+  if (date && (!isBusinessDate(date) || date < recordDate)) return `Tanggal ${label} tidak valid`;
+  if (value.amount > 0 && !date) return `Tanggal ${label} wajib diisi`;
+  if (otherPaid + value.amount > total) return `Total pembayaran melebihi jumlah transaksi`;
+  return null;
+}
+
+function lapakSalePayments(input: LapakSaleInput, previous?: BusinessState["lapakSales"][number]) {
+  return [
+    { amount: input.payment1 ?? previous?.payment1 ?? 0, date: input.payment1Date ?? previous?.payment1Date ?? "" },
+    { amount: input.payment2 ?? previous?.payment2 ?? 0, date: input.payment2Date ?? previous?.payment2Date ?? "" },
+    { amount: input.payment3 ?? previous?.payment3 ?? 0, date: input.payment3Date ?? previous?.payment3Date ?? "" },
+  ] as const;
+}
+
+function validateLapakSaleInput(input: LapakSaleInput, previous?: BusinessState["lapakSales"][number]): string | null {
+  if (!isBusinessDate(input.date)) return "Tanggal penjualan wajib valid";
+  if (!input.batchId || !input.customerName.trim()) return "Customer wajib diisi";
+  if (!input.productName.trim() || !Number.isFinite(input.quantity) || input.quantity <= 0 || !Number.isFinite(input.sellingPrice) || input.sellingPrice <= 0 || !Number.isFinite(input.unitCost) || input.unitCost < 0 || !input.unit.trim()) return "Produk, quantity, satuan, dan harga penjualan wajib valid";
+  const total = input.quantity * input.sellingPrice;
+  if (!Number.isFinite(total) || total <= 0) return "Jumlah penjualan tidak valid";
+  const payments = lapakSalePayments(input, previous);
+  let otherPaid = 0;
+  for (const [index, payment] of payments.entries()) {
+    const validation = validatePaymentValue(payment, input.date, `pembayaran ${index + 1}`, total, otherPaid);
+    if (validation) return validation;
+    otherPaid += payment.amount;
+  }
+  return null;
+}
+
 export type BusinessCommands = {
   runTransaction: (execute: (commands: BusinessCommands) => CommandResult) => CommandResult;
   createBatch: (input: { startDate: string; notes: string }) => CommandResult;
@@ -103,9 +174,11 @@ export type BusinessCommands = {
   deleteCommission: (id: string) => CommandResult;
   addSourcing: (input: SourcingInput) => CommandResult;
   updateSourcing: (id: string, input: SourcingInput) => CommandResult;
+  updateSourcingPayment: (id: string, payment: PaymentSlotArgument, input?: InstallmentInput | null) => CommandResult;
   deleteSourcing: (id: string) => CommandResult;
-  addLapakSale: (input: { batchId: string; date: string; productName: string; quantity: number; unit: string; sellingPrice: number; unitCost: number }) => CommandResult;
-  updateLapakSale: (id: string, input: { batchId: string; date: string; productName: string; quantity: number; unit: string; sellingPrice: number; unitCost: number }) => CommandResult;
+  addLapakSale: (input: LapakSaleInput) => CommandResult;
+  updateLapakSale: (id: string, input: LapakSaleInput) => CommandResult;
+  updateLapakSalePayment: (id: string, payment: PaymentSlotArgument, input?: InstallmentInput | null) => CommandResult;
   deleteLapakSale: (id: string) => CommandResult;
   addLapakExpense: (input: { batchId: string; date: string; expenseName: string; amount: number; notes: string }) => CommandResult;
   updateLapakExpense: (id: string, input: { batchId: string; date: string; expenseName: string; amount: number; notes: string }) => CommandResult;
@@ -183,6 +256,44 @@ export function createBusinessCommands(persistState: (updater: BusinessUpdater) 
     }, input ? previous ? "PAYMENT_UPDATED" : "PAYMENT_RECORDED" : "PAYMENT_DELETED", "Pembayaran", invoice.invoiceNumber));
     return { ok: true, id: paymentId, message: input ? previous ? "Pembayaran berhasil diperbarui" : "Pembayaran berhasil dicatat" : "Pembayaran dihapus dan piutang dihitung ulang" };
   };
+  const changeSourcingPayment = (id: string, argument: PaymentSlotArgument, input?: InstallmentInput | null): CommandResult => {
+    const state = getState();
+    const sourcing = state.sourcings.find((item) => item.id === id);
+    if (!sourcing) return { ok: false, message: "Pengadaan tidak ditemukan" };
+    const resolved = paymentSlot(argument, input);
+    if (!resolved.slot || ![1, 2, 3].includes(resolved.slot)) return { ok: false, message: "Tahap pembayaran tidak valid" };
+    const fields = slotFields(resolved.slot);
+    const currentPaid = sourcing.payment1 + sourcing.payment2 + sourcing.payment3;
+    const otherPaid = currentPaid - sourcing[fields.amount];
+    const value = { amount: resolved.value.amount, date: resolved.value.date?.trim() ?? "" };
+    const validation = validatePaymentValue(value, sourcing.date, `pembayaran ${resolved.slot}`, sourcing.total, otherPaid);
+    if (validation) return { ok: false, message: validation };
+    const normalizedDate = value.amount > 0 ? value.date : "";
+    setState((current) => audit({
+      ...current,
+      sourcings: current.sourcings.map((item) => item.id === id ? { ...item, [fields.amount]: value.amount, [fields.date]: normalizedDate } : item),
+    }, value.amount > 0 ? "SOURCING_PAYMENT_UPDATED" : "SOURCING_PAYMENT_CLEARED", "Pembayaran pengadaan", `${sourcing.name} · tahap ${resolved.slot}`));
+    return { ok: true, message: value.amount > 0 ? "Pembayaran pengadaan berhasil disimpan" : "Pembayaran pengadaan dikosongkan" };
+  };
+  const changeLapakSalePayment = (id: string, argument: PaymentSlotArgument, input?: InstallmentInput | null): CommandResult => {
+    const state = getState();
+    const sale = state.lapakSales.find((item) => item.id === id);
+    if (!sale) return { ok: false, message: "Penjualan tidak ditemukan" };
+    const resolved = paymentSlot(argument, input);
+    if (!resolved.slot || ![1, 2, 3].includes(resolved.slot)) return { ok: false, message: "Tahap pembayaran tidak valid" };
+    const fields = slotFields(resolved.slot);
+    const currentPaid = sale.payment1 + sale.payment2 + sale.payment3;
+    const otherPaid = currentPaid - sale[fields.amount];
+    const value = { amount: resolved.value.amount, date: resolved.value.date?.trim() ?? "" };
+    const validation = validatePaymentValue(value, sale.date, `pembayaran ${resolved.slot}`, sale.totalAmount, otherPaid);
+    if (validation) return { ok: false, message: validation };
+    const normalizedDate = value.amount > 0 ? value.date : "";
+    setState((current) => audit({
+      ...current,
+      lapakSales: current.lapakSales.map((item) => item.id === id ? { ...item, [fields.amount]: value.amount, [fields.date]: normalizedDate } : item),
+    }, value.amount > 0 ? "LAPAK_SALE_PAYMENT_UPDATED" : "LAPAK_SALE_PAYMENT_CLEARED", "Pembayaran penjualan Lapak", `${sale.customerName} · tahap ${resolved.slot}`));
+    return { ok: true, message: value.amount > 0 ? "Pembayaran penjualan berhasil disimpan" : "Pembayaran penjualan dikosongkan" };
+  };
   const commands: BusinessCommands = {
     runTransaction: (execute) => {
       let staged = getState();
@@ -258,6 +369,7 @@ export function createBusinessCommands(persistState: (updater: BusinessUpdater) 
       setState((state) => ({ ...state, sourcings: state.sourcings.map((item) => item.id === id ? { ...item, ...normalizedSourcingInput(input), total: sourcingTotal(input) } : item) }));
       return { ok: true, message: "Pengadaan berhasil diperbarui" };
     },
+    updateSourcingPayment: (id, payment, input) => changeSourcingPayment(id, payment, input),
     deleteSourcing: (id) => {
       if (!getState().sourcings.some((item) => item.id === id)) return { ok: false, message: "Pengadaan tidak ditemukan" };
       setState((state) => ({ ...state, sourcings: state.sourcings.filter((item) => item.id !== id) }));
@@ -266,21 +378,27 @@ export function createBusinessCommands(persistState: (updater: BusinessUpdater) 
     addLapakSale: (input) => {
       const batch = getState().batches.find((item) => item.id === input.batchId);
       if (!batch) return { ok: false, message: "Pilih batch Lapak yang tersedia" };
-      if (!input.productName.trim() || input.quantity <= 0 || input.sellingPrice <= 0 || input.unitCost < 0) return { ok: false, message: "Produk, quantity, dan harga penjualan wajib valid" };
+      const validation = validateLapakSaleInput(input);
+      if (validation) return { ok: false, message: validation };
       const subtotal = input.quantity * input.sellingPrice;
       const costTotal = input.quantity * input.unitCost;
-      setState((state) => ({ ...state, lapakSales: [...state.lapakSales, { id: makeId("lapak-sale"), batchId: input.batchId, date: input.date, customerLabel: "B2C", paymentStatus: "PAID", totalAmount: subtotal, items: [{ productName: input.productName.trim(), quantity: input.quantity, unit: input.unit, sellingPrice: input.sellingPrice, unitCost: input.unitCost, subtotal, costTotal, profit: subtotal - costTotal }] }] }));
-      return { ok: true, message: "Penjualan B2C berhasil dicatat" };
+      const payments = lapakSalePayments(input);
+      setState((state) => ({ ...state, lapakSales: [...state.lapakSales, { id: makeId("lapak-sale"), batchId: input.batchId, date: input.date, customerName: input.customerName.trim(), totalAmount: subtotal, payment1: payments[0].amount, payment1Date: payments[0].amount > 0 ? payments[0].date.trim() : "", payment2: payments[1].amount, payment2Date: payments[1].amount > 0 ? payments[1].date.trim() : "", payment3: payments[2].amount, payment3Date: payments[2].amount > 0 ? payments[2].date.trim() : "", items: [{ productName: input.productName.trim(), quantity: input.quantity, unit: input.unit.trim(), sellingPrice: input.sellingPrice, unitCost: input.unitCost, subtotal, costTotal, profit: subtotal - costTotal }] }] }));
+      return { ok: true, message: "Penjualan Lapak berhasil dicatat" };
     },
     updateLapakSale: (id, input) => {
+      const current = getState().lapakSales.find((item) => item.id === id);
       if (!getState().batches.some((batch) => batch.id === input.batchId)) return { ok: false, message: "Pilih batch Lapak yang tersedia" };
-      if (!input.productName.trim() || input.quantity <= 0 || input.sellingPrice <= 0 || input.unitCost < 0) return { ok: false, message: "Produk, quantity, dan harga penjualan wajib valid" };
-      if (!getState().lapakSales.some((item) => item.id === id)) return { ok: false, message: "Penjualan tidak ditemukan" };
+      if (!current) return { ok: false, message: "Penjualan tidak ditemukan" };
+      const validation = validateLapakSaleInput(input, current);
+      if (validation) return { ok: false, message: validation };
       const subtotal = input.quantity * input.sellingPrice;
       const costTotal = input.quantity * input.unitCost;
-      setState((state) => ({ ...state, lapakSales: state.lapakSales.map((sale) => sale.id === id ? { ...sale, batchId: input.batchId, date: input.date, totalAmount: subtotal, items: [{ productName: input.productName.trim(), quantity: input.quantity, unit: input.unit, sellingPrice: input.sellingPrice, unitCost: input.unitCost, subtotal, costTotal, profit: subtotal - costTotal }] } : sale) }));
-      return { ok: true, message: "Penjualan B2C berhasil diperbarui" };
+      const payments = lapakSalePayments(input, current);
+      setState((state) => ({ ...state, lapakSales: state.lapakSales.map((sale) => sale.id === id ? { ...sale, batchId: input.batchId, date: input.date, customerName: input.customerName.trim(), totalAmount: subtotal, payment1: payments[0].amount, payment1Date: payments[0].amount > 0 ? payments[0].date.trim() : "", payment2: payments[1].amount, payment2Date: payments[1].amount > 0 ? payments[1].date.trim() : "", payment3: payments[2].amount, payment3Date: payments[2].amount > 0 ? payments[2].date.trim() : "", items: [{ productName: input.productName.trim(), quantity: input.quantity, unit: input.unit.trim(), sellingPrice: input.sellingPrice, unitCost: input.unitCost, subtotal, costTotal, profit: subtotal - costTotal }] } : sale) }));
+      return { ok: true, message: "Penjualan Lapak berhasil diperbarui" };
     },
+    updateLapakSalePayment: (id, payment, input) => changeLapakSalePayment(id, payment, input),
     deleteLapakSale: (id) => {
       if (!getState().lapakSales.some((item) => item.id === id)) return { ok: false, message: "Penjualan tidak ditemukan" };
       setState((state) => ({ ...state, lapakSales: state.lapakSales.filter((item) => item.id !== id) }));
@@ -625,8 +743,11 @@ export function createBusinessCommands(persistState: (updater: BusinessUpdater) 
   return Object.fromEntries(Object.entries(commands).map(([name, command]) => [name, (...args: unknown[]): CommandResult => {
     for (const argument of args) {
       if (!argument || typeof argument !== "object") continue;
+      // Payment slots carry their own validation: an empty date clears/keeps a slot empty, so it is not rejected here.
+      const allowsEmptyDate = "paymentNumber" in argument || "slot" in argument || "amount" in argument;
       for (const [field, value] of Object.entries(argument)) {
-        if ((field === "date" || field === "startDate") && (typeof value !== "string" || !isBusinessDate(value))) return { ok: false, message: "Tanggal wajib valid (YYYY-MM-DD)" };
+        const emptyPaymentDate = field === "date" && allowsEmptyDate && value === "";
+        if ((field === "date" || field === "startDate") && !emptyPaymentDate && (typeof value !== "string" || !isBusinessDate(value))) return { ok: false, message: "Tanggal wajib valid (YYYY-MM-DD)" };
         if (typeof value === "number" && !Number.isFinite(value)) return { ok: false, message: "Jumlah dan harga harus berupa angka yang valid" };
       }
     }

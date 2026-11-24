@@ -56,10 +56,16 @@ export interface LapakSale {
   id: string;
   batchId: string;
   date: string;
-  customerLabel: string;
+  /** Nama customer pada buku tagihan; data lama yang tidak punya nama memakai "—". */
+  customerName: string;
   items: LapakSaleItem[];
   totalAmount: number;
-  paymentStatus: "PAID";
+  payment1: number;
+  payment1Date: string;
+  payment2: number;
+  payment2Date: string;
+  payment3: number;
+  payment3Date: string;
 }
 
 export interface LapakExpense {

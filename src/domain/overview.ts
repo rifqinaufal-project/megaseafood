@@ -8,6 +8,7 @@ const CHART_MONTHS = 6;
 const RECENT_LIMIT = 6;
 
 const sum = <T,>(items: T[], pick: (item: T) => number) => items.reduce((total, item) => total + pick(item), 0);
+const lapakSalePaid = (sale: BusinessState["lapakSales"][number]) => sale.payment1 + sale.payment2 + sale.payment3;
 
 function inRange(range: OverviewRange, date: string, asOf: string) {
   if (range === "Tahun ini") return date.slice(0, 4) === asOf.slice(0, 4);
@@ -111,9 +112,9 @@ export function buildOverview(state: BusinessState, range: OverviewRange, asOf =
   const change = percent(last, monthly[monthly.length - 2].profit);
 
   const cashIn =
-    sum(state.invoices, (item) => item.paidAmount) +
-    sum(state.commissions, (item) => item.amount) +
-    sum(state.lapakSales, (item) => item.totalAmount);
+     sum(state.invoices, (item) => item.paidAmount) +
+     sum(state.commissions, (item) => item.amount) +
+     sum(state.lapakSales, lapakSalePaid);
   const restoIn = sum(state.invoices, (item) => item.paidAmount);
   const cashOut =
     sum(state.supplierPayments, (item) => item.amount) +

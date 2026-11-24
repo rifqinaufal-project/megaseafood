@@ -60,9 +60,9 @@ export function searchBusiness(state: BusinessState, query: string, limit = 18):
   for (const sale of state.lapakSales) {
     const products = sale.items.map((item) => item.productName).join(", ");
     add({
-      kind: "Penjualan Lapak", title: sale.customerLabel || products || "Penjualan", detail: `${sale.date} · Rp ${formatRupiah(sale.totalAmount)} · ${products}`,
+      kind: "Penjualan Lapak", title: sale.customerName || "—", detail: `${sale.date} · Rp ${formatRupiah(sale.totalAmount)} · ${products}`,
       module: "lapak", page: "Penjualan", batchId: sale.batchId,
-    }, [sale.customerLabel, sale.date, sale.id, products]);
+    }, [sale.customerName, sale.date, sale.id, products]);
   }
 
   for (const expense of state.lapakExpenses) add({

@@ -11,7 +11,7 @@ const fields = {
   batches: ["batchNumber", "startDate", "notes"],
   commissions: ["batchId", "date", "partner", "note"],
   sourcings: ["date", "sourceType", "name", "type", "unit", "payment1Date", "payment2Date", "payment3Date", "note"],
-  lapakSales: ["batchId", "date", "customerLabel", "paymentStatus"],
+  lapakSales: ["batchId", "date", "customerName", "payment1Date", "payment2Date", "payment3Date"],
   lapakExpenses: ["batchId", "date", "expenseName", "notes"],
   products: ["sku", "name", "category", "size", "unit", "status"],
   suppliers: ["name", "contactName", "phone", "email", "address", "status"],
@@ -31,7 +31,7 @@ const companyFields = ["name", "address", "phone", "email", "website", "npwp", "
 const amounts = {
   batches: [], commissions: ["amount"],
   sourcings: ["weight", "price", "total", "payment1", "payment2", "payment3"],
-  lapakSales: ["totalAmount"], lapakExpenses: ["amount"],
+  lapakSales: ["totalAmount", "payment1", "payment2", "payment3"], lapakExpenses: ["amount"],
   products: ["defaultSellingPrice", "averageHpp", "latestPurchaseCost", "stockBalance", "minimumStock"],
   suppliers: [], restaurants: ["paymentTermDays"],
   receipts: ["subtotal"],
@@ -43,7 +43,7 @@ const amounts = {
   users: [], auditLogs: [],
 } as const;
 // Dates that may legitimately be empty (e.g. no receipt due date).
-const optionalDates = new Set(["receipts.dueDate", "sourcings.payment1Date", "sourcings.payment2Date", "sourcings.payment3Date"]);
+const optionalDates = new Set(["receipts.dueDate", "sourcings.payment1Date", "sourcings.payment2Date", "sourcings.payment3Date", "lapakSales.payment1Date", "lapakSales.payment2Date", "lapakSales.payment3Date"]);
 // Movements store signed quantities and balances can be reconciled to zero.
 const signedAmounts = new Set(["stockMovements.quantity"]);
 
@@ -83,6 +83,48 @@ function migrateLegacyState(value: Record<string, unknown>): Record<string, unkn
     const items = typeof productId === "string" ? [{ productId, manualQuantity: manualWeight, digitalQuantity: digitalWeight, unitCost: unitPurchasePrice }] : entry.items;
     return { ...rest, items, supplierReference: entry.supplierReference ?? "", dueDate: entry.dueDate ?? "", notes: entry.notes ?? "" };
   });
+  const rawLapakSales = value.lapakSales;
+  if (!Array.isArray(rawLapakSales)) {
+    migrated.lapakSales = [];
+  } else {
+    const currentFields = ["batchId", "date", "customerName", "items", "totalAmount", "payment1", "payment1Date", "payment2", "payment2Date", "payment3", "payment3Date"];
+    const number = (candidate: unknown, fallback = 0) => typeof candidate === "number" && Number.isFinite(candidate) ? candidate : fallback;
+    const text = (candidate: unknown, fallback = "") => typeof candidate === "string" ? candidate : fallback;
+    const migratedLapakSales = rawLapakSales.map((entry) => {
+      if (!isRecord(entry)) return entry;
+      const customerName = text(entry.customerName).trim();
+      if (currentFields.every((field) => field in entry) && customerName) return entry;
+      const items = Array.isArray(entry.items) ? entry.items : [];
+      const itemTotal = items.reduce((sum, item) => isRecord(item) ? sum + number(item.subtotal) : sum, 0);
+      const totalAmount = number(entry.totalAmount, number(entry.total, itemTotal));
+      const legacyLabel = text(entry.customerLabel).trim();
+      // The old UI stored the generic label "B2C" rather than a real customer.
+      // Keep meaningful labels, but make anonymous history explicit and groupable.
+      const migratedCustomer = customerName || (legacyLabel && legacyLabel.toUpperCase() !== "B2C" ? legacyLabel : "—");
+      const paidAmount = number(entry.paidAmount, entry.paymentStatus === "PAID" ? totalAmount : 0);
+      const payment1 = number(entry.payment1, paidAmount);
+      const payment1Date = text(entry.payment1Date, payment1 > 0 ? text(entry.date) : "");
+      const payment2 = number(entry.payment2);
+      const payment2Date = text(entry.payment2Date, payment2 > 0 ? text(entry.date) : "");
+      const payment3 = number(entry.payment3);
+      const payment3Date = text(entry.payment3Date, payment3 > 0 ? text(entry.date) : "");
+      return {
+        id: text(entry.id),
+        batchId: text(entry.batchId),
+        date: text(entry.date),
+        customerName: migratedCustomer,
+        items,
+        totalAmount,
+        payment1,
+        payment1Date,
+        payment2,
+        payment2Date,
+        payment3,
+        payment3Date,
+      };
+    });
+    if (migratedLapakSales.some((entry, index) => entry !== rawLapakSales[index])) migrated.lapakSales = migratedLapakSales;
+  }
   const rawSourcings = value.sourcings;
   if (!Array.isArray(rawSourcings)) {
     migrated.sourcings = [];
@@ -194,6 +236,26 @@ export function normalizeBusinessState(input: unknown): BusinessState {
         const paid = (entry.payment1 as number) + (entry.payment2 as number) + (entry.payment3 as number);
         if (paid > calculatedTotal) throw new Error("Pembayaran pengadaan melebihi jumlah");
       }
+      if (key === "lapakSales") {
+        if (!(entry.customerName as string).trim()) throw new Error("Customer penjualan wajib diisi");
+        if (!Array.isArray(entry.items) || entry.items.length === 0) throw new Error("Item penjualan tidak valid");
+        if (!(entry.totalAmount as number) || (entry.totalAmount as number) <= 0) throw new Error("Jumlah penjualan tidak valid");
+        const paymentDates = ["payment1Date", "payment2Date", "payment3Date"];
+        for (const field of paymentDates) {
+          const paymentDate = entry[field];
+          if (typeof paymentDate !== "string" || (paymentDate && (!isBusinessDate(paymentDate) || paymentDate < (entry.date as string)))) throw new Error("Tanggal pembayaran penjualan tidak valid");
+        }
+        const payments = [
+          [entry.payment1, entry.payment1Date],
+          [entry.payment2, entry.payment2Date],
+          [entry.payment3, entry.payment3Date],
+        ];
+        for (const [amount, paymentDate] of payments) {
+          if ((amount as number) > 0 && !(paymentDate as string)) throw new Error("Tanggal pembayaran penjualan wajib diisi");
+        }
+        const paid = (entry.payment1 as number) + (entry.payment2 as number) + (entry.payment3 as number);
+        if (paid > (entry.totalAmount as number)) throw new Error("Pembayaran penjualan melebihi jumlah");
+      }
       if (key === "restaurants" && (!Number.isSafeInteger(entry.paymentTermDays) || (entry.paymentTermDays as number) > 3650)) throw new Error("Termin restoran tidak valid");
       if ((key === "invoices" || key === "payments") && entry.revision !== undefined && (!Number.isSafeInteger(entry.revision) || (entry.revision as number) < 0)) throw new Error("Revisi transaksi tidak valid");
       if (key === "receipts" && entry.paidAmount !== undefined && (typeof entry.paidAmount !== "number" || !Number.isFinite(entry.paidAmount) || entry.paidAmount < 0 || entry.paidAmount > (entry.subtotal as number))) throw new Error("Pembayaran supplier tidak valid");
@@ -213,13 +275,19 @@ export function normalizeBusinessState(input: unknown): BusinessState {
           if (!record(cost) || typeof cost.id !== "string" || typeof cost.name !== "string" || !DIRECT_COST_CATEGORIES.includes(cost.category as never) || typeof cost.amount !== "number" || !Number.isFinite(cost.amount) || cost.amount < 0) throw new Error("Biaya internal invoice tidak valid");
         }
       }
-      if (key === "lapakSales" || key === "invoices") {
+      if (key === "invoices") {
         if (!Array.isArray(entry.items)) throw new Error("Item transaksi tidak valid");
-        const strings = key === "invoices" ? ["productId"] : ["productName", "unit"];
-        const numbers = key === "invoices" ? ["stockQuantity", "marginQuantity", "billingQuantity", "sellingPrice", "hpp", "subtotal", "hppTotal", "profit"] : ["quantity", "sellingPrice", "unitCost", "subtotal", "costTotal", "profit"];
+        const strings = ["productId"];
+        const numbers = ["stockQuantity", "marginQuantity", "billingQuantity", "sellingPrice", "hpp", "subtotal", "hppTotal", "profit"];
         for (const item of entry.items) {
           if (!record(item) || strings.some((field) => typeof item[field] !== "string") || numbers.some((field) => typeof item[field] !== "number" || !Number.isFinite(item[field]) || (field !== "profit" && (item[field] as number) < 0))) throw new Error("Detail item transaksi tidak valid");
           if (key === "invoices" && ["productName", "unit"].some((field) => item[field] !== undefined && typeof item[field] !== "string")) throw new Error("Informasi produk invoice tidak valid");
+        }
+      }
+      if (key === "lapakSales") {
+        if (!Array.isArray(entry.items)) throw new Error("Item transaksi tidak valid");
+        for (const item of entry.items) {
+          if (!record(item) || ["productName", "unit"].some((field) => typeof item[field] !== "string") || ["quantity", "sellingPrice", "unitCost", "subtotal", "costTotal", "profit"].some((field) => typeof item[field] !== "number" || !Number.isFinite(item[field]) || (field !== "profit" && (item[field] as number) < 0))) throw new Error("Detail item transaksi tidak valid");
         }
       }
     }

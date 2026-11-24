@@ -188,11 +188,66 @@ test("standalone sourcing renders its fields without a batch column", () => {
     commands,
     onNotify: () => {},
   }));
-  assert.match(listing, /sourcing-record/);
+  assert.match(listing, /sourcing-record-table/);
   assert.match(listing, />Edit<\/span>/);
   assert.match(listing, />Hapus<\/span>/);
-  assert.doesNotMatch(listing, /sourcing-table/);
+  assert.match(listing, /payment-add-button/);
+  assert.match(listing, /\+ Bayar/);
+  assert.match(listing, /<th>Pembayaran 1 \(Rp\)<\/th>/);
   assert.doesNotMatch(listing, /<th>No<\/th>/);
+  assert.doesNotMatch(listing, /sourcing-record"/);
+});
+
+test("sourcing payments are updated inline and cannot exceed the purchase total", () => {
+  const { commands, getState } = memoryCommands();
+  const id = getState().sourcings[0].id;
+  assert.equal(commands.updateSourcingPayment(id, 2, { amount: 500000, date: "2026-06-13" }).ok, true);
+  assert.equal(getState().sourcings[0].payment2, 500000);
+  assert.equal(getState().sourcings[0].payment2Date, "2026-06-13");
+  assert.equal(commands.updateSourcingPayment(id, 3, { amount: 500000, date: "2026-06-14" }).ok, false);
+  assert.equal(commands.updateSourcingPayment(id, 2, { amount: 100000, date: "" }).ok, false);
+  assert.equal(commands.updateSourcingPayment(id, 2, { amount: 100000, date: "2026-06-11" }).ok, false);
+  assert.equal(commands.updateSourcingPayment(id, 2, { amount: 0, date: "" }).ok, true);
+  assert.equal(getState().sourcings[0].payment2, 0);
+  assert.equal(getState().sourcings[0].payment2Date, "");
+});
+
+test("lapak sales require a customer and post a three-stage ledger", () => {
+  const { commands, getState } = memoryCommands();
+  const sale = { batchId: "batch-42", date: "2026-06-13", customerName: "Sri Sita", productName: "Udang", quantity: 2, unit: "kg", sellingPrice: 90000, unitCost: 70000 };
+  assert.equal(commands.addLapakSale({ ...sale, customerName: "  " }).ok, false);
+  assert.equal(commands.addLapakSale({ ...sale, payment1: 50000, payment1Date: "" }).ok, false);
+  assert.equal(commands.addLapakSale(sale).ok, true);
+  const created = getState().lapakSales.at(-1)!;
+  assert.equal(created.customerName, "Sri Sita");
+  assert.equal(created.totalAmount, 180000);
+  assert.equal(commands.updateLapakSalePayment(created.id, 1, { amount: 80000, date: "2026-06-14" }).ok, true);
+  assert.equal(commands.updateLapakSalePayment(created.id, 2, { amount: 200000, date: "2026-06-15" }).ok, false);
+  assert.equal(getState().lapakSales.at(-1)!.payment1, 80000);
+  const html = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {} }));
+  assert.match(html, /Tagihan per customer/);
+  assert.match(html, /Sri Sita/);
+  assert.match(html, /Restan/);
+  assert.match(html, /Rp 80\.000/);
+  assert.match(html, /Rp 100\.000/);
+});
+
+test("legacy lapak sales migrate to named customers with their payments intact", () => {
+  const initial = seedBusinessState();
+  const legacy = {
+    ...initial,
+    lapakSales: [
+      { id: "legacy-sale", batchId: "batch-42", date: "2026-06-12", customerLabel: "B2C", paymentStatus: "PAID", totalAmount: 180000, items: [{ productName: "Udang", quantity: 2, unit: "kg", sellingPrice: 90000, unitCost: 70000, subtotal: 180000, costTotal: 140000, profit: 40000 }] },
+      { id: "named-sale", batchId: "batch-42", date: "2026-06-12", customerLabel: "Bu Ani", paymentStatus: "PAID", totalAmount: 60000, items: [{ productName: "Cumi", quantity: 1, unit: "kg", sellingPrice: 60000, unitCost: 40000, subtotal: 60000, costTotal: 40000, profit: 20000 }] },
+    ],
+  };
+  const migrated = normalizeBusinessState(legacy);
+  assert.equal(migrated.lapakSales[0].customerName, "—");
+  assert.equal(migrated.lapakSales[0].payment1, 180000);
+  assert.equal(migrated.lapakSales[0].payment1Date, "2026-06-12");
+  assert.equal(migrated.lapakSales[1].customerName, "Bu Ani");
+  assert.equal("customerLabel" in migrated.lapakSales[0], false);
+  assert.equal("paymentStatus" in migrated.lapakSales[0], false);
 });
 
 test("batch note edits preserve the number even when there are several batches on a date", () => {
