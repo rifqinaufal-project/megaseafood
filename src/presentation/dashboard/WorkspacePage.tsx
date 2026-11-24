@@ -32,6 +32,7 @@ import { resolveWorkspacePage } from "@/src/presentation/dashboard/workspace-rou
 import {
   groupByMonth,
   inRange,
+  periodLabel,
   periodRange,
   type DateRange,
   type LapakPeriod,
@@ -1498,6 +1499,21 @@ function BatchListPage({
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
+  const [period, setPeriod] = useState<LapakPeriod>("Semua");
+  const [anchor, setAnchor] = useState(today());
+  const range = useMemo(() => periodRange(period, anchor), [period, anchor]);
+  // A batch belongs to the period its start date falls in; "Semua" keeps the whole list grouped by month.
+  const visible = state.batches.filter((batch) =>
+    inRange(batch.startDate, range),
+  );
+  const months = groupByMonth(
+    visible,
+    (batch) => batch.startDate,
+    (batch) =>
+      state.commissions
+        .filter((item) => item.batchId === batch.id)
+        .reduce((sum, item) => sum + item.amount, 0),
+  );
   return (
     <div className="workspace-page">
       <div className="workspace-page-head">
@@ -1506,121 +1522,162 @@ function BatchListPage({
           <h1>Batch Lapak</h1>
           <p>Lihat pendapatan dan biaya untuk setiap batch.</p>
         </div>
+        <LapakPeriodControl
+          period={period}
+          anchor={anchor}
+          onPeriod={setPeriod}
+          onAnchor={setAnchor}
+          showAnchor={false}
+        />
         <button className="primary-button" type="button" onClick={onCreate}>
           <Plus size={16} /> Buat batch
         </button>
       </div>
+      <p className="period-caption">
+        {period === "Semua"
+          ? "Dikelompokkan per bulan"
+          : `Periode ${periodLabel(period, anchor).toLowerCase()}`}
+      </p>
       <section className="panel resource-panel">
         <div className="panel-heading">
           <div>
             <h2>Daftar batch</h2>
           </div>
-          <span className="resource-count">{state.batches.length} batch</span>
+          <span className="resource-count">
+            {visible.length} batch · {months.length} bulan
+          </span>
         </div>
-        {state.batches.length > 0 ? (
-          <div className="table-wrap batch-table-wrap">
-            <table className="batch-list-table" aria-label="Daftar batch Lapak">
-              <thead>
-                <tr>
-                  <th scope="col">Batch</th>
-                  <th scope="col">Pendapatan</th>
-                  <th scope="col">Biaya</th>
-                  <th scope="col" className="batch-actions-heading">
-                    Aksi
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {state.batches.map((batch) => {
-                  const commissionRevenue = state.commissions
-                    .filter((item) => item.batchId === batch.id)
-                    .reduce((sum, item) => sum + item.amount, 0);
-                  const expenseCost = state.lapakExpenses
-                    .filter((item) => item.batchId === batch.id)
-                    .reduce((sum, item) => sum + item.amount, 0);
-                  const note = batch.notes.trim();
-                  const batchName = note
-                    ? /^batch\b/i.test(note)
-                      ? note
-                      : `Batch ${note}`
-                    : "Batch tanpa nama";
-
-                  return (
-                    <tr
-                      className="batch-table-row"
-                      key={batch.id}
-                      role="link"
-                      tabIndex={0}
-                      aria-label={`Buka detail ${batch.batchNumber}`}
-                      onClick={() => onOpen(batch.id)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          onOpen(batch.id);
-                        }
-                      }}
-                    >
-                      <td className="batch-table-identity">
-                        <strong>{batch.batchNumber}</strong>
-                        <small>
-                          {batchName} · {batch.startDate}
-                        </small>
-                      </td>
-                      <td className="batch-table-amount">
-                        {money(commissionRevenue)}
-                      </td>
-                      <td className="batch-table-amount">
-                        {money(expenseCost)}
-                      </td>
-                      <td>
-                        <div
-                          className="batch-table-actions"
-                          onKeyDown={(event) => event.stopPropagation()}
-                        >
-                          <button
-                            className="text-link"
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onOpen(batch.id);
-                            }}
-                          >
-                            Lihat detail
-                          </button>
-                          <button
-                            className="icon-button"
-                            type="button"
-                            aria-label={`Edit ${batch.batchNumber}`}
-                            title={`Edit ${batch.batchNumber}`}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onEdit(batch.id);
-                            }}
-                          >
-                            <Edit2 size={15} />
-                          </button>
-                          <button
-                            className="icon-button danger-button"
-                            type="button"
-                            aria-label={`Hapus ${batch.batchNumber}`}
-                            title={`Hapus ${batch.batchNumber}`}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onDelete(batch.id);
-                            }}
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                      </td>
+        {visible.length > 0 ? (
+          months.map((month) => (
+            <section
+              className="lapak-month"
+              key={month.key || "no-date"}
+              aria-label={`Batch ${month.label}`}
+            >
+              <div className="lapak-month-head">
+                <div>
+                  <h2>{month.label}</h2>
+                  <small>{month.items.length} batch</small>
+                </div>
+                <div className="lapak-month-figures">
+                  <span>
+                    <small>Pendapatan</small>
+                    <b>{money(month.total)}</b>
+                  </span>
+                </div>
+              </div>
+              <div className="table-wrap batch-table-wrap">
+                <table
+                  className="batch-list-table"
+                  aria-label={`Daftar batch Lapak ${month.label}`}
+                >
+                  <thead>
+                    <tr>
+                      <th scope="col">Batch</th>
+                      <th scope="col">Pendapatan</th>
+                      <th scope="col">Biaya</th>
+                      <th scope="col" className="batch-actions-heading">
+                        Aksi
+                      </th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody>
+                    {month.items.map((batch) => {
+                      const commissionRevenue = state.commissions
+                        .filter((item) => item.batchId === batch.id)
+                        .reduce((sum, item) => sum + item.amount, 0);
+                      const expenseCost = state.lapakExpenses
+                        .filter((item) => item.batchId === batch.id)
+                        .reduce((sum, item) => sum + item.amount, 0);
+                      const note = batch.notes.trim();
+                      const batchName = note
+                        ? /^batch\b/i.test(note)
+                          ? note
+                          : `Batch ${note}`
+                        : "Batch tanpa nama";
+
+                      return (
+                        <tr
+                          className="batch-table-row"
+                          key={batch.id}
+                          role="link"
+                          tabIndex={0}
+                          aria-label={`Buka detail ${batch.batchNumber}`}
+                          onClick={() => onOpen(batch.id)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              onOpen(batch.id);
+                            }
+                          }}
+                        >
+                          <td className="batch-table-identity">
+                            <strong>{batch.batchNumber}</strong>
+                            <small>
+                              {batchName} · {batch.startDate}
+                            </small>
+                          </td>
+                          <td className="batch-table-amount">
+                            {money(commissionRevenue)}
+                          </td>
+                          <td className="batch-table-amount">
+                            {money(expenseCost)}
+                          </td>
+                          <td>
+                            <div
+                              className="batch-table-actions"
+                              onKeyDown={(event) => event.stopPropagation()}
+                            >
+                              <button
+                                className="text-link"
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  onOpen(batch.id);
+                                }}
+                              >
+                                Lihat detail
+                              </button>
+                              <button
+                                className="icon-button"
+                                type="button"
+                                aria-label={`Edit ${batch.batchNumber}`}
+                                title={`Edit ${batch.batchNumber}`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  onEdit(batch.id);
+                                }}
+                              >
+                                <Edit2 size={15} />
+                              </button>
+                              <button
+                                className="icon-button danger-button"
+                                type="button"
+                                aria-label={`Hapus ${batch.batchNumber}`}
+                                title={`Hapus ${batch.batchNumber}`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  onDelete(batch.id);
+                                }}
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ))
         ) : (
-          <div className="empty-state">Belum ada batch.</div>
+          <div className="empty-state">
+            {period === "Semua"
+              ? "Belum ada batch."
+              : "Tidak ada batch pada periode ini."}
+          </div>
         )}
       </section>
     </div>
@@ -1642,6 +1699,10 @@ function BatchDetail({
   onEdit: (page: string, id: string) => void;
   onDelete: (page: string, id: string) => void;
 }) {
+  // Hooks stay above the early return so hook order never depends on the batch being found.
+  const [period, setPeriod] = useState<LapakPeriod>("Semua");
+  const [anchor, setAnchor] = useState(today());
+  const range = useMemo(() => periodRange(period, anchor), [period, anchor]);
   const batch = state.batches.find((item) => item.id === batchId);
   if (!batch)
     return (
@@ -1652,12 +1713,13 @@ function BatchDetail({
         </button>
       </div>
     );
-  const commissions = state.commissions.filter(
-    (item) => item.batchId === batch.id,
-  );
-  const expenses = state.lapakExpenses.filter(
-    (item) => item.batchId === batch.id,
-  );
+  // Records inside a batch can be read per day/week/month; "Semua" shows the whole batch.
+  const commissions = state.commissions
+    .filter((item) => item.batchId === batch.id && inRange(item.date, range))
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const expenses = state.lapakExpenses
+    .filter((item) => item.batchId === batch.id && inRange(item.date, range))
+    .sort((a, b) => b.date.localeCompare(a.date));
   const commissionTotal = commissions.reduce(
     (sum, item) => sum + item.amount,
     0,
@@ -1702,16 +1764,31 @@ function BatchDetail({
           </button>
         </div>
       </div>
+      <div className="lapak-period-bar">
+        <LapakPeriodControl
+          period={period}
+          anchor={anchor}
+          onPeriod={setPeriod}
+          onAnchor={setAnchor}
+          variant="bar"
+        />
+      </div>
       <div className="resource-stats batch-summary-stats">
         <div className="resource-stat">
           <span>Komisi</span>
           <strong>{money(commissionTotal)}</strong>
-          <small>{commissions.length} catatan</small>
+          <small>
+            {commissions.length} catatan
+            {range ? " pada periode ini" : ""}
+          </small>
         </div>
         <div className="resource-stat">
           <span>Total biaya</span>
           <strong>{money(expenseTotal)}</strong>
-          <small>{expenses.length} catatan</small>
+          <small>
+            {expenses.length} catatan
+            {range ? " pada periode ini" : ""}
+          </small>
         </div>
       </div>
       <div className="batch-detail-grid">
@@ -1757,7 +1834,9 @@ function BatchDetail({
             </div>
           ) : (
             <div className="empty-state">
-              Belum ada pengeluaran untuk batch ini.
+              {range
+                ? "Tidak ada pengeluaran pada periode ini."
+                : "Belum ada pengeluaran untuk batch ini."}
             </div>
           )}
         </section>
@@ -1802,7 +1881,11 @@ function BatchDetail({
               ))}
             </div>
           ) : (
-            <div className="empty-state">Belum ada komisi untuk batch ini.</div>
+            <div className="empty-state">
+              {range
+                ? "Tidak ada komisi pada periode ini."
+                : "Belum ada komisi untuk batch ini."}
+            </div>
           )}
         </section>
       </div>
@@ -1991,6 +2074,13 @@ function SourcingWorkspacePage({
           </p>
         </div>
         <div className="workspace-actions">
+          <LapakPeriodControl
+            period={period}
+            anchor={anchor}
+            onPeriod={setPeriod}
+            onAnchor={setAnchor}
+            variant="bar"
+          />
           <button
             className="secondary-outline-button"
             type="button"
@@ -2002,14 +2092,6 @@ function SourcingWorkspacePage({
             <Plus size={16} /> Tambah pengadaan
           </button>
         </div>
-      </div>
-      <div className="lapak-period-bar">
-        <LapakPeriodControl
-          period={period}
-          anchor={anchor}
-          onPeriod={setPeriod}
-          onAnchor={setAnchor}
-        />
       </div>
       <div className="resource-stats">
         <div className="resource-stat">
@@ -2361,19 +2443,18 @@ function GroupedLapakPage({
           <h1>{meta.title}</h1>
           <p>{meta.description}</p>
         </div>
-        <button className="primary-button" type="button" onClick={onAdd}>
-          <Plus size={16} /> {meta.action}
-        </button>
-      </div>
-      <LapakSummaryCards page={page} state={state} range={range} />
-      <div className="lapak-period-bar">
         <LapakPeriodControl
           period={period}
           anchor={anchor}
           onPeriod={setPeriod}
           onAnchor={setAnchor}
+          variant="bar"
         />
+        <button className="primary-button" type="button" onClick={onAdd}>
+          <Plus size={16} /> {meta.action}
+        </button>
       </div>
+      <LapakSummaryCards page={page} state={state} range={range} />
       {groups.length ? (
         <div className="lapak-group-list">
           {groups.map((group) => (

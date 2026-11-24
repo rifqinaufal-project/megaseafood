@@ -25,8 +25,15 @@ import {
   WalletCards,
   X,
 } from "lucide-react";
-import type { DashboardSnapshot, Module, OverviewRange } from "@/src/domain/dashboard";
-import { searchBusiness, type GlobalSearchResult } from "@/src/domain/global-search";
+import type {
+  DashboardSnapshot,
+  Module,
+  OverviewRange,
+} from "@/src/domain/dashboard";
+import {
+  searchBusiness,
+  type GlobalSearchResult,
+} from "@/src/domain/global-search";
 import { buildOverview } from "@/src/domain/overview";
 import {
   formatRupiah,
@@ -34,6 +41,14 @@ import {
   type BusinessState,
 } from "@/src/domain/business-state";
 import AccountMenu from "@/src/presentation/auth/AccountMenu";
+import {
+  PERIOD_LABELS,
+  inRange,
+  periodLabel,
+  periodRange,
+  type LapakPeriod,
+} from "@/src/domain/lapak-periods";
+import LapakPeriodControl from "@/src/presentation/dashboard/LapakPeriodControl";
 import { useLocalBusiness } from "@/src/presentation/dashboard/use-local-business";
 import WorkspacePage from "@/src/presentation/dashboard/WorkspacePage";
 import { RestoDashboardPage } from "@/src/presentation/dashboard/RestoReports";
@@ -131,16 +146,8 @@ function StatCard({ stat }: { stat: DashboardSnapshot["stats"][number] }) {
   );
 }
 
-type LapakPeriod = "daily" | "weekly" | "monthly" | "all";
-
-const periodLabels: Record<LapakPeriod, string> = {
-  daily: "Harian",
-  weekly: "Mingguan",
-  monthly: "Bulanan",
-  all: "Semua",
-};
+const periodLabels = PERIOD_LABELS;
 const money = (amount: number) => `Rp ${formatRupiah(amount)}`;
-const dateOf = (date: string) => new Date(`${date}T00:00:00`);
 
 function LapakDashboard({
   business,
@@ -161,21 +168,9 @@ function LapakDashboard({
     ...business.lapakExpenses.map((item) => item.date),
   ];
   const anchor = dates.sort().at(-1) ?? today();
-  const anchorDate = dateOf(anchor);
-  const inPeriod = (date: string) => {
-    const value = dateOf(date);
-    if (period === "all") return true;
-    if (period === "daily") return date === anchor;
-    if (period === "monthly")
-      return (
-        value.getFullYear() === anchorDate.getFullYear() &&
-        value.getMonth() === anchorDate.getMonth()
-      );
-    const days = Math.round(
-      (anchorDate.getTime() - value.getTime()) / 86400000,
-    );
-    return days >= 0 && days < 7;
-  };
+  // Same period rules as the Lapak pages: Harian = one day, Mingguan = Senin–Minggu, Bulanan = one month.
+  const range = periodRange(period, anchor);
+  const inPeriod = (date: string) => inRange(date, range);
   const commissions = business.commissions.filter((item) =>
     inPeriod(item.date),
   );
@@ -186,11 +181,11 @@ function LapakDashboard({
     (sum, item) => sum + item.amount,
     0,
   );
-  const salesTotal = sales.reduce((sum, item) => sum + (item.kind === "KREDIT" ? item.amount : 0), 0);
-  const sourcingTotal = sourcings.reduce(
-    (sum, item) => sum + item.total,
+  const salesTotal = sales.reduce(
+    (sum, item) => sum + (item.kind === "KREDIT" ? item.amount : 0),
     0,
   );
+  const sourcingTotal = sourcings.reduce((sum, item) => sum + item.total, 0);
   const expenseTotal = expenses.reduce((sum, item) => sum + item.amount, 0);
   const batchIds = [
     ...new Set(
@@ -209,21 +204,17 @@ function LapakDashboard({
             periode.
           </p>
         </div>
-        <div className="period-switcher">
-          {(Object.keys(periodLabels) as LapakPeriod[]).map((key) => (
-            <button
-              key={key}
-              className={period === key ? "active" : ""}
-              type="button"
-              onClick={() => onPeriodChange(key)}
-            >
-              {periodLabels[key]}
-            </button>
-          ))}
-        </div>
+        <LapakPeriodControl
+          period={period}
+          anchor={anchor}
+          onPeriod={onPeriodChange}
+          onAnchor={() => undefined}
+          showAnchor={false}
+        />
       </div>
       <p className="period-caption">
-        Periode {periodLabels[period].toLowerCase()} · acuan data {anchor}
+        Periode {periodLabels[period].toLowerCase()} ·{" "}
+        {period === "Semua" ? "seluruh data" : periodLabel(period, anchor)}
       </p>
       <div className="resource-stats">
         <div className="resource-stat">
@@ -239,17 +230,14 @@ function LapakDashboard({
         <div className="resource-stat">
           <span>Profit kotor</span>
           <strong>
-            Rp{" "}
-            {formatRupiah(commissionTotal + salesTotal - expenseTotal)}
+            Rp {formatRupiah(commissionTotal + salesTotal - expenseTotal)}
           </strong>
           <small>{batchIds.length} batch terlibat</small>
         </div>
         <div className="resource-stat">
           <span>Pengadaan &amp; Bengkelan</span>
           <strong>Rp {formatRupiah(sourcingTotal)}</strong>
-          <small>
-            {sourcings.length} catatan · terpisah dari profit
-          </small>
+          <small>{sourcings.length} catatan · terpisah dari profit</small>
         </div>
       </div>
       <section className="panel resource-panel">
@@ -275,10 +263,9 @@ function LapakDashboard({
               const batchCommission = commissions
                 .filter((item) => item.batchId === batchId)
                 .reduce((sum, item) => sum + item.amount, 0);
-              const batchCosts =
-                expenses
-                  .filter((item) => item.batchId === batchId)
-                  .reduce((sum, item) => sum + item.amount, 0);
+              const batchCosts = expenses
+                .filter((item) => item.batchId === batchId)
+                .reduce((sum, item) => sum + item.amount, 0);
               return (
                 <button
                   className="batch-dashboard-row"
@@ -339,7 +326,9 @@ function ProfitChart({ dashboard }: { dashboard: DashboardSnapshot }) {
             <ArrowUpRight size={14} /> {chart.change}
           </span>
         )}
-        <small>{chart.change ? "vs. bulan sebelumnya" : "profit 6 bulan terakhir"}</small>
+        <small>
+          {chart.change ? "vs. bulan sebelumnya" : "profit 6 bulan terakhir"}
+        </small>
       </div>
       <div className="chart-legend">
         <span>
@@ -356,25 +345,25 @@ function ProfitChart({ dashboard }: { dashboard: DashboardSnapshot }) {
         role="img"
         aria-label="Grafik profit dan biaya 6 bulan terakhir"
       >
-        {chart.labels.map(
-          (month, index) => (
-            <div className="bar-group" key={month}>
-              <div className="bars">
-                <span
-                  className="bar profit-bar"
-                  style={{ height: `${chart.profit[index]}%` }}
-                />
-                <span
-                  className="bar cost-bar"
-                  style={{ height: `${chart.cost[index]}%` }}
-                />
-              </div>
-              <small>{month}</small>
+        {chart.labels.map((month, index) => (
+          <div className="bar-group" key={month}>
+            <div className="bars">
+              <span
+                className="bar profit-bar"
+                style={{ height: `${chart.profit[index]}%` }}
+              />
+              <span
+                className="bar cost-bar"
+                style={{ height: `${chart.cost[index]}%` }}
+              />
             </div>
-          ),
-        )}
+            <small>{month}</small>
+          </div>
+        ))}
       </div>
-      {!chart.hasData && <p className="chart-empty">Belum ada transaksi untuk ditampilkan.</p>}
+      {!chart.hasData && (
+        <p className="chart-empty">Belum ada transaksi untuk ditampilkan.</p>
+      )}
     </section>
   );
 }
@@ -515,7 +504,9 @@ function ActivityTable({
           </tbody>
         </table>
         {filteredRows.length === 0 && (
-          <div className="empty-state">{query ? "Tidak ada aktivitas yang cocok." : "Belum ada aktivitas."}</div>
+          <div className="empty-state">
+            {query ? "Tidak ada aktivitas yang cocok." : "Belum ada aktivitas."}
+          </div>
         )}
       </div>
     </section>
@@ -531,7 +522,10 @@ function OverviewWorkspaceCards({
 }) {
   const lapakRevenue =
     business.commissions.reduce((sum, item) => sum + item.amount, 0) +
-    business.lapakSales.reduce((sum, item) => sum + (item.kind === "KREDIT" ? item.amount : 0), 0);
+    business.lapakSales.reduce(
+      (sum, item) => sum + (item.kind === "KREDIT" ? item.amount : 0),
+      0,
+    );
   const restoRevenue = business.invoices.reduce(
     (sum, invoice) => sum + invoice.total,
     0,
@@ -541,7 +535,10 @@ function OverviewWorkspaceCards({
   ).length;
 
   return (
-    <section className="overview-workspaces" aria-labelledby="workspace-entry-title">
+    <section
+      className="overview-workspaces"
+      aria-labelledby="workspace-entry-title"
+    >
       <div className="overview-section-heading">
         <div>
           <p className="eyebrow">Workspace</p>
@@ -631,7 +628,8 @@ function OverviewAttentionPanel({
   );
   const lowStockProducts = business.products.filter(
     (product) =>
-      product.status === "ACTIVE" && product.stockBalance <= product.minimumStock,
+      product.status === "ACTIVE" &&
+      product.stockBalance <= product.minimumStock,
   );
   const totalReceivables = outstandingInvoices.reduce(
     (sum, invoice) => sum + invoice.outstandingAmount,
@@ -758,9 +756,7 @@ function QuickAdd({
           </button>
           <button
             type="button"
-            onClick={() =>
-                onNavigate("resto", "Invoice", true)
-            }
+            onClick={() => onNavigate("resto", "Invoice", true)}
           >
             <span className="quick-icon">
               <FileText size={18} />
@@ -806,8 +802,18 @@ function GlobalSearchDialog({
   onSelect: (result: GlobalSearchResult) => void;
 }) {
   return (
-    <div className="global-search-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="global-search-dialog" role="dialog" aria-modal="true" aria-label="Pencarian global">
+    <div
+      className="global-search-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section
+        className="global-search-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Pencarian global"
+      >
         <div className="global-search-field">
           <Search size={21} aria-hidden="true" />
           <input
@@ -820,40 +826,81 @@ function GlobalSearchDialog({
             aria-label="Cari data bisnis"
           />
           <kbd>ESC</kbd>
-          <button type="button" className="global-search-close" onClick={onClose} aria-label="Tutup pencarian"><X size={18} /></button>
+          <button
+            type="button"
+            className="global-search-close"
+            onClick={onClose}
+            aria-label="Tutup pencarian"
+          >
+            <X size={18} />
+          </button>
         </div>
         <div className="global-search-content">
           {!query.trim() ? (
-            <p className="global-search-hint">Cari invoice, produk, restoran, supplier, batch, pembayaran, dan transaksi.</p>
+            <p className="global-search-hint">
+              Cari invoice, produk, restoran, supplier, batch, pembayaran, dan
+              transaksi.
+            </p>
           ) : results.length ? (
             <>
-              <p className="global-search-caption">{results.length} hasil teratas</p>
+              <p className="global-search-caption">
+                {results.length} hasil teratas
+              </p>
               <div className="global-search-results">
                 {results.map((result, index) => (
-                  <button className="global-search-result" type="button" key={`${result.kind}-${result.title}-${index}`} onClick={() => onSelect(result)}>
-                    <span className="global-search-result-icon"><Search size={17} /></span>
+                  <button
+                    className="global-search-result"
+                    type="button"
+                    key={`${result.kind}-${result.title}-${index}`}
+                    onClick={() => onSelect(result)}
+                  >
+                    <span className="global-search-result-icon">
+                      <Search size={17} />
+                    </span>
                     <span className="global-search-result-copy">
-                      <small>{result.kind} · {moduleLabels[result.module]}</small>
+                      <small>
+                        {result.kind} · {moduleLabels[result.module]}
+                      </small>
                       <strong>{result.title}</strong>
                       <span>{result.detail || result.page}</span>
                     </span>
-                    <ArrowUpRight size={16} className="global-search-result-arrow" />
+                    <ArrowUpRight
+                      size={16}
+                      className="global-search-result-arrow"
+                    />
                   </button>
                 ))}
               </div>
             </>
           ) : (
-            <div className="global-search-empty"><Search size={22} /><strong>Tidak ada hasil</strong><span>Coba kata kunci atau nomor transaksi lain.</span></div>
+            <div className="global-search-empty">
+              <Search size={22} />
+              <strong>Tidak ada hasil</strong>
+              <span>Coba kata kunci atau nomor transaksi lain.</span>
+            </div>
           )}
         </div>
-        <footer className="global-search-footer"><span>Tekan <kbd>⌘ K</kbd> atau <kbd>Ctrl K</kbd> untuk mencari kapan saja</span><button type="button" onClick={onClose}>Tutup <kbd>Esc</kbd></button></footer>
+        <footer className="global-search-footer">
+          <span>
+            Tekan <kbd>⌘ K</kbd> atau <kbd>Ctrl K</kbd> untuk mencari kapan saja
+          </span>
+          <button type="button" onClick={onClose}>
+            Tutup <kbd>Esc</kbd>
+          </button>
+        </footer>
       </section>
     </div>
   );
 }
 
 function DashboardContent() {
-  const { state: business, accountUsers, actions, storageError, retryStorage } = useLocalBusiness();
+  const {
+    state: business,
+    accountUsers,
+    actions,
+    storageError,
+    retryStorage,
+  } = useLocalBusiness();
   const [module, setModule] = useState<Module>("overview");
   const [activeNav, setActiveNav] = useState<string | null>(null);
   const [activityQuery, setActivityQuery] = useState("");
@@ -861,8 +908,14 @@ function DashboardContent() {
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const globalSearchInput = useRef<HTMLInputElement>(null);
   const [range, setRange] = useState<OverviewRange>("Bulan ini");
-  const dashboard = useMemo(() => buildOverview(business, range), [business, range]);
-  const globalSearchResults = useMemo(() => searchBusiness(business, globalSearchQuery), [business, globalSearchQuery]);
+  const dashboard = useMemo(
+    () => buildOverview(business, range),
+    [business, range],
+  );
+  const globalSearchResults = useMemo(
+    () => searchBusiness(business, globalSearchQuery),
+    [business, globalSearchQuery],
+  );
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [createRequest, setCreateRequest] = useState<{
     module: Module;
@@ -872,9 +925,12 @@ function DashboardContent() {
     invoiceId?: string;
     batchId?: string;
   } | null>(null);
-  const [lapakPeriod, setLapakPeriod] = useState<LapakPeriod>("daily");
+  const [lapakPeriod, setLapakPeriod] = useState<LapakPeriod>("Semua");
   const requestId = useRef(0);
-  const [toast, setToast] = useState<{ message: string; tone: "success" | "error" | "info" } | null>(null);
+  const [toast, setToast] = useState<{
+    message: string;
+    tone: "success" | "error" | "info";
+  } | null>(null);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -942,36 +998,59 @@ function DashboardContent() {
   };
 
   const openSearchResult = (result: GlobalSearchResult) => {
-    navigateTo(result.module, result.page, false, result.invoiceId, result.batchId);
+    navigateTo(
+      result.module,
+      result.page,
+      false,
+      result.invoiceId,
+      result.batchId,
+    );
     setGlobalSearchOpen(false);
   };
 
-  const notify = (message: string, tone: "success" | "error" | "info" = "info") => {
+  const notify = (
+    message: string,
+    tone: "success" | "error" | "info" = "info",
+  ) => {
     const notification = { message, tone };
     setToast(notification);
-    window.setTimeout(() => setToast((current) => current === notification ? null : current), tone === "error" ? 7000 : 2800);
+    window.setTimeout(
+      () => setToast((current) => (current === notification ? null : current)),
+      tone === "error" ? 7000 : 2800,
+    );
   };
 
   return (
-    <div className={`app-shell ${module === "overview" ? "overview-shell" : "module-shell"}`}>
+    <div
+      className={`app-shell ${module === "overview" ? "overview-shell" : "module-shell"}`}
+    >
       <header className="app-header">
         <BrandPill />
         <nav className="module-nav" role="tablist" aria-label="Pilih workspace">
           {(Object.keys(moduleLabels) as Module[]).map((key) => {
-            const Icon = key === "overview" ? LayoutDashboard : key === "lapak" ? Store : ShoppingBag;
-            return <button
-              className={module === key ? "selected" : ""}
-              onClick={() => changeModule(key)}
-              role="tab"
-              aria-label={moduleLabels[key]}
-              title={moduleLabels[key]}
-              aria-selected={module === key}
-              type="button"
-              key={key}
-            >
-              <span className="module-nav-icon"><Icon size={21} strokeWidth={1.9} aria-hidden="true" /></span>
-              <span className="module-nav-label">{moduleLabels[key]}</span>
-            </button>;
+            const Icon =
+              key === "overview"
+                ? LayoutDashboard
+                : key === "lapak"
+                  ? Store
+                  : ShoppingBag;
+            return (
+              <button
+                className={module === key ? "selected" : ""}
+                onClick={() => changeModule(key)}
+                role="tab"
+                aria-label={moduleLabels[key]}
+                title={moduleLabels[key]}
+                aria-selected={module === key}
+                type="button"
+                key={key}
+              >
+                <span className="module-nav-icon">
+                  <Icon size={21} strokeWidth={1.9} aria-hidden="true" />
+                </span>
+                <span className="module-nav-label">{moduleLabels[key]}</span>
+              </button>
+            );
           })}
         </nav>
         <div className="header-actions">
@@ -980,7 +1059,10 @@ function DashboardContent() {
               className="top-icon"
               aria-label="Cari"
               type="button"
-              onClick={() => { setGlobalSearchQuery(""); setGlobalSearchOpen(true); }}
+              onClick={() => {
+                setGlobalSearchQuery("");
+                setGlobalSearchOpen(true);
+              }}
             >
               <Search size={19} strokeWidth={1.9} />
             </button>
@@ -1029,7 +1111,10 @@ function DashboardContent() {
                 {moduleDescriptions[module as Exclude<Module, "overview">]}
               </small>
             </div>
-            <nav className="sidebar-nav" aria-label={`Menu ${moduleLabels[module]}`}>
+            <nav
+              className="sidebar-nav"
+              aria-label={`Menu ${moduleLabels[module]}`}
+            >
               {navItems[module].map((item) => {
                 const Icon = item.icon;
                 return (
@@ -1068,14 +1153,23 @@ function DashboardContent() {
         >
           {storageError && (
             <div className="storage-error" role="alert">
-              <div><strong>Perhatian: penyimpanan data bermasalah</strong><p>{storageError}</p></div>
-              <button className="secondary-outline-button" type="button" onClick={retryStorage}>Periksa ulang data</button>
+              <div>
+                <strong>Perhatian: penyimpanan data bermasalah</strong>
+                <p>{storageError}</p>
+              </div>
+              <button
+                className="secondary-outline-button"
+                type="button"
+                onClick={retryStorage}
+              >
+                Periksa ulang data
+              </button>
             </div>
           )}
           {module === "overview" && activeNav === null ? (
             <>
               <div className="welcome-row">
-               <div>
+                <div>
                   <p className="eyebrow">
                     {module === "overview"
                       ? "Global overview"
@@ -1091,15 +1185,17 @@ function DashboardContent() {
                     <CalendarDays size={16} />
                     <select
                       value={range}
-                      onChange={(event) => setRange(event.target.value as OverviewRange)}
+                      onChange={(event) =>
+                        setRange(event.target.value as OverviewRange)
+                      }
                       aria-label="Periode laporan"
                     >
                       <option>Bulan ini</option>
                       <option>Kuartal ini</option>
                       <option>Tahun ini</option>
                     </select>
-                      <ChevronDown size={14} />
-                    </label>
+                    <ChevronDown size={14} />
+                  </label>
                   <button
                     className="secondary-outline-button"
                     type="button"
@@ -1121,14 +1217,19 @@ function DashboardContent() {
                   <p className="eyebrow">Ringkasan</p>
                   <h2>Gambaran bisnis</h2>
                 </div>
-                <span className="overview-section-note">Periode {range.toLowerCase()}</span>
+                <span className="overview-section-note">
+                  Periode {range.toLowerCase()}
+                </span>
               </div>
               <div className="stats-grid">
                 {dashboard.stats.map((stat) => (
                   <StatCard key={stat.label} stat={stat} />
                 ))}
               </div>
-              <OverviewWorkspaceCards business={business} onNavigate={navigateTo} />
+              <OverviewWorkspaceCards
+                business={business}
+                onNavigate={navigateTo}
+              />
               <div className="main-grid">
                 <ProfitChart dashboard={dashboard} />
                 <WalletsPanel dashboard={dashboard} />
@@ -1140,7 +1241,10 @@ function DashboardContent() {
                   dashboard={dashboard}
                   onNavigate={navigateTo}
                 />
-                <OverviewAttentionPanel business={business} onNavigate={navigateTo} />
+                <OverviewAttentionPanel
+                  business={business}
+                  onNavigate={navigateTo}
+                />
               </div>
             </>
           ) : activeNav === "Dashboard" && module === "lapak" ? (
@@ -1164,7 +1268,8 @@ function DashboardContent() {
               onNavigate={navigateTo}
               initialFormOpen={
                 createRequest?.module === module &&
-                createRequest.page === activeNav && createRequest.openForm
+                createRequest.page === activeNav &&
+                createRequest.openForm
               }
               initialInvoiceId={createRequest?.invoiceId}
               initialBatchId={createRequest?.batchId}
@@ -1185,8 +1290,17 @@ function DashboardContent() {
         />
       )}
       {toast && (
-        <div className={`toast toast-${toast.tone}`} role={toast.tone === "error" ? "alert" : "status"}>
-          <span className="toast-check">{toast.tone === "error" ? "!" : toast.tone === "success" ? "✓" : "i"}</span>
+        <div
+          className={`toast toast-${toast.tone}`}
+          role={toast.tone === "error" ? "alert" : "status"}
+        >
+          <span className="toast-check">
+            {toast.tone === "error"
+              ? "!"
+              : toast.tone === "success"
+                ? "✓"
+                : "i"}
+          </span>
           {toast.message}
         </div>
       )}
@@ -1203,7 +1317,11 @@ export default function DashboardShell() {
         <section className="auth-card" role="alert">
           <h1>Data belum bisa dimuat</h1>
           <p className="auth-lead">{loadError}</p>
-          <button className="primary-button auth-submit" type="button" onClick={retryStorage}>
+          <button
+            className="primary-button auth-submit"
+            type="button"
+            onClick={retryStorage}
+          >
             Coba lagi
           </button>
         </section>

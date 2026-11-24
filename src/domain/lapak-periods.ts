@@ -36,6 +36,14 @@ export const LAPAK_PERIODS = [
 ] as const;
 export type LapakPeriod = (typeof LAPAK_PERIODS)[number];
 
+/** Shared labels so the Dashboard and the Lapak pages never drift apart. */
+export const PERIOD_LABELS: Record<LapakPeriod, string> = {
+  Harian: "Harian",
+  Mingguan: "Mingguan",
+  Bulanan: "Bulanan",
+  Semua: "Semua",
+};
+
 /** `2026-11-20` becomes `2026-11`, the grouping key. */
 export const monthKey = (date: string) => {
   const match = /^(\d{4})-(\d{2})/.exec(date || "");
@@ -85,6 +93,28 @@ export const startOfWeek = (date: string) => {
 
 export type DateRange = { from: string; to: string };
 
+/** First and last day of the month that contains `date`. */
+export const monthBounds = (date: string): DateRange => {
+  const match =
+    /^(\d{4})-(\d{2})/.exec(date || "") || /^(\d{4})$/.exec(date || "");
+  if (!match) return { from: "", to: "" };
+  const year = match[1];
+  const month = match[2] ?? "01";
+  const lastDay = new Date(
+    Date.UTC(Number(year), Number(month), 0),
+  ).getUTCDate();
+  return {
+    from: `${year}-${month}-01`,
+    to: `${year}-${month}-${String(lastDay).padStart(2, "0")}`,
+  };
+};
+
+/** Monday–Sunday week that contains `date`. */
+export const weekBounds = (date: string): DateRange => {
+  const from = startOfWeek(date);
+  return { from, to: shiftDays(from, 6) };
+};
+
 /**
  * Resolves the inclusive date range of a period around `anchor`.
  * "Semua" returns null because the whole book is shown and grouped by month instead.
@@ -93,22 +123,9 @@ export function periodRange(
   period: LapakPeriod,
   anchor: string,
 ): DateRange | null {
-  if (period === "Harian") return { from: anchor, to: anchor };
-  if (period === "Mingguan") {
-    const from = startOfWeek(anchor);
-    return { from, to: shiftDays(from, 6) };
-  }
-  if (period === "Bulanan") {
-    const match = /^(\d{4})-(\d{2})/.exec(anchor || "");
-    if (!match) return null;
-    const lastDay = new Date(
-      Date.UTC(Number(match[1]), Number(match[2]), 0),
-    ).getUTCDate();
-    return {
-      from: `${match[1]}-${match[2]}-01`,
-      to: `${match[1]}-${match[2]}-${String(lastDay).padStart(2, "0")}`,
-    };
-  }
+  if (period === "Harian") return anchor ? { from: anchor, to: anchor } : null;
+  if (period === "Mingguan") return weekBounds(anchor);
+  if (period === "Bulanan") return monthBounds(anchor);
   return null;
 }
 

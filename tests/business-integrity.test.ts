@@ -431,13 +431,40 @@ test("period ranges follow the calendar without time-zone drift", () => {
 
 test("every lapak page offers Harian, Mingguan, Bulanan, and Semua", () => {
   const { commands, getState } = memoryCommands();
-  for (const page of ["Tagihan", "Komisi", "Pengeluaran", "Pengadaan"]) {
-    const html = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page, business: getState(), commands, onNotify: () => {} }));
-    for (const option of ["Harian", "Mingguan", "Bulanan", "Semua"]) assert.match(html, new RegExp(`>${option}<`), `${page} tanpa pilihan ${option}`);
-    // "Semua" aktif secara default dan menyebut pengelompokan per bulan.
-    assert.match(html, /is-active"[^>]*>Semua</, `${page} tidak default ke Semua`);
+  // Batch ikut memakai pemilih yang sama, termasuk halaman detail per batch.
+  const batchId = getState().batches[0].id;
+  const renders: [string, string, string | undefined][] = [
+    ...["Tagihan", "Komisi", "Pengeluaran", "Pengadaan", "Batch"].map((page) => [page, page, undefined] as [string, string, string | undefined]),
+    ["Batch detail", "Batch", batchId],
+  ];
+  for (const [label, page, initialBatchId] of renders) {
+    const html = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page, business: getState(), commands, onNotify: () => {}, initialBatchId }));
+    for (const option of ["Harian", "Mingguan", "Bulanan", "Semua"]) assert.match(html, new RegExp(`>${option}<`), `${label} tanpa pilihan ${option}`);
+    // Memakai pemilih yang sama dengan Dashboard Lapak (.period-switcher), default "Semua".
+    assert.match(html, /class="period-switcher"/, `${label} tidak memakai period-switcher`);
+    assert.match(html, /class="active"[^>]*>Semua</, `${label} tidak default ke Semua`);
     assert.match(html, /Dikelompokkan per bulan/);
   }
+});
+
+test("batch list is grouped by month with the newest month first", () => {
+  const { commands, getState } = memoryCommands({
+    ...seedBusinessState(),
+    batches: [
+      { id: "b-sep", batchNumber: "BAT-SEP", startDate: "2026-09-02", notes: "Ikan" },
+      { id: "b-okt", batchNumber: "BAT-OKT", startDate: "2026-10-05", notes: "Udang" },
+    ],
+    commissions: [],
+    lapakExpenses: [],
+  });
+  commands.addCommission({ batchId: "b-okt", date: "2026-10-06", partner: "Juragan B", amount: 300000, note: "" });
+  const html = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Batch", business: getState(), commands, onNotify: () => {} }));
+  assert.match(html, /<h2>Oktober 2026<\/h2>/);
+  assert.match(html, /<h2>September 2026<\/h2>/);
+  assert.ok(html.indexOf("Oktober 2026") < html.indexOf("September 2026"));
+  assert.match(html, /2 batch · 2 bulan/);
+  // Subtotal pendapatan per bulan ikut tampil.
+  assert.match(html, /Rp 300\.000/);
 });
 
 test("month grouping puts the newest month first and keeps undated rows last", () => {

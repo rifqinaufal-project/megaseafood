@@ -323,6 +323,19 @@ export default function TagihanWorkspace({
           <p>Kelola transaksi kredit, debit, dan sisa tagihan pelanggan.</p>
         </div>
         <div className="workspace-actions">
+          <LapakPeriodControl
+            period={period}
+            anchor={anchor}
+            onPeriod={(next) => {
+              setPeriod(next);
+              setPage(1);
+            }}
+            onAnchor={(next) => {
+              setAnchor(next);
+              setPage(1);
+            }}
+            variant="bar"
+          />
           <button
             className="secondary-outline-button"
             type="button"
@@ -407,18 +420,6 @@ export default function TagihanWorkspace({
 
       <section className="panel resource-panel ledger-panel">
         <div className="resource-toolbar ledger-toolbar">
-          <LapakPeriodControl
-            period={period}
-            anchor={anchor}
-            onPeriod={(next) => {
-              setPeriod(next);
-              setPage(1);
-            }}
-            onAnchor={(next) => {
-              setAnchor(next);
-              setPage(1);
-            }}
-          />
           <label className="table-search">
             <Search size={16} />
             <input
