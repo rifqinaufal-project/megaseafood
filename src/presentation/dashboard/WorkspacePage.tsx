@@ -1290,6 +1290,27 @@ function buildSalesLedgerGroups(state: BusinessState): SalesLedgerGroup[] {
     .sort((a, b) => a.customerName.localeCompare(b.customerName, "id"));
 }
 
+const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+
+/** `2026-06-13` reads better as `13 Jun 2026` for people who did not type it. */
+function formatDate(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value || "");
+  if (!match) return value || "—";
+  const [, year, month, day] = match;
+  return `${Number(day)} ${monthNames[Number(month) - 1] ?? month} ${year}`;
+}
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "—";
+  return `${parts[0][0] ?? ""}${parts.length > 1 ? parts[parts.length - 1][0] ?? "" : ""}`.toUpperCase();
+}
+
+function progressLabel(credit: number, debit: number) {
+  if (credit <= 0) return "0%";
+  return `${Math.max(0, Math.min(100, Math.round((debit / credit) * 100)))}%`;
+}
+
 function salesLedgerRows(state: BusinessState) {
   return {
     columns: ["No", "Nama", "Tanggal", "Kredit", "Debit", "Restan"],
@@ -2347,62 +2368,109 @@ function SalesLedgerWorkspacePage({
           <div className="sales-ledger-list">
             {visible.map((group) => {
               const sales = state.lapakSales.filter((sale) => (sale.customerName.trim() || "—") === group.customerName);
+              const customerCount = sales.length;
+              const settled = group.restan <= 0;
               return (
                 <section className="panel sales-ledger-card" key={group.customerName}>
-                  <div className="sales-ledger-card-head">
-                    <strong>Buku tagihan</strong>
-                    <small>Saldo akhir {money(group.restan)}</small>
-                  </div>
-                  <div className="sales-ledger-heading">
+                  <header className="sales-ledger-head">
+                    <div className="sales-ledger-identity">
+                      <span className="sales-ledger-avatar" aria-hidden="true">{initials(group.customerName)}</span>
+                      <div>
+                        <h3>{group.customerName}</h3>
+                        <p>{customerCount} tagihan · {group.lines.filter((line) => line.kind === "payment").length} pembayaran</p>
+                      </div>
+                    </div>
+                    <div className="sales-ledger-bill">
+                      <span>Restan</span>
+                      <strong className={settled ? "is-settled" : "is-open"}>{money(group.restan)}</strong>
+                      <em className={settled ? "is-settled" : "is-open"}>{settled ? "Lunas" : "Belum lunas"}</em>
+                    </div>
+                  </header>
+
+                  <div className="sales-ledger-metrics">
                     <div>
-                      <p className="eyebrow">Customer</p>
-                      <h3>{group.customerName}</h3>
+                      <span>Total tagihan</span>
+                      <strong>{money(group.credit)}</strong>
                     </div>
-                    <div className="sales-ledger-summary">
-                      <span><small>Kredit</small><b>{money(group.credit)}</b></span>
-                      <span><small>Debit</small><b>{money(group.debit)}</b></span>
-                      <span><small>Restan</small><b className={group.restan > 0 ? "sourcing-outstanding" : "sourcing-paid"}>{money(group.restan)}</b></span>
+                    <div>
+                      <span>Sudah dibayar</span>
+                      <strong>{money(group.debit)}</strong>
+                    </div>
+                    <div className="sales-ledger-progress">
+                      <span>Terbayar {progressLabel(group.credit, group.debit)}</span>
+                      <div className="sales-ledger-bar" role="img" aria-label={`Terbayar ${progressLabel(group.credit, group.debit)}`}>
+                        <i style={{ width: progressLabel(group.credit, group.debit) }} />
+                      </div>
                     </div>
                   </div>
-                  <div className="table-wrap">
+
+                  <div className="table-wrap sales-ledger-table-wrap">
                     <table className="sales-ledger-table" aria-label={`Buku tagihan ${group.customerName}`}>
                       <thead>
                         <tr>
                           <th className="ledger-no-cell">No</th>
                           <th>Nama</th>
                           <th>Tanggal</th>
-                          <th>Kredit</th>
-                          <th>Debit</th>
-                          <th>Restan</th>
+                          <th className="ledger-amount-cell">Kredit</th>
+                          <th className="ledger-amount-cell">Debit</th>
+                          <th className="ledger-amount-cell">Restan</th>
                         </tr>
                       </thead>
                       <tbody>
                         {group.lines.map((line, index) => (
-                          <tr key={line.id} className={line.kind === "payment" ? "sales-ledger-payment-row" : ""}>
+                          <tr
+                            key={line.id}
+                            className={[
+                              line.kind === "payment" ? "sales-ledger-payment-row" : "",
+                              index === group.lines.length - 1 ? "sales-ledger-last-row" : "",
+                            ].join(" ").trim()}
+                          >
                             <td className="ledger-no-cell" data-label="No">{index + 1}</td>
                             <td className="ledger-name-cell" data-label="Nama">
-                              {index === 0 ? group.customerName : ""}
+                              <span className={`ledger-tag ledger-tag-${line.kind}`}>
+                                {line.kind === "payment" ? "Bayar" : "Tagihan"}
+                              </span>
+                              <span className="ledger-name-text">{index === 0 ? group.customerName : ""}</span>
                               <small>{line.description}</small>
                             </td>
-                            <td className="date-cell" data-label="Tanggal">{line.date || "—"}</td>
-                            <td className="amount-cell" data-label="Kredit">{line.credit ? money(line.credit) : "—"}</td>
-                            <td className="amount-cell" data-label="Debit">{line.debit ? money(line.debit) : "—"}</td>
-                            <td className={`amount-cell ${line.restan > 0 ? "sourcing-outstanding" : ""}`} data-label="Restan">{money(line.restan)}</td>
+                            <td className="date-cell" data-label="Tanggal">{formatDate(line.date)}</td>
+                            <td className="amount-cell ledger-amount-cell ledger-credit" data-label="Kredit">
+                              {line.credit ? money(line.credit) : ""}
+                            </td>
+                            <td className="amount-cell ledger-amount-cell ledger-debit" data-label="Debit">
+                              {line.debit ? money(line.debit) : ""}
+                            </td>
+                            <td className={`amount-cell ledger-amount-cell ${line.restan > 0 ? "sourcing-outstanding" : "sourcing-paid"}`} data-label="Restan">
+                              {money(line.restan)}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
+
                   <div className="sales-ledger-sales">
+                    <p className="sales-ledger-sales-title">Catat pembayaran</p>
                     {sales
                       .filter((sale) => !term || group.lines.some((line) => line.saleId === sale.id))
                       .map((sale) => {
                         const paid = sale.payment1 + sale.payment2 + sale.payment3;
+                        const remaining = sale.totalAmount - paid;
                         return (
                           <div className="sales-ledger-sale" key={sale.id}>
-                            <div className="sales-ledger-sale-identity">
-                              <strong>{sale.items.map((item) => item.productName).join(", ") || "Penjualan"}</strong>
-                              <small>{sale.date} · {sale.items.map((item) => `${item.quantity} ${item.unit}`).join(", ")} · Kredit {money(sale.totalAmount)}</small>
+                            <div className="sales-ledger-sale-top">
+                              <div className="sales-ledger-sale-identity">
+                                <strong>{sale.items.map((item) => item.productName).join(", ") || "Tagihan"}</strong>
+                                <small>{formatDate(sale.date)} · Kredit {money(sale.totalAmount)}</small>
+                              </div>
+                              <div className="item-actions">
+                                <button className="sourcing-action-button sourcing-edit-button" type="button" aria-label={`Edit tagihan ${sale.id}`} onClick={() => onEdit(sale.id)}>
+                                  <Edit2 size={15} /> <span>Edit</span>
+                                </button>
+                                <button className="sourcing-action-button sourcing-delete-button" type="button" aria-label={`Hapus tagihan ${sale.id}`} onClick={() => onDelete(sale.id)}>
+                                  <Trash2 size={15} /> <span>Hapus</span>
+                                </button>
+                              </div>
                             </div>
                             <div className="sales-ledger-sale-payments">
                               {([1, 2, 3] as const).map((paymentNumber) => (
@@ -2413,15 +2481,10 @@ function SalesLedgerWorkspacePage({
                               ))}
                             </div>
                             <div className="sales-ledger-sale-foot">
-                              <span>Debit {money(paid)} · Restan <b className={sale.totalAmount - paid > 0 ? "sourcing-outstanding" : "sourcing-paid"}>{money(sale.totalAmount - paid)}</b></span>
-                              <div className="item-actions">
-                                <button className="sourcing-action-button sourcing-edit-button" type="button" aria-label={`Edit tagihan ${sale.id}`} onClick={() => onEdit(sale.id)}>
-                                  <Edit2 size={15} /> <span>Edit</span>
-                                </button>
-                                <button className="sourcing-action-button sourcing-delete-button" type="button" aria-label={`Hapus tagihan ${sale.id}`} onClick={() => onDelete(sale.id)}>
-                                  <Trash2 size={15} /> <span>Hapus</span>
-                                </button>
-                              </div>
+                              <span>Dibayar {money(paid)}</span>
+                              <b className={remaining > 0 ? "sourcing-outstanding" : "sourcing-paid"}>
+                                {remaining > 0 ? `Sisa ${money(remaining)}` : "Lunas"}
+                              </b>
                             </div>
                           </div>
                         );

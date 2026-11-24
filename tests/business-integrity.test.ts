@@ -279,6 +279,21 @@ test("the Tambah tagihan dialog is an invoice form, not the product entry form",
   assert.match(html, /Simpan tagihan/);
 });
 
+test("each customer card shows a readable bill summary, plain-language dates and payment status", () => {
+  const { commands, getState } = memoryCommands();
+  commands.addLapakSale({ date: "2026-11-20", customerName: "Bu Ani", productName: "Udang 2 kg", quantity: 1, unit: "tagihan", sellingPrice: 250000, unitCost: 0, payment1: 100000, payment1Date: "2026-11-21", payment2: 0, payment2Date: "", payment3: 0, payment3Date: "" });
+  const html = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {} }));
+  // Dates read as "20 Nov 2026" instead of the raw ISO string.
+  assert.match(html, /20 Nov 2026/);
+  // The customer card leads with the outstanding balance and its status.
+  assert.match(html, /Belum lunas/);
+  assert.match(html, /Terbayar 40%/);
+  assert.match(html, /Total tagihan/);
+  assert.match(html, /Sudah dibayar/);
+  // Payment recording is grouped under a plain heading.
+  assert.match(html, /Catat pembayaran/);
+});
+
 test("legacy lapak sales migrate to named customers with their payments intact", () => {
   const initial = seedBusinessState();
   const legacy = {
@@ -316,7 +331,7 @@ test("lapak sales stand alone and batch detail only lists commission and expense
 
   const form = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {}, initialFormOpen: true }));
   assert.doesNotMatch(form, /Batch Id/);
-  assert.match(form, /Customer/);
+  assert.match(form, /<span>Nama \*/);
 });
 
 test("batch note edits preserve the number even when there are several batches on a date", () => {
