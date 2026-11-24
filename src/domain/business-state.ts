@@ -54,7 +54,6 @@ export interface LapakSaleItem {
 
 export interface LapakSale {
   id: string;
-  batchId: string;
   date: string;
   /** Nama customer pada buku tagihan; data lama yang tidak punya nama memakai "—". */
   customerName: string;

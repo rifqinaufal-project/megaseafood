@@ -194,9 +194,8 @@ function LapakDashboard({
   const expenseTotal = expenses.reduce((sum, item) => sum + item.amount, 0);
   const batchIds = [
     ...new Set(
-      [...commissions, ...sales, ...expenses].map(
-        (item) => item.batchId,
-      ),
+      // Sales are standalone, so only commission and expense records mark a batch as used.
+      [...commissions, ...expenses].map((item) => item.batchId),
     ),
   ];
   return (
@@ -271,9 +270,6 @@ function LapakDashboard({
               const batchCommission = commissions
                 .filter((item) => item.batchId === batchId)
                 .reduce((sum, item) => sum + item.amount, 0);
-              const batchSales = sales
-                .filter((item) => item.batchId === batchId)
-                .reduce((sum, item) => sum + item.totalAmount, 0);
               const batchCosts =
                 expenses
                   .filter((item) => item.batchId === batchId)
@@ -295,7 +291,7 @@ function LapakDashboard({
                   </span>
                   <span>
                     <small>Pendapatan</small>
-                    <b>Rp {formatRupiah(batchCommission + batchSales)}</b>
+                    <b>Rp {formatRupiah(batchCommission)}</b>
                   </span>
                   <span>
                     <small>Biaya</small>

@@ -24,7 +24,8 @@ function lapakFigures(state: BusinessState, keep: (date: string) => boolean) {
   const expenses = state.lapakExpenses.filter((item) => keep(item.date));
   const revenue = sum(commissions, (item) => item.amount) + sum(sales, (item) => item.totalAmount);
   const cost = sum(sourcings, (item) => item.total) + sum(expenses, (item) => item.amount);
-  const batchIds = new Set([...commissions, ...sales, ...expenses].map((item) => item.batchId));
+  // Sales are no longer attached to a batch; only commissions and expenses belong to one.
+  const batchIds = new Set([...commissions, ...expenses].map((item) => item.batchId));
   return { revenue, cost, profit: revenue - cost, batches: batchIds.size, records: commissions.length + sales.length + sourcings.length + expenses.length };
 }
 
@@ -53,10 +54,7 @@ function recentActivities(state: BusinessState): ActivityRow[] {
     ...state.batches.map((item) => ({
       id: item.batchNumber,
       activity: `Batch Lapak · ${item.notes || "Tanpa catatan"}`,
-      amount: money(
-        sum(state.commissions.filter((row) => row.batchId === item.id), (row) => row.amount) +
-          sum(state.lapakSales.filter((row) => row.batchId === item.id), (row) => row.totalAmount),
-      ),
+      amount: money(sum(state.commissions.filter((row) => row.batchId === item.id), (row) => row.amount)),
       status: "Berjalan" as const,
       date: item.startDate,
     })),

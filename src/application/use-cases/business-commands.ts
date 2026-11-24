@@ -53,7 +53,6 @@ export type SourcingInput = {
 };
 
 export type LapakSaleInput = {
-  batchId: string;
   date: string;
   customerName: string;
   productName: string;
@@ -150,7 +149,7 @@ function lapakSalePayments(input: LapakSaleInput, previous?: BusinessState["lapa
 
 function validateLapakSaleInput(input: LapakSaleInput, previous?: BusinessState["lapakSales"][number]): string | null {
   if (!isBusinessDate(input.date)) return "Tanggal penjualan wajib valid";
-  if (!input.batchId || !input.customerName.trim()) return "Customer wajib diisi";
+  if (!input.customerName.trim()) return "Customer wajib diisi";
   if (!input.productName.trim() || !Number.isFinite(input.quantity) || input.quantity <= 0 || !Number.isFinite(input.sellingPrice) || input.sellingPrice <= 0 || !Number.isFinite(input.unitCost) || input.unitCost < 0 || !input.unit.trim()) return "Produk, quantity, satuan, dan harga penjualan wajib valid";
   const total = input.quantity * input.sellingPrice;
   if (!Number.isFinite(total) || total <= 0) return "Jumlah penjualan tidak valid";
@@ -325,7 +324,7 @@ export function createBusinessCommands(persistState: (updater: BusinessUpdater) 
     },
     deleteBatch: (id) => {
       if (!getState().batches.some((batch) => batch.id === id)) return { ok: false, message: "Batch tidak ditemukan" };
-      setState((state) => ({ ...state, batches: state.batches.filter((batch) => batch.id !== id), commissions: state.commissions.filter((item) => item.batchId !== id), lapakSales: state.lapakSales.filter((item) => item.batchId !== id), lapakExpenses: state.lapakExpenses.filter((item) => item.batchId !== id) }));
+      setState((state) => ({ ...state, batches: state.batches.filter((batch) => batch.id !== id), commissions: state.commissions.filter((item) => item.batchId !== id), lapakExpenses: state.lapakExpenses.filter((item) => item.batchId !== id) }));
       return { ok: true, message: "Batch dan seluruh transaksinya berhasil dihapus" };
     },
     addCommission: (input) => {
@@ -376,26 +375,23 @@ export function createBusinessCommands(persistState: (updater: BusinessUpdater) 
       return { ok: true, message: "Pengadaan berhasil dihapus" };
     },
     addLapakSale: (input) => {
-      const batch = getState().batches.find((item) => item.id === input.batchId);
-      if (!batch) return { ok: false, message: "Pilih batch Lapak yang tersedia" };
       const validation = validateLapakSaleInput(input);
       if (validation) return { ok: false, message: validation };
       const subtotal = input.quantity * input.sellingPrice;
       const costTotal = input.quantity * input.unitCost;
       const payments = lapakSalePayments(input);
-      setState((state) => ({ ...state, lapakSales: [...state.lapakSales, { id: makeId("lapak-sale"), batchId: input.batchId, date: input.date, customerName: input.customerName.trim(), totalAmount: subtotal, payment1: payments[0].amount, payment1Date: payments[0].amount > 0 ? payments[0].date.trim() : "", payment2: payments[1].amount, payment2Date: payments[1].amount > 0 ? payments[1].date.trim() : "", payment3: payments[2].amount, payment3Date: payments[2].amount > 0 ? payments[2].date.trim() : "", items: [{ productName: input.productName.trim(), quantity: input.quantity, unit: input.unit.trim(), sellingPrice: input.sellingPrice, unitCost: input.unitCost, subtotal, costTotal, profit: subtotal - costTotal }] }] }));
+      setState((state) => ({ ...state, lapakSales: [...state.lapakSales, { id: makeId("lapak-sale"), date: input.date, customerName: input.customerName.trim(), totalAmount: subtotal, payment1: payments[0].amount, payment1Date: payments[0].amount > 0 ? payments[0].date.trim() : "", payment2: payments[1].amount, payment2Date: payments[1].amount > 0 ? payments[1].date.trim() : "", payment3: payments[2].amount, payment3Date: payments[2].amount > 0 ? payments[2].date.trim() : "", items: [{ productName: input.productName.trim(), quantity: input.quantity, unit: input.unit.trim(), sellingPrice: input.sellingPrice, unitCost: input.unitCost, subtotal, costTotal, profit: subtotal - costTotal }] }] }));
       return { ok: true, message: "Penjualan Lapak berhasil dicatat" };
     },
     updateLapakSale: (id, input) => {
       const current = getState().lapakSales.find((item) => item.id === id);
-      if (!getState().batches.some((batch) => batch.id === input.batchId)) return { ok: false, message: "Pilih batch Lapak yang tersedia" };
       if (!current) return { ok: false, message: "Penjualan tidak ditemukan" };
       const validation = validateLapakSaleInput(input, current);
       if (validation) return { ok: false, message: validation };
       const subtotal = input.quantity * input.sellingPrice;
       const costTotal = input.quantity * input.unitCost;
       const payments = lapakSalePayments(input, current);
-      setState((state) => ({ ...state, lapakSales: state.lapakSales.map((sale) => sale.id === id ? { ...sale, batchId: input.batchId, date: input.date, customerName: input.customerName.trim(), totalAmount: subtotal, payment1: payments[0].amount, payment1Date: payments[0].amount > 0 ? payments[0].date.trim() : "", payment2: payments[1].amount, payment2Date: payments[1].amount > 0 ? payments[1].date.trim() : "", payment3: payments[2].amount, payment3Date: payments[2].amount > 0 ? payments[2].date.trim() : "", items: [{ productName: input.productName.trim(), quantity: input.quantity, unit: input.unit.trim(), sellingPrice: input.sellingPrice, unitCost: input.unitCost, subtotal, costTotal, profit: subtotal - costTotal }] } : sale) }));
+      setState((state) => ({ ...state, lapakSales: state.lapakSales.map((sale) => sale.id === id ? { ...sale, date: input.date, customerName: input.customerName.trim(), totalAmount: subtotal, payment1: payments[0].amount, payment1Date: payments[0].amount > 0 ? payments[0].date.trim() : "", payment2: payments[1].amount, payment2Date: payments[1].amount > 0 ? payments[1].date.trim() : "", payment3: payments[2].amount, payment3Date: payments[2].amount > 0 ? payments[2].date.trim() : "", items: [{ productName: input.productName.trim(), quantity: input.quantity, unit: input.unit.trim(), sellingPrice: input.sellingPrice, unitCost: input.unitCost, subtotal, costTotal, profit: subtotal - costTotal }] } : sale) }));
       return { ok: true, message: "Penjualan Lapak berhasil diperbarui" };
     },
     updateLapakSalePayment: (id, payment, input) => changeLapakSalePayment(id, payment, input),

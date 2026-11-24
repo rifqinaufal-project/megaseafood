@@ -11,7 +11,7 @@ const fields = {
   batches: ["batchNumber", "startDate", "notes"],
   commissions: ["batchId", "date", "partner", "note"],
   sourcings: ["date", "sourceType", "name", "type", "unit", "payment1Date", "payment2Date", "payment3Date", "note"],
-  lapakSales: ["batchId", "date", "customerName", "payment1Date", "payment2Date", "payment3Date"],
+  lapakSales: ["date", "customerName", "payment1Date", "payment2Date", "payment3Date"],
   lapakExpenses: ["batchId", "date", "expenseName", "notes"],
   products: ["sku", "name", "category", "size", "unit", "status"],
   suppliers: ["name", "contactName", "phone", "email", "address", "status"],
@@ -87,7 +87,7 @@ function migrateLegacyState(value: Record<string, unknown>): Record<string, unkn
   if (!Array.isArray(rawLapakSales)) {
     migrated.lapakSales = [];
   } else {
-    const currentFields = ["batchId", "date", "customerName", "items", "totalAmount", "payment1", "payment1Date", "payment2", "payment2Date", "payment3", "payment3Date"];
+    const currentFields = ["date", "customerName", "items", "totalAmount", "payment1", "payment1Date", "payment2", "payment2Date", "payment3", "payment3Date"];
     const number = (candidate: unknown, fallback = 0) => typeof candidate === "number" && Number.isFinite(candidate) ? candidate : fallback;
     const text = (candidate: unknown, fallback = "") => typeof candidate === "string" ? candidate : fallback;
     const migratedLapakSales = rawLapakSales.map((entry) => {
@@ -108,9 +108,9 @@ function migrateLegacyState(value: Record<string, unknown>): Record<string, unkn
       const payment2Date = text(entry.payment2Date, payment2 > 0 ? text(entry.date) : "");
       const payment3 = number(entry.payment3);
       const payment3Date = text(entry.payment3Date, payment3 > 0 ? text(entry.date) : "");
+      // Sales stand on their own: the legacy batch link is dropped during migration.
       return {
         id: text(entry.id),
-        batchId: text(entry.batchId),
         date: text(entry.date),
         customerName: migratedCustomer,
         items,
@@ -298,11 +298,20 @@ export function normalizeBusinessState(input: unknown): BusinessState {
   const normalizedSourcings = state.sourcings.every((item) => item.total === item.weight * item.price)
     ? state.sourcings
     : state.sourcings.map((item) => ({ ...item, total: item.weight * item.price }));
+  const standaloneSales = state.lapakSales.every((sale) => !("batchId" in sale))
+    ? state.lapakSales
+    : state.lapakSales.map((sale) => {
+        // Drop the legacy batch link; sales are standalone from here on.
+        const standalone = { ...sale } as BusinessState["lapakSales"][number] & { batchId?: string };
+        delete standalone.batchId;
+        return standalone;
+      });
   return retainDocumentSequences({
     ...state,
     // Remove only obsolete batch lifecycle properties; preserve all business data.
     batches: state.batches.map((batch) => ({ id: batch.id, batchNumber: batch.batchNumber, startDate: batch.startDate, notes: batch.notes })),
     sourcings: normalizedSourcings,
+    lapakSales: standaloneSales,
   });
 }
 

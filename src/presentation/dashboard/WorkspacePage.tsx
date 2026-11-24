@@ -347,7 +347,6 @@ function ModalForm({
     existingItem && editRecord?.page === "B2C Sales" && "items" in existingItem
       ? {
           ...createItem(),
-          batchId: existingItem.batchId,
            date: existingItem.date,
            customerName: existingItem.customerName,
            productName: existingItem.items[0]?.productName ?? "",
@@ -396,7 +395,7 @@ function ModalForm({
   );
 
   const validateItem = (item: FormValue) => {
-    const needsBatch = ["Commission", "Expenses", "B2C Sales"].includes(page);
+    const needsBatch = ["Commission", "Expenses"].includes(page);
     const batch = batches.find((candidate) => candidate.id === item.batchId);
     if (needsBatch && !batch) return "Pilih batch Lapak yang tersedia";
     if (
@@ -486,7 +485,6 @@ function ModalForm({
           }
           if (page === "B2C Sales") {
             const input = {
-              batchId: item.batchId,
               date: item.date || today(),
               productName: item.productName || "",
               customerName: item.customerName || "",
@@ -730,15 +728,17 @@ function ModalForm({
         renderSourcingFields(item, index)
       ) : (
         <div className="form-grid">
-          <Field
-            name="batchId"
-            options={batches.map((batch) => ({
-              label: batch.batchNumber,
-              value: batch.id,
-            }))}
-            value={item.batchId || ""}
-            onChange={(value) => setItem(index, "batchId", value)}
-          />
+          {page !== "B2C Sales" && (
+            <Field
+              name="batchId"
+              options={batches.map((batch) => ({
+                label: batch.batchNumber,
+                value: batch.id,
+              }))}
+              value={item.batchId || ""}
+              onChange={(value) => setItem(index, "batchId", value)}
+            />
+          )}
           <Field
             name="date"
             type="date"
@@ -1503,7 +1503,6 @@ function BatchCreateWorkspace({
   const transactionActions = [
     ["Expenses", "Catat pengeluaran"],
     ["Commission", "Catat komisi"],
-    ["B2C Sales", "Catat penjualan"],
   ];
   return (
     <div className="workspace-page batch-create-workspace">
@@ -1592,18 +1591,6 @@ function BatchCreateWorkspace({
               Belum ada komisi. Gunakan tombol “Catat komisi” di header.
             </div>
           </section>
-          <section className="panel">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">Transaksi batch</p>
-                <h2>Penjualan B2C</h2>
-              </div>
-              <span className="resource-count">0 transaksi</span>
-            </div>
-            <div className="empty-state">
-              Belum ada penjualan. Gunakan tombol “Catat penjualan” di header.
-            </div>
-          </section>
         </div>
       )}
       <div className="modal-actions batch-create-actions">
@@ -1677,9 +1664,6 @@ function BatchListPage({
                   const commissionRevenue = state.commissions
                     .filter((item) => item.batchId === batch.id)
                     .reduce((sum, item) => sum + item.amount, 0);
-                  const salesRevenue = state.lapakSales
-                    .filter((item) => item.batchId === batch.id)
-                    .reduce((sum, item) => sum + item.totalAmount, 0);
                   const expenseCost = state.lapakExpenses
                     .filter((item) => item.batchId === batch.id)
                     .reduce((sum, item) => sum + item.amount, 0);
@@ -1712,7 +1696,7 @@ function BatchListPage({
                         </small>
                       </td>
                       <td className="batch-table-amount">
-                        {money(commissionRevenue + salesRevenue)}
+                        {money(commissionRevenue)}
                       </td>
                       <td className="batch-table-amount">
                         {money(expenseCost)}
@@ -1800,7 +1784,6 @@ function BatchDetail({
   const commissions = state.commissions.filter(
     (item) => item.batchId === batch.id,
   );
-  const sales = state.lapakSales.filter((item) => item.batchId === batch.id);
   const expenses = state.lapakExpenses.filter(
     (item) => item.batchId === batch.id,
   );
@@ -1808,12 +1791,11 @@ function BatchDetail({
     (sum, item) => sum + item.amount,
     0,
   );
-  const salesTotal = sales.reduce((sum, item) => sum + item.totalAmount, 0);
   const expenseTotal = expenses.reduce((sum, item) => sum + item.amount, 0);
+  // A batch only groups commission and expense records; sales are a standalone ledger.
   const actions = [
     ["Expenses", "Tambah pengeluaran"],
     ["Commission", "Tambah komisi"],
-    ["B2C Sales", "Tambah penjualan"],
   ];
   return (
     <div className="batch-detail">
@@ -1854,11 +1836,6 @@ function BatchDetail({
           <span>Komisi</span>
           <strong>{money(commissionTotal)}</strong>
           <small>{commissions.length} catatan</small>
-        </div>
-        <div className="resource-stat">
-          <span>Penjualan B2C</span>
-          <strong>{money(salesTotal)}</strong>
-          <small>{sales.length} transaksi</small>
         </div>
         <div className="resource-stat">
           <span>Total biaya</span>
@@ -1955,57 +1932,6 @@ function BatchDetail({
             </div>
           ) : (
             <div className="empty-state">Belum ada komisi untuk batch ini.</div>
-          )}
-        </section>
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Transaksi batch</p>
-              <h2>Penjualan B2C</h2>
-            </div>
-            <span className="resource-count">{sales.length} data</span>
-          </div>
-          {sales.length ? (
-            <div className="batch-item-list">
-              {sales.map((sale) => (
-                <div className="batch-item" key={sale.id}>
-                  <div>
-                    <strong>
-                      {sale.items.map((item) => item.productName).join(", ")}
-                    </strong>
-                    <small>
-                      {sale.date} · Profit{" "}
-                      {money(
-                        sale.items.reduce((sum, item) => sum + item.profit, 0),
-                      )}
-                    </small>
-                  </div>
-                  <b>{money(sale.totalAmount)}</b>
-                  <div className="item-actions">
-                    <button
-                      className="icon-button"
-                      type="button"
-                      aria-label="Edit penjualan"
-                      onClick={() => onEdit("B2C Sales", sale.id)}
-                    >
-                      <Edit2 size={15} />
-                    </button>
-                    <button
-                      className="icon-button danger-button"
-                      type="button"
-                      aria-label="Hapus penjualan"
-                      onClick={() => onDelete("B2C Sales", sale.id)}
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="empty-state">
-              Belum ada penjualan untuk batch ini.
-            </div>
           )}
         </section>
       </div>
@@ -2368,6 +2294,10 @@ function SalesLedgerWorkspacePage({
               const sales = state.lapakSales.filter((sale) => (sale.customerName.trim() || "—") === group.customerName);
               return (
                 <section className="panel sales-ledger-card" key={group.customerName}>
+                  <div className="sales-ledger-card-head">
+                    <strong>Buku tagihan</strong>
+                    <small>Saldo akhir {money(group.restan)}</small>
+                  </div>
                   <div className="sales-ledger-heading">
                     <div>
                       <p className="eyebrow">Customer</p>
@@ -2383,18 +2313,23 @@ function SalesLedgerWorkspacePage({
                     <table className="sales-ledger-table" aria-label={`Buku tagihan ${group.customerName}`}>
                       <thead>
                         <tr>
+                          <th className="ledger-no-cell">No</th>
+                          <th>Nama</th>
                           <th>Tanggal</th>
-                          <th>Keterangan</th>
                           <th>Kredit</th>
                           <th>Debit</th>
                           <th>Restan</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {group.lines.map((line) => (
+                        {group.lines.map((line, index) => (
                           <tr key={line.id} className={line.kind === "payment" ? "sales-ledger-payment-row" : ""}>
-                            <td className="date-cell" data-label="Tanggal">{line.date}</td>
-                            <td className="cell-wrap" data-label="Keterangan">{line.description}</td>
+                            <td className="ledger-no-cell" data-label="No">{index + 1}</td>
+                            <td className="ledger-name-cell" data-label="Nama">
+                              {index === 0 ? group.customerName : ""}
+                              <small>{line.description}</small>
+                            </td>
+                            <td className="date-cell" data-label="Tanggal">{line.date || "—"}</td>
                             <td className="amount-cell" data-label="Kredit">{line.credit ? money(line.credit) : "—"}</td>
                             <td className="amount-cell" data-label="Debit">{line.debit ? money(line.debit) : "—"}</td>
                             <td className={`amount-cell ${line.restan > 0 ? "sourcing-outstanding" : ""}`} data-label="Restan">{money(line.restan)}</td>
@@ -2614,19 +2549,6 @@ function GroupedLapakPage({
               amount: item.amount,
             })),
         };
-      if (page === "B2C Sales")
-        return {
-          batch,
-          items: state.lapakSales
-            .filter((item) => item.batchId === batch.id)
-            .map((item) => ({
-              id: item.id,
-              date: item.date,
-              title: `${item.customerName} · ${item.items.map((line) => line.productName).join(", ")}`,
-              detail: `Profit ${money(item.items.reduce((sum, line) => sum + line.profit, 0))} · Restan ${money(item.totalAmount - item.payment1 - item.payment2 - item.payment3)}`,
-              amount: item.totalAmount,
-            })),
-        };
       return { batch, items: [] };
     })
     .filter((group) => group.items.length > 0);
@@ -2646,7 +2568,7 @@ function GroupedLapakPage({
     },
     "B2C Sales": {
       title: "Penjualan Lapak",
-      description: "Semua penjualan B2C ditampilkan berdasarkan batch terkait.",
+      description: "Buku tagihan per customer: kredit penjualan, debit pembayaran, dan restan.",
       action: "Tambah penjualan",
     },
   };

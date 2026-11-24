@@ -214,7 +214,7 @@ test("sourcing payments are updated inline and cannot exceed the purchase total"
 
 test("lapak sales require a customer and post a three-stage ledger", () => {
   const { commands, getState } = memoryCommands();
-  const sale = { batchId: "batch-42", date: "2026-06-13", customerName: "Sri Sita", productName: "Udang", quantity: 2, unit: "kg", sellingPrice: 90000, unitCost: 70000 };
+  const sale = { date: "2026-06-13", customerName: "Sri Sita", productName: "Udang", quantity: 2, unit: "kg", sellingPrice: 90000, unitCost: 70000 };
   assert.equal(commands.addLapakSale({ ...sale, customerName: "  " }).ok, false);
   assert.equal(commands.addLapakSale({ ...sale, payment1: 50000, payment1Date: "" }).ok, false);
   assert.equal(commands.addLapakSale(sale).ok, true);
@@ -227,7 +227,11 @@ test("lapak sales require a customer and post a three-stage ledger", () => {
   const html = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {} }));
   assert.match(html, /Tagihan per customer/);
   assert.match(html, /Sri Sita/);
-  assert.match(html, /Restan/);
+  assert.match(html, /<th[^>]*>No<\/th>/);
+  assert.match(html, /<th[^>]*>Nama<\/th>/);
+  assert.match(html, /<th[^>]*>Kredit<\/th>/);
+  assert.match(html, /<th[^>]*>Debit<\/th>/);
+  assert.match(html, /<th[^>]*>Restan<\/th>/);
   assert.match(html, /Rp 80\.000/);
   assert.match(html, /Rp 100\.000/);
 });
@@ -248,6 +252,28 @@ test("legacy lapak sales migrate to named customers with their payments intact",
   assert.equal(migrated.lapakSales[1].customerName, "Bu Ani");
   assert.equal("customerLabel" in migrated.lapakSales[0], false);
   assert.equal("paymentStatus" in migrated.lapakSales[0], false);
+  // Sales no longer belong to a batch; the legacy link is dropped on migration.
+  assert.equal("batchId" in migrated.lapakSales[0], false);
+});
+
+test("lapak sales stand alone and batch detail only lists commission and expenses", () => {
+  const { commands, getState } = memoryCommands();
+  const sale = commands.addLapakSale({ date: "2026-06-13", customerName: "Sri Sita", productName: "Udang", quantity: 2, unit: "kg", sellingPrice: 90000, unitCost: 70000 });
+  assert.equal(sale.ok, true);
+  assert.equal("batchId" in getState().lapakSales.at(-1)!, false);
+  // Deleting a batch must not remove standalone sales.
+  const batch = commands.createBatch({ startDate: "2026-06-13", notes: "Uji" });
+  assert.equal(commands.deleteBatch(batch.id!).ok, true);
+  assert.equal(getState().lapakSales.length, 1);
+
+  const detail = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Batch", business: getState(), commands, onNotify: () => {}, initialBatchId: "batch-42" }));
+  assert.doesNotMatch(detail, /Penjualan B2C/);
+  assert.match(detail, /Komisi/);
+  assert.match(detail, /Pengeluaran/);
+
+  const form = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {}, initialFormOpen: true }));
+  assert.doesNotMatch(form, /Batch Id/);
+  assert.match(form, /Customer/);
 });
 
 test("batch note edits preserve the number even when there are several batches on a date", () => {
