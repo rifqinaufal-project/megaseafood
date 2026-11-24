@@ -227,7 +227,7 @@ test("lapak sales require a customer and post a three-stage ledger", () => {
   const html = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {} }));
   assert.match(html, /Tagihan per customer/);
   assert.match(html, /Sri Sita/);
-  assert.match(html, /<th[^>]*>No<\/th>/);
+  assert.doesNotMatch(html, /<th[^>]*>No<\/th>/, "the invoice book no longer numbers rows");
   assert.match(html, /<th[^>]*>Nama<\/th>/);
   assert.match(html, /<th[^>]*>Kredit<\/th>/);
   assert.match(html, /<th[^>]*>Debit<\/th>/);
@@ -236,17 +236,16 @@ test("lapak sales require a customer and post a three-stage ledger", () => {
   assert.match(html, /Rp 100\.000/);
 });
 
-test("the sales page keeps the invoice book visible when the entry form opens", () => {
+test("the sales page is a pure invoice book with only name, date, credit, debit and restan", () => {
   const { commands, getState } = memoryCommands();
-  const closed = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {} }));
-  assert.match(closed, /Tagihan per customer/);
-  assert.doesNotMatch(closed, /Catat penjualan baru/);
-  const open = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {}, initialFormOpen: true }));
-  // The form renders on the page; the ledger underneath must stay rendered and no backdrop may cover it.
-  assert.match(open, /Tagihan per customer/);
-  assert.match(open, /Catat penjualan baru/);
-  assert.match(open, /form-modal-inline/);
-  assert.doesNotMatch(open, /modal-backdrop/);
+  commands.addLapakSale({ date: "2026-06-13", customerName: "Sri Sita", productName: "Udang", quantity: 2, unit: "kg", sellingPrice: 90000, unitCost: 70000 });
+  const html = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {} }));
+  assert.match(html, /Tagihan per customer/);
+  // The invoice book owns the page; the product entry form lives behind the add button.
+  assert.doesNotMatch(html, /Catat penjualan baru/);
+  assert.doesNotMatch(html, /Pembayaran customer/);
+  const headers = [...html.matchAll(/<th[^>]*>([^<]+)<\/th>/g)].map((match) => match[1]);
+  assert.deepEqual(headers, ["Nama", "Tanggal", "Kredit", "Debit", "Restan"]);
 });
 
 test("legacy lapak sales migrate to named customers with their payments intact", () => {
