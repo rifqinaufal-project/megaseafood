@@ -7,6 +7,7 @@ import { formatRupiah, seedBusinessState, type BusinessState } from "../src/doma
 import { addCalendarDays, isBusinessDate, localDate, receiptOutstanding } from "../src/domain/business-integrity";
 import WorkspacePage from "../src/presentation/dashboard/WorkspacePage";
 import { buildLedgerGroups } from "../src/presentation/dashboard/TagihanWorkspace";
+import { groupByMonth } from "../src/domain/lapak-periods";
 import { resolveWorkspacePage } from "../src/presentation/dashboard/workspace-routing";
 import { BUSINESS_STORAGE_KEY, createLocalBusinessStore, normalizeBusinessState } from "../src/infrastructure/repositories/local-business-store";
 
@@ -319,9 +320,16 @@ test("each customer group shows a running restan and its current balance once", 
   assert.deepEqual(groupRestans(html), ["Rp 1.000.000", "Rp 600.000", "Rp 850.000"]);
   // The customer header carries the totals, so the table no longer repeats them as a subtotal row.
   assert.doesNotMatch(html, /Subtotal Pak Budi/);
+  // Header pelanggan menampilkan saldo sekali; header bulan punya angka aktivitas sendiri (lihat bawah).
   assert.equal([...html.matchAll(/<b class="is-open">Rp 850\.000<\/b>/g)].length, 1);
   assert.equal([...html.matchAll(/<b class="is-credit">Rp 1\.250\.000<\/b>/g)].length, 1);
   assert.equal([...html.matchAll(/<b class="is-debit">Rp 400\.000<\/b>/g)].length, 1);
+  // Transaksi dikelompokkan per bulan, dengan subtotal kredit, debit, dan aktivitas bulan itu.
+  assert.match(html, /<h2>November 2026<\/h2>/);
+  assert.match(html, /1 pelanggan · 3 transaksi/);
+  assert.equal([...html.matchAll(/<b class="is-credit">Rp 1\.250\.000<\/b>/g)].length, 1);
+  // Header bulan hanya menambah total aktivitas, tanpa mengulang angka saldo pelanggan.
+  assert.equal([...html.matchAll(/<b>Rp 1\.650\.000<\/b>/g)].length, 1);
 });
 
 test("filters narrow the visible rows but never slice the running restan", () => {
@@ -399,6 +407,65 @@ test("legacy lapak sales migrate to one kredit row plus one debit row per paymen
   // Restan of the old data is preserved: 180.000 - 100.000 and 60.000.
   const restan = migrated.lapakSales.reduce((sum, row) => sum + (row.kind === "KREDIT" ? row.amount : -row.amount), 0);
   assert.equal(restan, 140000);
+});
+
+test("month grouping puts the newest month first and keeps undated rows last", () => {
+  const grouped = groupByMonth(
+    [
+      { date: "2026-10-02", amount: 1000 },
+      { date: "2026-11-20", amount: 2000 },
+      { date: "2026-10-25", amount: 500 },
+      { date: "", amount: 300 },
+      { date: "2025-12-31", amount: 700 },
+    ],
+    (item) => item.date,
+    (item) => item.amount,
+  );
+  assert.deepEqual(grouped.map((month) => month.label), ["November 2026", "Oktober 2026", "Desember 2025", "Tanpa tanggal"]);
+  assert.equal(grouped[0].total, 2000);
+  assert.equal(grouped[1].total, 1500);
+  assert.equal(grouped[1].items.length, 2);
+});
+
+test("komisi and pengeluaran are grouped by month with a monthly subtotal", () => {
+  const { commands, getState } = memoryCommands();
+  const batch = getState().batches[0];
+  commands.addCommission({ batchId: batch.id, date: "2026-09-05", partner: "Juragan A", amount: 250000, note: "" });
+  commands.addCommission({ batchId: batch.id, date: "2026-10-08", partner: "Juragan B", amount: 400000, note: "" });
+  commands.addLapakExpense({ batchId: batch.id, date: "2026-10-09", expenseName: "Es batu", amount: 75000, notes: "" });
+  commands.addLapakExpense({ batchId: batch.id, date: "2026-09-21", expenseName: "Solar", amount: 120000, notes: "" });
+
+  const commission = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Komisi", business: getState(), commands, onNotify: () => {} }));
+  assert.match(commission, /<h2>Oktober 2026<\/h2>/);
+  assert.match(commission, /<h2>September 2026<\/h2>/);
+  // Bulan terbaru tampil lebih dulu.
+  assert.ok(commission.indexOf("Oktober 2026") < commission.indexOf("September 2026"));
+  // Nama batch tetap terbaca sebagai metadata, walau urutan halaman mengikuti bulan.
+  assert.ok(commission.includes(batch.batchNumber));
+
+  const expenses = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Pengeluaran", business: getState(), commands, onNotify: () => {} }));
+  assert.match(expenses, /<h2>Oktober 2026<\/h2>/);
+  assert.match(expenses, /<h2>September 2026<\/h2>/);
+  assert.match(expenses, /Solar/);
+});
+
+test("pengadaan is grouped by month with its own paid and outstanding subtotal", () => {
+  // Data uji berdiri sendiri; catatan seed tidak ikut supaya urutan bulan tidak tercampur.
+  const { commands, getState } = memoryCommands({ ...seedBusinessState(), sourcings: [] });
+  const sourcing = (date: string, name: string, price: number, weight: number) => ({
+    date, sourceType: "SUPPLIER" as const, name, type: "Ikan", weight, unit: "kg", price,
+    payment1: 0, payment1Date: "", payment2: 0, payment2Date: "", payment3: 0, payment3Date: "", note: "",
+  });
+  commands.addSourcing(sourcing("2026-09-11", "Ikan Kerapu", 50000, 10));
+  const october = commands.addSourcing(sourcing("2026-10-11", "Udang", 90000, 5));
+  assert.equal(october.ok, true);
+  commands.updateSourcingPayment(october.id!, 1, { amount: 200000, date: "2026-10-12" });
+
+  const html = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Pengadaan", business: getState(), commands, onNotify: () => {} }));
+  assert.match(html, /<h2>Oktober 2026<\/h2>/);
+  assert.match(html, /<h2>September 2026<\/h2>/);
+  assert.ok(html.indexOf("Oktober 2026") < html.indexOf("September 2026"));
+  assert.match(html, /2 bulan/);
 });
 
 test("lapak ledger rows stand alone and batch detail only lists commission and expenses", () => {

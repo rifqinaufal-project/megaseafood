@@ -1,6 +1,12 @@
 "use client";
 
-import { FormEvent, useId, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  FormEvent,
+  useId,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowUpRight,
@@ -23,6 +29,7 @@ import {
 import type { BusinessCommands } from "@/src/application/use-cases/business-commands";
 import { receiptOutstanding } from "@/src/domain/business-integrity";
 import { resolveWorkspacePage } from "@/src/presentation/dashboard/workspace-routing";
+import { groupByMonth } from "@/src/domain/lapak-periods";
 import InvoiceWorkspace from "@/src/presentation/dashboard/InvoiceWorkspace";
 import TagihanWorkspace from "@/src/presentation/dashboard/TagihanWorkspace";
 import { RestoReportsPage } from "@/src/presentation/dashboard/RestoReports";
@@ -284,7 +291,13 @@ function Field({
           placeholder={placeholder}
         />
       )}
-      {!!suggestions?.length && <datalist id={listId}>{suggestions.map((suggestion) => <option key={suggestion} value={suggestion} />)}</datalist>}
+      {!!suggestions?.length && (
+        <datalist id={listId}>
+          {suggestions.map((suggestion) => (
+            <option key={suggestion} value={suggestion} />
+          ))}
+        </datalist>
+      )}
     </label>
   );
 }
@@ -347,19 +360,18 @@ function ModalForm({
         ? state.lapakExpenses.find((item) => item.id === editRecord.id)
         : editRecord?.page === "Sourcing & Bengkelan"
           ? state.sourcings.find((item) => item.id === editRecord.id)
-            : undefined;
-  const initialItem =
-    existingItem
-        ? {
-            ...createItem(),
-            ...Object.fromEntries(
-              Object.entries(existingItem).map(([key, value]) => [
-                key,
-                String(value ?? ""),
-              ]),
-            ),
-          }
-        : createItem();
+          : undefined;
+  const initialItem = existingItem
+    ? {
+        ...createItem(),
+        ...Object.fromEntries(
+          Object.entries(existingItem).map(([key, value]) => [
+            key,
+            String(value ?? ""),
+          ]),
+        ),
+      }
+    : createItem();
   const [items, setItems] = useState<FormValue[]>([initialItem]);
   const portalReady = useSyncExternalStore(
     subscribeToNothing,
@@ -440,8 +452,7 @@ function ModalForm({
             const input = {
               date: item.date || today(),
               sourceType: (item.sourceType || "BENGKELAN") as
-                | "SUPPLIER"
-                | "BENGKELAN",
+                "SUPPLIER" | "BENGKELAN",
               name: item.name || "",
               type: item.type || "",
               weight: asNumber(item.weight || "0"),
@@ -599,14 +610,18 @@ function ModalForm({
           />
           <Field
             name="name"
-            suggestions={recentSuggestions(state.sourcings.map((entry) => entry.name))}
+            suggestions={recentSuggestions(
+              state.sourcings.map((entry) => entry.name),
+            )}
             value={item.name || ""}
             onChange={(value) => setItem(index, "name", value)}
             placeholder="Nama supplier atau bengkelan"
           />
           <Field
             name="type"
-            suggestions={recentSuggestions(state.sourcings.map((entry) => entry.type))}
+            suggestions={recentSuggestions(
+              state.sourcings.map((entry) => entry.type),
+            )}
             value={item.type || ""}
             onChange={(value) => setItem(index, "type", value)}
             placeholder="Jenis seafood / pekerjaan"
@@ -631,7 +646,9 @@ function ModalForm({
           <Field
             name="total"
             type="number"
-            value={String(asNumber(item.weight || "0") * asMoney(item.price || ""))}
+            value={String(
+              asNumber(item.weight || "0") * asMoney(item.price || ""),
+            )}
             onChange={() => {}}
             readOnly
           />
@@ -640,7 +657,9 @@ function ModalForm({
       <section className="sourcing-form-section">
         <div className="sourcing-form-section-heading">
           <strong>Pembayaran</strong>
-          <span>Nominal dan tanggal selalu disimpan sebagai satu pasangan.</span>
+          <span>
+            Nominal dan tanggal selalu disimpan sebagai satu pasangan.
+          </span>
         </div>
         <div className="sourcing-payment-list">
           {([1, 2, 3] as const).map((paymentNumber) =>
@@ -665,7 +684,9 @@ function ModalForm({
       key={`item-${index}`}
     >
       <div className="form-item-heading">
-        <strong>{page === "Sourcing & Bengkelan" ? "Pengadaan" : `Item ${index + 1}`}</strong>
+        <strong>
+          {page === "Sourcing & Bengkelan" ? "Pengadaan" : `Item ${index + 1}`}
+        </strong>
         {items.length > 1 && (
           <button
             className="text-link"
@@ -705,7 +726,9 @@ function ModalForm({
             <>
               <Field
                 name="partner"
-                suggestions={recentSuggestions(state.commissions.map((entry) => entry.partner))}
+                suggestions={recentSuggestions(
+                  state.commissions.map((entry) => entry.partner),
+                )}
                 value={item.partner || ""}
                 onChange={(value) => setItem(index, "partner", value)}
                 placeholder="Nama supplier atau pedagang"
@@ -723,7 +746,9 @@ function ModalForm({
             <>
               <Field
                 name="expenseName"
-                suggestions={recentSuggestions(state.lapakExpenses.map((entry) => entry.expenseName))}
+                suggestions={recentSuggestions(
+                  state.lapakExpenses.map((entry) => entry.expenseName),
+                )}
                 value={item.expenseName || ""}
                 onChange={(value) => setItem(index, "expenseName", value)}
                 placeholder="Es, plastik, transportasi..."
@@ -737,7 +762,9 @@ function ModalForm({
               />
               <Field
                 name="notes"
-                suggestions={recentSuggestions(state.lapakExpenses.map((entry) => entry.notes))}
+                suggestions={recentSuggestions(
+                  state.lapakExpenses.map((entry) => entry.notes),
+                )}
                 value={item.notes || ""}
                 onChange={(value) => setItem(index, "notes", value)}
                 placeholder="Catatan"
@@ -1104,7 +1131,23 @@ function getRows(page: string, state: BusinessState) {
     };
   if (page === "Sourcing & Bengkelan")
     return {
-      columns: ["Tanggal", "Sumber", "Nama", "Jenis", "Bobot", "Harga", "Jumlah", "Pembayaran 1 (Rp)", "Tanggal pembayaran 1", "Pembayaran 2 (Rp)", "Tanggal pembayaran 2", "Pembayaran 3 (Rp)", "Tanggal pembayaran 3", "Sisa", "Catatan"],
+      columns: [
+        "Tanggal",
+        "Sumber",
+        "Nama",
+        "Jenis",
+        "Bobot",
+        "Harga",
+        "Jumlah",
+        "Pembayaran 1 (Rp)",
+        "Tanggal pembayaran 1",
+        "Pembayaran 2 (Rp)",
+        "Tanggal pembayaran 2",
+        "Pembayaran 3 (Rp)",
+        "Tanggal pembayaran 3",
+        "Sisa",
+        "Catatan",
+      ],
       rows: state.sourcings.map((item) => [
         item.date,
         item.sourceType === "BENGKELAN" ? "Bengkelan" : "Supplier",
@@ -1774,31 +1817,67 @@ function SourcingWorkspacePage({
   onExport: () => void;
   onEdit: (page: string, id: string) => void;
   onDelete: (page: string, id: string) => void;
-  onPayment: (id: string, paymentNumber: 1 | 2 | 3, input: { amount: number; date: string }) => { ok: boolean; message: string };
+  onPayment: (
+    id: string,
+    paymentNumber: 1 | 2 | 3,
+    input: { amount: number; date: string },
+  ) => { ok: boolean; message: string };
   onNotify: Notify;
 }) {
-  const [editingPayment, setEditingPayment] = useState<{ id: string; paymentNumber: 1 | 2 | 3 } | null>(null);
+  const [editingPayment, setEditingPayment] = useState<{
+    id: string;
+    paymentNumber: 1 | 2 | 3;
+  } | null>(null);
   const [paymentDraft, setPaymentDraft] = useState({ amount: "", date: "" });
-  const rows = [...state.sourcings].sort((a, b) => b.date.localeCompare(a.date) || b.sequence - a.sequence);
+  const rows = [...state.sourcings].sort(
+    (a, b) => b.date.localeCompare(a.date) || b.sequence - a.sequence,
+  );
+  const months = groupByMonth(
+    rows,
+    (item) => item.date,
+    (item) => item.total,
+  ).map((month) => {
+    const paid = month.items.reduce(
+      (sum, item) => sum + item.payment1 + item.payment2 + item.payment3,
+      0,
+    );
+    return { ...month, paid, outstanding: month.total - paid };
+  });
   const total = rows.reduce((sum, item) => sum + item.total, 0);
-  const paid = rows.reduce((sum, item) => sum + item.payment1 + item.payment2 + item.payment3, 0);
+  const paid = rows.reduce(
+    (sum, item) => sum + item.payment1 + item.payment2 + item.payment3,
+    0,
+  );
   const outstanding = total - paid;
-  const beginPayment = (item: BusinessState["sourcings"][number], paymentNumber: 1 | 2 | 3) => {
+  const beginPayment = (
+    item: BusinessState["sourcings"][number],
+    paymentNumber: 1 | 2 | 3,
+  ) => {
     setEditingPayment({ id: item.id, paymentNumber });
     setPaymentDraft({
       amount: formatRupiah(String(item[`payment${paymentNumber}`])),
       date: item[`payment${paymentNumber}Date`],
     });
   };
-  const finishPayment = (item: BusinessState["sourcings"][number], paymentNumber: 1 | 2 | 3, amount: number, date: string) => {
+  const finishPayment = (
+    item: BusinessState["sourcings"][number],
+    paymentNumber: 1 | 2 | 3,
+    amount: number,
+    date: string,
+  ) => {
     const result = onPayment(item.id, paymentNumber, { amount, date });
     onNotify(result.message, result.ok ? "success" : "error");
     if (result.ok) setEditingPayment(null);
   };
-  const renderPaymentCell = (item: BusinessState["sourcings"][number], paymentNumber: 1 | 2 | 3) => {
+  const renderPaymentCell = (
+    item: BusinessState["sourcings"][number],
+    paymentNumber: 1 | 2 | 3,
+  ) => {
     const amount = item[`payment${paymentNumber}`];
     const date = item[`payment${paymentNumber}Date`];
-    const isEditing = editingPayment?.id === item.id && editingPayment.paymentNumber === paymentNumber;
+    const isEditing =
+      editingPayment?.id === item.id &&
+      editingPayment.paymentNumber === paymentNumber;
     if (isEditing) {
       return (
         <div className="sourcing-inline-payment-editor">
@@ -1808,7 +1887,12 @@ function SourcingWorkspacePage({
               aria-label={`Nominal pembayaran ${paymentNumber}`}
               inputMode="numeric"
               value={paymentDraft.amount}
-              onChange={(event) => setPaymentDraft((current) => ({ ...current, amount: formatRupiah(event.target.value) }))}
+              onChange={(event) =>
+                setPaymentDraft((current) => ({
+                  ...current,
+                  amount: formatRupiah(event.target.value),
+                }))
+              }
             />
           </label>
           <label>
@@ -1817,18 +1901,42 @@ function SourcingWorkspacePage({
               aria-label={`Tanggal pembayaran ${paymentNumber}`}
               type="date"
               value={paymentDraft.date}
-              onChange={(event) => setPaymentDraft((current) => ({ ...current, date: event.target.value }))}
+              onChange={(event) =>
+                setPaymentDraft((current) => ({
+                  ...current,
+                  date: event.target.value,
+                }))
+              }
             />
           </label>
           <div className="sourcing-inline-payment-actions">
-            <button className="inline-save-button" type="button" onClick={() => finishPayment(item, paymentNumber, asMoney(paymentDraft.amount), paymentDraft.date)}>
+            <button
+              className="inline-save-button"
+              type="button"
+              onClick={() =>
+                finishPayment(
+                  item,
+                  paymentNumber,
+                  asMoney(paymentDraft.amount),
+                  paymentDraft.date,
+                )
+              }
+            >
               Simpan
             </button>
-            <button className="inline-cancel-button" type="button" onClick={() => setEditingPayment(null)}>
+            <button
+              className="inline-cancel-button"
+              type="button"
+              onClick={() => setEditingPayment(null)}
+            >
               Batal
             </button>
             {amount > 0 && (
-              <button className="inline-clear-button" type="button" onClick={() => finishPayment(item, paymentNumber, 0, "")}>
+              <button
+                className="inline-clear-button"
+                type="button"
+                onClick={() => finishPayment(item, paymentNumber, 0, "")}
+              >
                 Kosongkan
               </button>
             )}
@@ -1838,7 +1946,11 @@ function SourcingWorkspacePage({
     }
     if (amount <= 0) {
       return (
-        <button className="payment-add-button" type="button" onClick={() => beginPayment(item, paymentNumber)}>
+        <button
+          className="payment-add-button"
+          type="button"
+          onClick={() => beginPayment(item, paymentNumber)}
+        >
           + Bayar
         </button>
       );
@@ -1847,7 +1959,11 @@ function SourcingWorkspacePage({
       <div className="sourcing-payment-display">
         <strong>{money(amount)}</strong>
         <small>{date || "Tanggal belum dicatat"}</small>
-        <button className="payment-edit-link" type="button" onClick={() => beginPayment(item, paymentNumber)}>
+        <button
+          className="payment-edit-link"
+          type="button"
+          onClick={() => beginPayment(item, paymentNumber)}
+        >
           Edit
         </button>
       </div>
@@ -1859,10 +1975,16 @@ function SourcingWorkspacePage({
         <div>
           <p className="eyebrow">Lapak / Pengadaan &amp; Bengkelan</p>
           <h1>Pengadaan &amp; Bengkelan</h1>
-          <p>Catat pengadaan mandiri dengan jumlah dan tiga tahap pembayaran.</p>
+          <p>
+            Catat pengadaan mandiri dengan jumlah dan tiga tahap pembayaran.
+          </p>
         </div>
         <div className="workspace-actions">
-          <button className="secondary-outline-button" type="button" onClick={onExport}>
+          <button
+            className="secondary-outline-button"
+            type="button"
+            onClick={onExport}
+          >
             <Download size={15} /> Export
           </button>
           <button className="primary-button" type="button" onClick={onAdd}>
@@ -1893,62 +2015,160 @@ function SourcingWorkspacePage({
             <p className="eyebrow">Data mandiri</p>
             <h2>Daftar pengadaan</h2>
           </div>
-          <span className="resource-count">{rows.length} data</span>
+          <span className="resource-count">
+            {rows.length} data · {months.length} bulan
+          </span>
         </div>
         {rows.length ? (
-          <div className="table-wrap sourcing-table-wrap">
-            <table className="sourcing-record-table" aria-label="Daftar pengadaan dan bengkelan">
-              <thead>
-                <tr>
-                  <th>Tanggal</th>
-                  <th>Sumber</th>
-                  <th>Nama</th>
-                  <th>Jenis</th>
-                  <th>Bobot</th>
-                  <th>Harga / unit</th>
-                  <th>Jumlah</th>
-                  <th>Pembayaran 1 (Rp)</th>
-                  <th>Pembayaran 2 (Rp)</th>
-                  <th>Pembayaran 3 (Rp)</th>
-                  <th>Sisa</th>
-                  <th>Catatan</th>
-                  <th>Aksi</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((item) => {
-                  const itemPaid = item.payment1 + item.payment2 + item.payment3;
-                  const itemOutstanding = item.total - itemPaid;
-                  return (
-                    <tr key={item.id}>
-                      <td className="date-cell" data-label="Tanggal">{item.date}</td>
-                      <td data-label="Sumber"><span className="sourcing-type-badge">{item.sourceType === "BENGKELAN" ? "Bengkelan" : "Supplier"}</span></td>
-                      <td className="resource-primary-cell" data-label="Nama">{item.name}</td>
-                      <td data-label="Jenis">{item.type}</td>
-                      <td className="nowrap" data-label="Bobot">{item.weight.toLocaleString("id-ID")} {item.unit}</td>
-                      <td className="amount-cell" data-label="Harga / unit">{money(item.price)}</td>
-                      <td className="amount-cell" data-label="Jumlah"><strong>{money(item.total)}</strong></td>
-                      <td className="sourcing-payment-table-cell" data-label="Pembayaran 1">{renderPaymentCell(item, 1)}</td>
-                      <td className="sourcing-payment-table-cell" data-label="Pembayaran 2">{renderPaymentCell(item, 2)}</td>
-                      <td className="sourcing-payment-table-cell" data-label="Pembayaran 3">{renderPaymentCell(item, 3)}</td>
-                      <td className={`amount-cell ${itemOutstanding > 0 ? "sourcing-outstanding" : "sourcing-paid"}`} data-label="Sisa">{money(itemOutstanding)}</td>
-                      <td className="cell-wrap" data-label="Catatan">{item.note || "—"}</td>
-                      <td className="row-actions">
-                        <button className="sourcing-action-button sourcing-edit-button" type="button" aria-label={`Edit pengadaan ${item.name}`} onClick={() => onEdit("Sourcing & Bengkelan", item.id)}>
-                          <Edit2 size={15} /> <span>Edit</span>
-                        </button>
-                        <button className="sourcing-action-button sourcing-delete-button" type="button" aria-label={`Hapus pengadaan ${item.name}`} onClick={() => onDelete("Sourcing & Bengkelan", item.id)}>
-                          <Trash2 size={15} /> <span>Hapus</span>
-                        </button>
-                      </td>
+          months.map((month) => (
+            <section
+              className="lapak-month"
+              key={month.key || "no-date"}
+              aria-label={`Pengadaan ${month.label}`}
+            >
+              <div className="lapak-month-head">
+                <div>
+                  <h2>{month.label}</h2>
+                  <small>{month.items.length} catatan pengadaan</small>
+                </div>
+                <div className="lapak-month-figures">
+                  <span>
+                    <small>Pengadaan</small>
+                    <b>{money(month.total)}</b>
+                  </span>
+                  <span>
+                    <small>Dibayar</small>
+                    <b className="is-settled">{money(month.paid)}</b>
+                  </span>
+                  <span>
+                    <small>Sisa</small>
+                    <b
+                      className={
+                        month.outstanding > 0 ? "is-open" : "is-settled"
+                      }
+                    >
+                      {money(month.outstanding)}
+                    </b>
+                  </span>
+                </div>
+              </div>
+              <div className="table-wrap sourcing-table-wrap">
+                <table
+                  className="sourcing-record-table"
+                  aria-label={`Daftar pengadaan dan bengkelan ${month.label}`}
+                >
+                  <thead>
+                    <tr>
+                      <th>Tanggal</th>
+                      <th>Sumber</th>
+                      <th>Nama</th>
+                      <th>Jenis</th>
+                      <th>Bobot</th>
+                      <th>Harga / unit</th>
+                      <th>Jumlah</th>
+                      <th>Pembayaran 1 (Rp)</th>
+                      <th>Pembayaran 2 (Rp)</th>
+                      <th>Pembayaran 3 (Rp)</th>
+                      <th>Sisa</th>
+                      <th>Catatan</th>
+                      <th>Aksi</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody>
+                    {month.items.map((item) => {
+                      const itemPaid =
+                        item.payment1 + item.payment2 + item.payment3;
+                      const itemOutstanding = item.total - itemPaid;
+                      return (
+                        <tr key={item.id}>
+                          <td className="date-cell" data-label="Tanggal">
+                            {item.date}
+                          </td>
+                          <td data-label="Sumber">
+                            <span className="sourcing-type-badge">
+                              {item.sourceType === "BENGKELAN"
+                                ? "Bengkelan"
+                                : "Supplier"}
+                            </span>
+                          </td>
+                          <td
+                            className="resource-primary-cell"
+                            data-label="Nama"
+                          >
+                            {item.name}
+                          </td>
+                          <td data-label="Jenis">{item.type}</td>
+                          <td className="nowrap" data-label="Bobot">
+                            {item.weight.toLocaleString("id-ID")} {item.unit}
+                          </td>
+                          <td className="amount-cell" data-label="Harga / unit">
+                            {money(item.price)}
+                          </td>
+                          <td className="amount-cell" data-label="Jumlah">
+                            <strong>{money(item.total)}</strong>
+                          </td>
+                          <td
+                            className="sourcing-payment-table-cell"
+                            data-label="Pembayaran 1"
+                          >
+                            {renderPaymentCell(item, 1)}
+                          </td>
+                          <td
+                            className="sourcing-payment-table-cell"
+                            data-label="Pembayaran 2"
+                          >
+                            {renderPaymentCell(item, 2)}
+                          </td>
+                          <td
+                            className="sourcing-payment-table-cell"
+                            data-label="Pembayaran 3"
+                          >
+                            {renderPaymentCell(item, 3)}
+                          </td>
+                          <td
+                            className={`amount-cell ${itemOutstanding > 0 ? "sourcing-outstanding" : "sourcing-paid"}`}
+                            data-label="Sisa"
+                          >
+                            {money(itemOutstanding)}
+                          </td>
+                          <td className="cell-wrap" data-label="Catatan">
+                            {item.note || "—"}
+                          </td>
+                          <td className="row-actions">
+                            <button
+                              className="sourcing-action-button sourcing-edit-button"
+                              type="button"
+                              aria-label={`Edit pengadaan ${item.name}`}
+                              onClick={() =>
+                                onEdit("Sourcing & Bengkelan", item.id)
+                              }
+                            >
+                              <Edit2 size={15} /> <span>Edit</span>
+                            </button>
+                            <button
+                              className="sourcing-action-button sourcing-delete-button"
+                              type="button"
+                              aria-label={`Hapus pengadaan ${item.name}`}
+                              onClick={() =>
+                                onDelete("Sourcing & Bengkelan", item.id)
+                              }
+                            >
+                              <Trash2 size={15} /> <span>Hapus</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ))
         ) : (
-          <div className="empty-state">Belum ada data pengadaan. Gunakan tombol tambah untuk mencatat baris pertama.</div>
+          <div className="empty-state">
+            Belum ada data pengadaan. Gunakan tombol tambah untuk mencatat baris
+            pertama.
+          </div>
         )}
       </section>
     </div>
@@ -1964,63 +2184,54 @@ function LapakSummaryCards({
 }) {
   const cards =
     page === "Commission"
+      ? (() => {
+          const commissions = state.commissions;
+          const total = commissions.reduce((sum, item) => sum + item.amount, 0);
+          const partners = new Set(
+            commissions.map((item) => item.partner.trim()).filter(Boolean),
+          ).size;
+          return [
+            {
+              label: "Total komisi",
+              value: money(total),
+              detail: `${commissions.length} catatan tercatat`,
+            },
+            {
+              label: "Partner penerima",
+              value: partners.toLocaleString("id-ID"),
+              detail: "partner unik pada data komisi",
+            },
+            {
+              label: "Rata-rata komisi",
+              value: money(commissions.length ? total / commissions.length : 0),
+              detail: "nilai rata-rata per catatan",
+            },
+          ];
+        })()
+      : page === "Expenses"
         ? (() => {
-            const commissions = state.commissions;
-            const total = commissions.reduce(
-              (sum, item) => sum + item.amount,
-              0,
-            );
-            const partners = new Set(
-              commissions.map((item) => item.partner.trim()).filter(Boolean),
-            ).size;
+            const expenses = state.lapakExpenses;
+            const total = expenses.reduce((sum, item) => sum + item.amount, 0);
+            const batches = new Set(expenses.map((item) => item.batchId)).size;
             return [
               {
-                label: "Total komisi",
+                label: "Total pengeluaran",
                 value: money(total),
-                detail: `${commissions.length} catatan tercatat`,
+                detail: `${expenses.length} catatan tercatat`,
               },
               {
-                label: "Partner penerima",
-                value: partners.toLocaleString("id-ID"),
-                detail: "partner unik pada data komisi",
+                label: "Batch terdampak",
+                value: batches.toLocaleString("id-ID"),
+                detail: "batch dengan biaya tercatat",
               },
               {
-                label: "Rata-rata komisi",
-                value: money(
-                  commissions.length ? total / commissions.length : 0,
-                ),
+                label: "Rata-rata biaya",
+                value: money(expenses.length ? total / expenses.length : 0),
                 detail: "nilai rata-rata per catatan",
               },
             ];
           })()
-        : page === "Expenses"
-          ? (() => {
-              const expenses = state.lapakExpenses;
-              const total = expenses.reduce(
-                (sum, item) => sum + item.amount,
-                0,
-              );
-              const batches = new Set(expenses.map((item) => item.batchId))
-                .size;
-              return [
-                {
-                  label: "Total pengeluaran",
-                  value: money(total),
-                  detail: `${expenses.length} catatan tercatat`,
-                },
-                {
-                  label: "Batch terdampak",
-                  value: batches.toLocaleString("id-ID"),
-                  detail: "batch dengan biaya tercatat",
-                },
-                {
-                  label: "Rata-rata biaya",
-                  value: money(expenses.length ? total / expenses.length : 0),
-                  detail: "nilai rata-rata per catatan",
-                },
-              ];
-            })()
-          : null;
+        : null;
 
   if (!cards) return null;
 
@@ -2053,54 +2264,55 @@ function GroupedLapakPage({
   onEdit: (page: string, id: string) => void;
   onDelete: (page: string, id: string) => void;
 }) {
-  const groups = state.batches
-    .map((batch) => {
-      if (page === "Commission")
-        return {
-          batch,
-          items: state.commissions
-            .filter((item) => item.batchId === batch.id)
-            .map((item) => ({
-              id: item.id,
-              date: item.date,
-              title: item.partner,
-              detail: item.note || "Komisi Lapak",
-              amount: item.amount,
-            })),
-        };
-      if (page === "Expenses")
-        return {
-          batch,
-          items: state.lapakExpenses
-            .filter((item) => item.batchId === batch.id)
-            .map((item) => ({
-              id: item.id,
-              date: item.date,
-              title: item.expenseName,
-              detail: item.notes || "Pengeluaran Lapak",
-              amount: item.amount,
-            })),
-        };
-      return { batch, items: [] };
-    })
-    .filter((group) => group.items.length > 0);
+  const batchNumber = (batchId: string) =>
+    state.batches.find((batch) => batch.id === batchId)?.batchNumber ?? "";
+  const entries =
+    page === "Commission"
+      ? state.commissions.map((item) => ({
+          id: item.id,
+          date: item.date,
+          title: item.partner,
+          detail: item.note || "Komisi Lapak",
+          batch: batchNumber(item.batchId),
+          amount: item.amount,
+        }))
+      : page === "Expenses"
+        ? state.lapakExpenses.map((item) => ({
+            id: item.id,
+            date: item.date,
+            title: item.expenseName,
+            detail: item.notes || "Pengeluaran Lapak",
+            batch: batchNumber(item.batchId),
+            amount: item.amount,
+          }))
+        : [];
+  // Client reads both pages per month, so the month is the outer group and batch stays as metadata.
+  const groups = groupByMonth(
+    entries,
+    (item) => item.date,
+    (item) => item.amount,
+  ).map((month) => ({
+    ...month,
+    items: [...month.items].sort((a, b) => b.date.localeCompare(a.date)),
+  }));
   const labels: Record<
     string,
     { title: string; description: string; action: string }
   > = {
     Expenses: {
       title: "Pengeluaran Lapak",
-      description: "Semua pengeluaran Lapak dipisahkan berdasarkan batch.",
+      description: "Semua pengeluaran Lapak dikelompokkan per bulan.",
       action: "Tambah pengeluaran",
     },
     Commission: {
       title: "Komisi Lapak",
-      description: "Semua komisi ditampilkan berdasarkan batch terkait.",
+      description: "Semua komisi dikelompokkan per bulan.",
       action: "Tambah komisi",
     },
     "B2C Sales": {
       title: "Rekap Buku Tagihan",
-      description: "Buku tagihan per customer: kredit penjualan, debit pembayaran, dan restan.",
+      description:
+        "Buku tagihan per customer: kredit penjualan, debit pembayaran, dan restan.",
       action: "Tambah tagihan",
     },
   };
@@ -2121,17 +2333,21 @@ function GroupedLapakPage({
       {groups.length ? (
         <div className="lapak-group-list">
           {groups.map((group) => (
-            <section className="panel lapak-batch-group" key={group.batch.id}>
-              <div className="lapak-group-heading">
+            <section
+              className="panel lapak-batch-group"
+              key={group.key || "no-date"}
+            >
+              <div className="lapak-month-head">
                 <div>
-                  <p className="eyebrow">Batch</p>
-                  <h2>{group.batch.batchNumber}</h2>
-                  <small>
-                    {group.batch.startDate} ·{" "}
-                    {group.batch.notes || "Tanpa catatan"}
-                  </small>
+                  <h2>{group.label}</h2>
+                  <small>{group.items.length} transaksi</small>
                 </div>
-                <strong>{group.items.length} transaksi</strong>
+                <div className="lapak-month-figures">
+                  <span>
+                    <small>Subtotal</small>
+                    <b>{money(group.total)}</b>
+                  </span>
+                </div>
               </div>
               <div className="batch-item-list">
                 {group.items.map((item) => (
@@ -2139,7 +2355,8 @@ function GroupedLapakPage({
                     <div>
                       <strong>{item.title}</strong>
                       <small>
-                        {item.date} · {item.detail}
+                        {item.date}
+                        {item.batch ? ` · ${item.batch}` : ""} · {item.detail}
                       </small>
                     </div>
                     <b>{money(item.amount)}</b>
@@ -2389,10 +2606,7 @@ export default function WorkspacePage({
         initialFormOpen={initialFormOpen}
       />
     );
-  if (
-    module === "lapak" &&
-    ["Expenses", "Commission"].includes(effectivePage)
-  )
+  if (module === "lapak" && ["Expenses", "Commission"].includes(effectivePage))
     return (
       <>
         <GroupedLapakPage

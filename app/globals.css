@@ -310,6 +310,18 @@ button { cursor: pointer; }
 .ledger-filter select:focus, .ledger-filter input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .ledger-reset { margin-left: auto; }
 
+/* ---------- Lapak: pengelompokan per bulan (Tagihan, Komisi, Pengadaan, Pengeluaran) ---------- */
+.lapak-month { display: flex; flex-direction: column; gap: 12px; }
+.lapak-month + .lapak-month { margin-top: 22px; }
+.lapak-month-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding: 0 2px 9px; border-bottom: 1px solid var(--line); }
+.lapak-month-head h2 { margin: 0; color: var(--ink); font-size: 15px; font-weight: 700; letter-spacing: -.2px; }
+.lapak-month-head small { display: block; margin-top: 3px; color: var(--faint); font-size: 11.5px; }
+.lapak-month-figures { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.lapak-month-figures > span { display: flex; flex-direction: column; gap: 2px; min-width: 78px; }
+.lapak-month-figures small { color: var(--faint); font-size: 10px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
+.lapak-month-figures b { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lapak-month > .panel { margin-bottom: 0; }
+
 .ledger-groups { display: flex; flex-direction: column; gap: 14px; }
 .ledger-card { padding: 0; overflow: hidden; border-radius: 18px; border: 1px solid var(--line); background: var(--card); }
 .ledger-card.is-open { border-color: #dbe3ef; box-shadow: 0 2px 18px rgba(28, 58, 110, .07); }
@@ -1080,6 +1092,8 @@ td strong { color: var(--ink); font-size: 12.5px; font-weight: 600; }
   .batch-item .item-actions { margin-left: auto; }
   .lapak-batch-group { padding: 18px 16px 8px; }
   .lapak-group-heading { flex-wrap: wrap; gap: 8px; }
+  .lapak-month-head { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .lapak-month-figures { gap: 14px; width: 100%; }
   .sourcing-table-wrap { overflow: visible; }
   .sourcing-record-table { display: block; min-width: 0; }
   .sourcing-record-table thead { display: none; }
