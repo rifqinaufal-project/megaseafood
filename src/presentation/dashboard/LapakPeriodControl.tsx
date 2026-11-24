@@ -2,6 +2,7 @@
 
 import {
   LAPAK_PERIODS,
+  MONTH_LABELS,
   PERIOD_LABELS,
   periodLabel,
   type LapakPeriod,
@@ -31,6 +32,9 @@ export default function LapakPeriodControl({
   showAnchor = true,
   variant = "heading",
 }: Props) {
+  const year = Number(anchor.slice(0, 4)) || new Date().getFullYear();
+  const month = anchor.slice(5, 7) || "01";
+  const years = Array.from({ length: 11 }, (_, index) => year - 5 + index);
   const picker =
     showAnchor && period !== "Semua" ? (
       <label className="period-picker">
@@ -41,16 +45,43 @@ export default function LapakPeriodControl({
               ? "Minggu berisi tanggal"
               : "Bulan"}
         </span>
-        <input
-          type={period === "Bulanan" ? "month" : "date"}
-          value={period === "Bulanan" ? anchor.slice(0, 7) : anchor}
-          aria-label={period === "Bulanan" ? "Pilih bulan" : "Pilih tanggal"}
-          onChange={(event) => {
-            const value = event.target.value;
-            if (!value) return;
-            onAnchor(period === "Bulanan" ? `${value}-01` : value);
-          }}
-        />
+        {period === "Bulanan" ? (
+          <span className="period-month-picker">
+            <select
+              value={month}
+              aria-label="Pilih bulan"
+              onChange={(event) => onAnchor(`${year}-${event.target.value}-01`)}
+            >
+              {MONTH_LABELS.map((label, index) => (
+                <option key={label} value={String(index + 1).padStart(2, "0")}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={String(year)}
+              aria-label="Pilih tahun"
+              onChange={(event) =>
+                onAnchor(`${event.target.value}-${month}-01`)
+              }
+            >
+              {years.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </span>
+        ) : (
+          <input
+            type="date"
+            value={anchor}
+            aria-label="Pilih tanggal"
+            onChange={(event) =>
+              event.target.value && onAnchor(event.target.value)
+            }
+          />
+        )}
       </label>
     ) : null;
 
@@ -89,8 +120,8 @@ export default function LapakPeriodControl({
 
   return (
     <div className="lapak-period-head">
-      {picker}
       {switcher}
+      {picker}
     </div>
   );
 }
