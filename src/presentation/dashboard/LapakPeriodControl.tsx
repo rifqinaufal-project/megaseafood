@@ -38,13 +38,6 @@ export default function LapakPeriodControl({
   const picker =
     showAnchor && period !== "Semua" ? (
       <label className="period-picker">
-        <span>
-          {period === "Harian"
-            ? "Tanggal"
-            : period === "Mingguan"
-              ? "Minggu berisi tanggal"
-              : "Bulan"}
-        </span>
         {period === "Bulanan" ? (
           <span className="period-month-picker">
             <select
@@ -108,10 +101,6 @@ export default function LapakPeriodControl({
   if (variant === "bar")
     return (
       <div className="lapak-period-bar" role="group" aria-label="Pilih periode">
-        <div className="lapak-period-heading">
-          <strong>Periode laporan</strong>
-          <span>Pilih rentang data yang ingin ditampilkan</span>
-        </div>
         {switcher}
         {picker}
         <span className="period-caption lapak-period-caption">

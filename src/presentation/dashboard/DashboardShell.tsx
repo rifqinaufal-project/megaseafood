@@ -202,16 +202,6 @@ function LapakDashboard({
           </p>
         </div>
       </div>
-      <div className="lapak-period-toolbar">
-        <LapakPeriodControl
-          period={period}
-          anchor={anchor}
-          onPeriod={onPeriodChange}
-          onAnchor={() => undefined}
-          showAnchor={false}
-          variant="bar"
-        />
-      </div>
       <div className="resource-stats">
         <div className="resource-stat">
           <span>Pendapatan</span>
@@ -235,6 +225,16 @@ function LapakDashboard({
           <strong>Rp {formatRupiah(sourcingTotal)}</strong>
           <small>{sourcings.length} catatan · terpisah dari profit</small>
         </div>
+      </div>
+      <div className="lapak-period-toolbar">
+        <LapakPeriodControl
+          period={period}
+          anchor={anchor}
+          onPeriod={onPeriodChange}
+          onAnchor={() => undefined}
+          showAnchor={false}
+          variant="bar"
+        />
       </div>
       <section className="panel resource-panel">
         <div className="panel-heading">

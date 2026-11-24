@@ -350,22 +350,6 @@ export default function TagihanWorkspace({
         </div>
       </div>
 
-      <div className="lapak-period-toolbar">
-        <LapakPeriodControl
-          period={period}
-          anchor={anchor}
-          onPeriod={(next) => {
-            setPeriod(next);
-            setPage(1);
-          }}
-          onAnchor={(next) => {
-            setAnchor(next);
-            setPage(1);
-          }}
-          variant="bar"
-        />
-      </div>
-
       <div className="resource-stats metric-grid ledger-stats">
         {[
           {
@@ -419,6 +403,22 @@ export default function TagihanWorkspace({
             <small>{card.detail}</small>
           </div>
         ))}
+      </div>
+
+      <div className="lapak-period-toolbar">
+        <LapakPeriodControl
+          period={period}
+          anchor={anchor}
+          onPeriod={(next) => {
+            setPeriod(next);
+            setPage(1);
+          }}
+          onAnchor={(next) => {
+            setAnchor(next);
+            setPage(1);
+          }}
+          variant="bar"
+        />
       </div>
 
       <section className="panel resource-panel ledger-panel">
