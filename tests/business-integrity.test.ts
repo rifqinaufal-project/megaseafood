@@ -212,116 +212,159 @@ test("sourcing payments are updated inline and cannot exceed the purchase total"
   assert.equal(getState().sourcings[0].payment2Date, "");
 });
 
-test("lapak sales require a customer and post a three-stage ledger", () => {
+const ledgerInput = { date: "2026-06-13", customerName: "Sri Sita", kind: "KREDIT" as const, amount: 180000, note: "Udang 2 kg" };
+const renderPenjualan = (commands: ReturnType<typeof memoryCommands>["commands"], getState: () => BusinessState, extra: Record<string, unknown> = {}) =>
+  renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {}, ...extra }));
+
+test("lapak ledger rows need a customer, a kind and a positive amount", () => {
   const { commands, getState } = memoryCommands();
-  const sale = { date: "2026-06-13", customerName: "Sri Sita", productName: "Udang", quantity: 2, unit: "kg", sellingPrice: 90000, unitCost: 70000 };
-  assert.equal(commands.addLapakSale({ ...sale, customerName: "  " }).ok, false);
-  assert.equal(commands.addLapakSale({ ...sale, payment1: 50000, payment1Date: "" }).ok, false);
-  assert.equal(commands.addLapakSale(sale).ok, true);
+  assert.equal(commands.addLapakSale({ ...ledgerInput, customerName: "  " }).ok, false);
+  assert.equal(commands.addLapakSale({ ...ledgerInput, amount: 0 }).ok, false);
+  assert.equal(commands.addLapakSale({ ...ledgerInput, amount: -5000 }).ok, false);
+  assert.equal(commands.addLapakSale({ ...ledgerInput, date: "13-06-2026" }).ok, false);
+  assert.equal(commands.addLapakSale({ ...ledgerInput, kind: "LAIN" as "KREDIT" }).ok, false);
+  assert.equal(commands.addLapakSale(ledgerInput).ok, true);
   const created = getState().lapakSales.at(-1)!;
   assert.equal(created.customerName, "Sri Sita");
-  assert.equal(created.totalAmount, 180000);
-  assert.equal(commands.updateLapakSalePayment(created.id, 1, { amount: 80000, date: "2026-06-14" }).ok, true);
-  assert.equal(commands.updateLapakSalePayment(created.id, 2, { amount: 200000, date: "2026-06-15" }).ok, false);
-  assert.equal(getState().lapakSales.at(-1)!.payment1, 80000);
-  const html = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {} }));
-  assert.match(html, /Tagihan per customer/);
+  assert.equal(created.kind, "KREDIT");
+  assert.equal(created.amount, 180000);
+  assert.equal(created.note, "Udang 2 kg");
+});
+
+test("editing and deleting ledger rows keeps the restan recompute-able", () => {
+  const { commands, getState } = memoryCommands();
+  const credit = commands.addLapakSale(ledgerInput);
+  const debit = commands.addLapakSale({ date: "2026-06-14", customerName: "Sri Sita", kind: "DEBIT", amount: 80000, note: "Transfer" });
+  assert.equal(commands.addLapakSale({ date: "2026-06-15", customerName: "Sri Sita", kind: "DEBIT", amount: 200000 }).ok, true);
+  assert.equal(commands.updateLapakSale(debit.id!, { ...ledgerInput, date: "2026-06-14", kind: "DEBIT", amount: 50000 }).ok, true);
+  const row = getState().lapakSales.find((item) => item.id === debit.id)!;
+  assert.equal(row.amount, 50000);
+  assert.equal(row.kind, "DEBIT");
+  assert.equal(row.note, "Udang 2 kg");
+  assert.equal(commands.deleteLapakSale(credit.id!).ok, true);
+  assert.equal(getState().lapakSales.some((item) => item.id === credit.id), false);
+  assert.equal(commands.deleteLapakSale("missing").ok, false);
+  // Every ledger mutation leaves an audit trail with the old and new state.
+  const actions = new Set(getState().auditLogs.map((log) => log.action));
+  assert.ok(actions.has("LAPAK_LEDGER_CREATED"));
+  assert.ok(actions.has("LAPAK_LEDGER_UPDATED"));
+  assert.ok(actions.has("LAPAK_LEDGER_DELETED"));
+});
+
+test("several ledger rows can be saved for one customer in a single step", () => {
+  const { commands, getState } = memoryCommands();
+  const before = getState().lapakSales.length;
+  const result = commands.addLapakSaleEntries({
+    customerName: "  Bu Ani ",
+    entries: [
+      { date: "2026-11-15", kind: "KREDIT", amount: 3277000 },
+      { date: "2026-11-17", kind: "KREDIT", amount: 10744000 },
+      { date: "2026-11-20", kind: "DEBIT", amount: 2000000, note: "Transfer BCA" },
+    ],
+  });
+  assert.equal(result.ok, true);
+  const rows = getState().lapakSales.slice(before);
+  assert.equal(rows.length, 3);
+  assert.ok(rows.every((row) => row.customerName === "Bu Ani"));
+  assert.equal(rows.reduce((sum, row) => sum + (row.kind === "KREDIT" ? row.amount : -row.amount), 0), 12021000);
+  assert.equal(commands.addLapakSaleEntries({ customerName: "Bu Ani", entries: [] }).ok, false);
+  assert.equal(commands.addLapakSaleEntries({ customerName: "Bu Ani", entries: [{ date: "2026-11-15", kind: "KREDIT", amount: 0 }] }).ok, false);
+});
+
+test("the sales page is the Buku Tagihan: header, summary cards and the ledger table", () => {
+  const { commands, getState } = memoryCommands();
+  commands.addLapakSale(ledgerInput);
+  const html = renderPenjualan(commands, getState);
+  assert.match(html, /Home \/ Buku Tagihan/);
+  assert.match(html, /<h1>Buku Tagihan<\/h1>/);
+  assert.match(html, /Kelola transaksi kredit, debit, dan sisa tagihan pelanggan\./);
+  assert.match(html, /Tambah Transaksi/);
+  for (const card of ["Total Pelanggan", "Total Kredit", "Total Debit", "Total Restan"])
+    assert.ok(html.includes(card), `the summary must show "${card}"`);
   assert.match(html, /Sri Sita/);
-  assert.match(html, /<th[^>]*>No<\/th>/, "the invoice book numbers its rows");
-  assert.match(html, /<th[^>]*>Nama<\/th>/);
-  assert.match(html, /<th[^>]*>Kredit<\/th>/);
-  assert.match(html, /<th[^>]*>Debit<\/th>/);
-  assert.match(html, /<th[^>]*>Restan<\/th>/);
-  assert.match(html, /Rp 80\.000/);
-  assert.match(html, /Rp 100\.000/);
-});
-
-test("the sales page is titled as the invoice book recap and offers a Tambah tagihan button", () => {
-  const { commands, getState } = memoryCommands();
-  const html = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {} }));
-  assert.match(html, /<h1>Rekap Buku Tagihan<\/h1>/);
-  assert.match(html, /Tambah tagihan/);
-  // The entry form never renders on this page until the button is pressed.
-  assert.doesNotMatch(html, /Catat penjualan baru/);
-  assert.doesNotMatch(html, /Product Name/);
-  assert.doesNotMatch(html, /modal-backdrop/);
-  assert.doesNotMatch(html, /Tambah penjualan/);
-});
-
-test("the invoice book is numbered and shows only name, date, credit, debit and restan", () => {
-  const { commands, getState } = memoryCommands();
-  commands.addLapakSale({ date: "2026-06-13", customerName: "Sri Sita", productName: "Udang", quantity: 2, unit: "kg", sellingPrice: 90000, unitCost: 70000 });
-  const html = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {} }));
-  assert.match(html, /Tagihan per customer/);
-  assert.doesNotMatch(html, /Pembayaran customer/);
+  // Dates read as "13 Jun 2026" instead of the raw ISO string.
+  assert.match(html, /13 Jun 2026/);
   const headers = [...html.matchAll(/<th[^>]*>([^<]+)<\/th>/g)].map((match) => match[1]);
-  assert.deepEqual(headers, ["No", "Nama", "Tanggal", "Kredit", "Debit", "Restan"]);
-  assert.match(html, /<td class="ledger-no-cell" data-label="No">1<\/td>/);
+  assert.deepEqual(headers, ["No", "Nama Pelanggan", "Tanggal", "Kredit", "Debit", "Restan", "Aksi"]);
+  assert.match(html, /<td class="ledger-no" data-label="No">1<\/td>/);
+  assert.match(html, /Rp 180\.000/);
+  // The entry form only appears when the button is pressed.
+  assert.doesNotMatch(html, /modal-backdrop/);
+  assert.doesNotMatch(html, /Product Name/);
+  assert.doesNotMatch(html, /Quantity/);
 });
 
-test("the Tambah tagihan dialog is an invoice form, not the product entry form", () => {
+test("each customer group shows a running restan and a subtotal", () => {
   const { commands, getState } = memoryCommands();
-  const html = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {}, initialFormOpen: true }));
-  assert.match(html, /<h2>Tambah tagihan<\/h2>/);
-  assert.match(html, /Detail tagihan/);
-  assert.match(html, /Kredit \/ nilai tagihan/);
-  for (const legacy of [
-    "item transaksi",
-    "Item 1",
-    "Product Name",
-    "Quantity",
-    "Unit Cost",
-    "Tambah item",
-    "Simpan 1 item",
-    "Pembayaran customer",
-  ])
-    assert.ok(!html.includes(legacy), `the invoice dialog must not show "${legacy}"`);
-  assert.match(html, /Simpan tagihan/);
+  commands.addLapakSaleEntries({
+    customerName: "Pak Budi",
+    entries: [
+      { date: "2026-11-10", kind: "KREDIT", amount: 1000000 },
+      { date: "2026-11-12", kind: "DEBIT", amount: 400000 },
+      { date: "2026-11-14", kind: "KREDIT", amount: 250000 },
+    ],
+  });
+  const html = renderPenjualan(commands, getState);
+  assert.match(html, /Subtotal Pak Budi/);
+  // 1.000.000, then 600.000 after the payment, then 850.000 after the second credit.
+  const restans = [...html.matchAll(/<td class="ledger-amount is-(?:open|settled)" data-label="Restan">(?:<strong>)?([^<]+)/g)].map((match) => match[1]);
+  assert.deepEqual(restans, ["Rp 1.000.000", "Rp 600.000", "Rp 850.000", "Rp 850.000"]);
 });
 
-test("each customer card shows a readable bill summary, plain-language dates and payment status", () => {
+test("the Tambah Transaksi dialog records kredit and debit in one customer", () => {
   const { commands, getState } = memoryCommands();
-  commands.addLapakSale({ date: "2026-11-20", customerName: "Bu Ani", productName: "Udang 2 kg", quantity: 1, unit: "tagihan", sellingPrice: 250000, unitCost: 0, payment1: 100000, payment1Date: "2026-11-21", payment2: 0, payment2Date: "", payment3: 0, payment3Date: "" });
-  const html = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {} }));
-  // Dates read as "20 Nov 2026" instead of the raw ISO string.
-  assert.match(html, /20 Nov 2026/);
-  // The customer card leads with the outstanding balance and its status.
-  assert.match(html, /Belum lunas/);
-  assert.match(html, /Terbayar 40%/);
-  assert.match(html, /Total tagihan/);
-  assert.match(html, /Sudah dibayar/);
-  // Payment recording is collapsed under a summary so the ledger leads the card.
-  assert.match(html, /<details class="sales-ledger-paysection">/);
-  assert.doesNotMatch(html, /<details class="sales-ledger-paysection" open/);
-  assert.match(html, /<summary>[\s\S]*?Catat pembayaran/);
+  const html = renderPenjualan(commands, getState, { initialFormOpen: true });
+  assert.match(html, /<h2 id="ledger-form-title">Tambah Transaksi<\/h2>/);
+  for (const label of ["Pelanggan", "Jenis", "Nominal", "Keterangan", "Tambah Baris", "Simpan Transaksi", "Batal"])
+    assert.ok(html.includes(label), `the form must show "${label}"`);
+  assert.match(html, /<option value="KREDIT">Kredit<\/option>/);
+  assert.match(html, /<option value="DEBIT">Debit<\/option>/);
+  for (const legacy of ["Product Name", "Quantity", "Unit Cost", "HPP", "Tambah item", "Simpan 1 item"])
+    assert.ok(!html.includes(legacy), `the ledger dialog must not show "${legacy}"`);
 });
 
-test("legacy lapak sales migrate to named customers with their payments intact", () => {
+test("the ledger shows an informative empty state when nothing is recorded", () => {
+  const { commands, getState } = memoryCommands({ ...seedBusinessState(), lapakSales: [] });
+  const html = renderPenjualan(commands, getState);
+  assert.match(html, /Belum ada transaksi buku tagihan/);
+  assert.match(html, /Tambah Transaksi/);
+});
+
+test("legacy lapak sales migrate to one kredit row plus one debit row per payment", () => {
   const initial = seedBusinessState();
   const legacy = {
     ...initial,
     lapakSales: [
-      { id: "legacy-sale", batchId: "batch-42", date: "2026-06-12", customerLabel: "B2C", paymentStatus: "PAID", totalAmount: 180000, items: [{ productName: "Udang", quantity: 2, unit: "kg", sellingPrice: 90000, unitCost: 70000, subtotal: 180000, costTotal: 140000, profit: 40000 }] },
+      { id: "legacy-sale", batchId: "batch-42", date: "2026-06-12", customerLabel: "B2C", paymentStatus: "PAID", totalAmount: 180000, payment1: 100000, payment1Date: "2026-06-14", payment2: 0, payment2Date: "", payment3: 0, payment3Date: "", items: [{ productName: "Udang", quantity: 2, unit: "kg", sellingPrice: 90000, unitCost: 70000, subtotal: 180000, costTotal: 140000, profit: 40000 }] },
       { id: "named-sale", batchId: "batch-42", date: "2026-06-12", customerLabel: "Bu Ani", paymentStatus: "PAID", totalAmount: 60000, items: [{ productName: "Cumi", quantity: 1, unit: "kg", sellingPrice: 60000, unitCost: 40000, subtotal: 60000, costTotal: 40000, profit: 20000 }] },
     ],
   };
   const migrated = normalizeBusinessState(legacy);
-  assert.equal(migrated.lapakSales[0].customerName, "—");
-  assert.equal(migrated.lapakSales[0].payment1, 180000);
-  assert.equal(migrated.lapakSales[0].payment1Date, "2026-06-12");
-  assert.equal(migrated.lapakSales[1].customerName, "Bu Ani");
+  assert.deepEqual(
+    migrated.lapakSales.map((row) => [row.id, row.customerName, row.kind, row.amount]),
+    [
+      ["legacy-sale-kredit", "—", "KREDIT", 180000],
+      ["legacy-sale-debit-1", "—", "DEBIT", 100000],
+      ["named-sale-kredit", "Bu Ani", "KREDIT", 60000],
+    ],
+  );
+  assert.equal(migrated.lapakSales[1].date, "2026-06-14");
+  assert.match(migrated.lapakSales[0].note, /Udang/);
   assert.equal("customerLabel" in migrated.lapakSales[0], false);
   assert.equal("paymentStatus" in migrated.lapakSales[0], false);
-  // Sales no longer belong to a batch; the legacy link is dropped on migration.
   assert.equal("batchId" in migrated.lapakSales[0], false);
+  assert.equal("items" in migrated.lapakSales[0], false);
+  // Restan of the old data is preserved: 180.000 - 100.000 and 60.000.
+  const restan = migrated.lapakSales.reduce((sum, row) => sum + (row.kind === "KREDIT" ? row.amount : -row.amount), 0);
+  assert.equal(restan, 140000);
 });
 
-test("lapak sales stand alone and batch detail only lists commission and expenses", () => {
+test("lapak ledger rows stand alone and batch detail only lists commission and expenses", () => {
   const { commands, getState } = memoryCommands();
-  const sale = commands.addLapakSale({ date: "2026-06-13", customerName: "Sri Sita", productName: "Udang", quantity: 2, unit: "kg", sellingPrice: 90000, unitCost: 70000 });
+  const sale = commands.addLapakSale(ledgerInput);
   assert.equal(sale.ok, true);
   assert.equal("batchId" in getState().lapakSales.at(-1)!, false);
-  // Deleting a batch must not remove standalone sales.
+  // Deleting a batch must not remove ledger rows.
   const batch = commands.createBatch({ startDate: "2026-06-13", notes: "Uji" });
   assert.equal(commands.deleteBatch(batch.id!).ok, true);
   assert.equal(getState().lapakSales.length, 1);
@@ -330,10 +373,6 @@ test("lapak sales stand alone and batch detail only lists commission and expense
   assert.doesNotMatch(detail, /Penjualan B2C/);
   assert.match(detail, /Komisi/);
   assert.match(detail, /Pengeluaran/);
-
-  const form = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {}, initialFormOpen: true }));
-  assert.doesNotMatch(form, /Batch Id/);
-  assert.match(form, /<span>Nama \*/);
 });
 
 test("batch note edits preserve the number even when there are several batches on a date", () => {

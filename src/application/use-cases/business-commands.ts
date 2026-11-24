@@ -52,20 +52,19 @@ export type SourcingInput = {
   note: string;
 };
 
+/** One Buku Tagihan line: kredit raises the bill, debit lowers it. */
 export type LapakSaleInput = {
   date: string;
   customerName: string;
-  productName: string;
-  quantity: number;
-  unit: string;
-  sellingPrice: number;
-  unitCost: number;
-  payment1?: number;
-  payment1Date?: string;
-  payment2?: number;
-  payment2Date?: string;
-  payment3?: number;
-  payment3Date?: string;
+  kind: "KREDIT" | "DEBIT";
+  amount: number;
+  note?: string;
+};
+
+/** Several lines for one customer saved in a single step. */
+export type LapakSaleBatchInput = {
+  customerName: string;
+  entries: { date: string; kind: "KREDIT" | "DEBIT"; amount: number; note?: string }[];
 };
 
 export function sourcingTotal(input: Pick<SourcingInput, "weight" | "price">): number {
@@ -139,28 +138,24 @@ function validatePaymentValue(value: InstallmentInput, recordDate: string, label
   return null;
 }
 
-function lapakSalePayments(input: LapakSaleInput, previous?: BusinessState["lapakSales"][number]) {
-  return [
-    { amount: input.payment1 ?? previous?.payment1 ?? 0, date: input.payment1Date ?? previous?.payment1Date ?? "" },
-    { amount: input.payment2 ?? previous?.payment2 ?? 0, date: input.payment2Date ?? previous?.payment2Date ?? "" },
-    { amount: input.payment3 ?? previous?.payment3 ?? 0, date: input.payment3Date ?? previous?.payment3Date ?? "" },
-  ] as const;
+function validateLapakSaleInput(input: LapakSaleInput): string | null {
+  if (!isBusinessDate(input.date)) return "Tanggal transaksi wajib valid";
+  if (!input.customerName.trim()) return "Pelanggan wajib diisi";
+  if (input.kind !== "KREDIT" && input.kind !== "DEBIT") return "Jenis transaksi tidak valid";
+  if (!Number.isFinite(input.amount) || input.amount <= 0) return "Nominal harus lebih besar dari nol";
+  return null;
 }
 
-function validateLapakSaleInput(input: LapakSaleInput, previous?: BusinessState["lapakSales"][number]): string | null {
-  if (!isBusinessDate(input.date)) return "Tanggal penjualan wajib valid";
-  if (!input.customerName.trim()) return "Customer wajib diisi";
-  if (!input.productName.trim() || !Number.isFinite(input.quantity) || input.quantity <= 0 || !Number.isFinite(input.sellingPrice) || input.sellingPrice <= 0 || !Number.isFinite(input.unitCost) || input.unitCost < 0 || !input.unit.trim()) return "Produk, quantity, satuan, dan harga penjualan wajib valid";
-  const total = input.quantity * input.sellingPrice;
-  if (!Number.isFinite(total) || total <= 0) return "Jumlah penjualan tidak valid";
-  const payments = lapakSalePayments(input, previous);
-  let otherPaid = 0;
-  for (const [index, payment] of payments.entries()) {
-    const validation = validatePaymentValue(payment, input.date, `pembayaran ${index + 1}`, total, otherPaid);
-    if (validation) return validation;
-    otherPaid += payment.amount;
-  }
-  return null;
+function lapakSaleRow(input: LapakSaleInput): BusinessState["lapakSales"][number] {
+  return {
+    id: makeId("lapak-sale"),
+    date: input.date,
+    customerName: input.customerName.trim(),
+    kind: input.kind,
+    amount: input.amount,
+    note: (input.note ?? "").trim(),
+    createdAt: new Date().toISOString(),
+  };
 }
 
 export type BusinessCommands = {
@@ -176,8 +171,8 @@ export type BusinessCommands = {
   updateSourcingPayment: (id: string, payment: PaymentSlotArgument, input?: InstallmentInput | null) => CommandResult;
   deleteSourcing: (id: string) => CommandResult;
   addLapakSale: (input: LapakSaleInput) => CommandResult;
+  addLapakSaleEntries: (input: LapakSaleBatchInput) => CommandResult;
   updateLapakSale: (id: string, input: LapakSaleInput) => CommandResult;
-  updateLapakSalePayment: (id: string, payment: PaymentSlotArgument, input?: InstallmentInput | null) => CommandResult;
   deleteLapakSale: (id: string) => CommandResult;
   addLapakExpense: (input: { batchId: string; date: string; expenseName: string; amount: number; notes: string }) => CommandResult;
   updateLapakExpense: (id: string, input: { batchId: string; date: string; expenseName: string; amount: number; notes: string }) => CommandResult;
@@ -274,25 +269,6 @@ export function createBusinessCommands(persistState: (updater: BusinessUpdater) 
     }, value.amount > 0 ? "SOURCING_PAYMENT_UPDATED" : "SOURCING_PAYMENT_CLEARED", "Pembayaran pengadaan", `${sourcing.name} · tahap ${resolved.slot}`));
     return { ok: true, message: value.amount > 0 ? "Pembayaran pengadaan berhasil disimpan" : "Pembayaran pengadaan dikosongkan" };
   };
-  const changeLapakSalePayment = (id: string, argument: PaymentSlotArgument, input?: InstallmentInput | null): CommandResult => {
-    const state = getState();
-    const sale = state.lapakSales.find((item) => item.id === id);
-    if (!sale) return { ok: false, message: "Penjualan tidak ditemukan" };
-    const resolved = paymentSlot(argument, input);
-    if (!resolved.slot || ![1, 2, 3].includes(resolved.slot)) return { ok: false, message: "Tahap pembayaran tidak valid" };
-    const fields = slotFields(resolved.slot);
-    const currentPaid = sale.payment1 + sale.payment2 + sale.payment3;
-    const otherPaid = currentPaid - sale[fields.amount];
-    const value = { amount: resolved.value.amount, date: resolved.value.date?.trim() ?? "" };
-    const validation = validatePaymentValue(value, sale.date, `pembayaran ${resolved.slot}`, sale.totalAmount, otherPaid);
-    if (validation) return { ok: false, message: validation };
-    const normalizedDate = value.amount > 0 ? value.date : "";
-    setState((current) => audit({
-      ...current,
-      lapakSales: current.lapakSales.map((item) => item.id === id ? { ...item, [fields.amount]: value.amount, [fields.date]: normalizedDate } : item),
-    }, value.amount > 0 ? "LAPAK_SALE_PAYMENT_UPDATED" : "LAPAK_SALE_PAYMENT_CLEARED", "Pembayaran penjualan Lapak", `${sale.customerName} · tahap ${resolved.slot}`));
-    return { ok: true, message: value.amount > 0 ? "Pembayaran penjualan berhasil disimpan" : "Pembayaran penjualan dikosongkan" };
-  };
   const commands: BusinessCommands = {
     runTransaction: (execute) => {
       let staged = getState();
@@ -377,28 +353,55 @@ export function createBusinessCommands(persistState: (updater: BusinessUpdater) 
     addLapakSale: (input) => {
       const validation = validateLapakSaleInput(input);
       if (validation) return { ok: false, message: validation };
-      const subtotal = input.quantity * input.sellingPrice;
-      const costTotal = input.quantity * input.unitCost;
-      const payments = lapakSalePayments(input);
-      setState((state) => ({ ...state, lapakSales: [...state.lapakSales, { id: makeId("lapak-sale"), date: input.date, customerName: input.customerName.trim(), totalAmount: subtotal, payment1: payments[0].amount, payment1Date: payments[0].amount > 0 ? payments[0].date.trim() : "", payment2: payments[1].amount, payment2Date: payments[1].amount > 0 ? payments[1].date.trim() : "", payment3: payments[2].amount, payment3Date: payments[2].amount > 0 ? payments[2].date.trim() : "", items: [{ productName: input.productName.trim(), quantity: input.quantity, unit: input.unit.trim(), sellingPrice: input.sellingPrice, unitCost: input.unitCost, subtotal, costTotal, profit: subtotal - costTotal }] }] }));
-      return { ok: true, message: "Penjualan Lapak berhasil dicatat" };
+      const row = lapakSaleRow(input);
+      setState((state) => audit(
+        { ...state, lapakSales: [...state.lapakSales, row] },
+        "LAPAK_LEDGER_CREATED",
+        "Buku tagihan",
+        `${row.customerName} · ${row.kind} ${row.amount}`,
+      ));
+      return { ok: true, message: "Transaksi buku tagihan berhasil dicatat", id: row.id };
+    },
+    addLapakSaleEntries: (input) => {
+      const customerName = input.customerName.trim();
+      if (!customerName) return { ok: false, message: "Pelanggan wajib diisi" };
+      if (!input.entries.length) return { ok: false, message: "Tambahkan minimal satu baris transaksi" };
+      for (const [index, entry] of input.entries.entries()) {
+        const validation = validateLapakSaleInput({ ...entry, customerName });
+        if (validation) return { ok: false, message: `Baris ${index + 1}: ${validation}` };
+      }
+      const rows = input.entries.map((entry) => lapakSaleRow({ ...entry, customerName }));
+      setState((state) => audit(
+        { ...state, lapakSales: [...state.lapakSales, ...rows] },
+        "LAPAK_LEDGER_CREATED",
+        "Buku tagihan",
+        `${customerName} · ${rows.length} baris`,
+      ));
+      return { ok: true, message: `${rows.length} transaksi berhasil dicatat` };
     },
     updateLapakSale: (id, input) => {
       const current = getState().lapakSales.find((item) => item.id === id);
-      if (!current) return { ok: false, message: "Penjualan tidak ditemukan" };
-      const validation = validateLapakSaleInput(input, current);
+      if (!current) return { ok: false, message: "Transaksi tidak ditemukan" };
+      const validation = validateLapakSaleInput(input);
       if (validation) return { ok: false, message: validation };
-      const subtotal = input.quantity * input.sellingPrice;
-      const costTotal = input.quantity * input.unitCost;
-      const payments = lapakSalePayments(input, current);
-      setState((state) => ({ ...state, lapakSales: state.lapakSales.map((sale) => sale.id === id ? { ...sale, date: input.date, customerName: input.customerName.trim(), totalAmount: subtotal, payment1: payments[0].amount, payment1Date: payments[0].amount > 0 ? payments[0].date.trim() : "", payment2: payments[1].amount, payment2Date: payments[1].amount > 0 ? payments[1].date.trim() : "", payment3: payments[2].amount, payment3Date: payments[2].amount > 0 ? payments[2].date.trim() : "", items: [{ productName: input.productName.trim(), quantity: input.quantity, unit: input.unit.trim(), sellingPrice: input.sellingPrice, unitCost: input.unitCost, subtotal, costTotal, profit: subtotal - costTotal }] } : sale) }));
-      return { ok: true, message: "Penjualan Lapak berhasil diperbarui" };
+      setState((state) => audit({
+        ...state,
+        lapakSales: state.lapakSales.map((sale) => sale.id === id
+          ? { ...sale, date: input.date, customerName: input.customerName.trim(), kind: input.kind, amount: input.amount, note: (input.note ?? "").trim() }
+          : sale),
+      }, "LAPAK_LEDGER_UPDATED", "Buku tagihan", `${input.customerName.trim()} · ${input.kind} ${input.amount}`));
+      return { ok: true, message: "Transaksi buku tagihan berhasil diperbarui" };
     },
-    updateLapakSalePayment: (id, payment, input) => changeLapakSalePayment(id, payment, input),
     deleteLapakSale: (id) => {
-      if (!getState().lapakSales.some((item) => item.id === id)) return { ok: false, message: "Penjualan tidak ditemukan" };
-      setState((state) => ({ ...state, lapakSales: state.lapakSales.filter((item) => item.id !== id) }));
-      return { ok: true, message: "Penjualan berhasil dihapus" };
+      const sale = getState().lapakSales.find((item) => item.id === id);
+      if (!sale) return { ok: false, message: "Transaksi tidak ditemukan" };
+      setState((state) => audit(
+        { ...state, lapakSales: state.lapakSales.filter((item) => item.id !== id) },
+        "LAPAK_LEDGER_DELETED",
+        "Buku tagihan",
+        `${sale.customerName} · ${sale.kind} ${sale.amount}`,
+      ));
+      return { ok: true, message: "Transaksi berhasil dihapus" };
     },
     addLapakExpense: (input) => {
       const batch = getState().batches.find((item) => item.id === input.batchId);

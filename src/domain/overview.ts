@@ -8,7 +8,9 @@ const CHART_MONTHS = 6;
 const RECENT_LIMIT = 6;
 
 const sum = <T,>(items: T[], pick: (item: T) => number) => items.reduce((total, item) => total + pick(item), 0);
-const lapakSalePaid = (sale: BusinessState["lapakSales"][number]) => sale.payment1 + sale.payment2 + sale.payment3;
+/** Kredit raises the bill, debit is money received, so restan is their difference. */
+const ledgerCredit = (rows: BusinessState["lapakSales"]) => sum(rows.filter((row) => row.kind === "KREDIT"), (row) => row.amount);
+const ledgerDebit = (rows: BusinessState["lapakSales"]) => sum(rows.filter((row) => row.kind === "DEBIT"), (row) => row.amount);
 
 function inRange(range: OverviewRange, date: string, asOf: string) {
   if (range === "Tahun ini") return date.slice(0, 4) === asOf.slice(0, 4);
@@ -22,7 +24,7 @@ function lapakFigures(state: BusinessState, keep: (date: string) => boolean) {
   const commissions = state.commissions.filter((item) => keep(item.date));
   const sales = state.lapakSales.filter((item) => keep(item.date));
   const expenses = state.lapakExpenses.filter((item) => keep(item.date));
-  const revenue = sum(commissions, (item) => item.amount) + sum(sales, (item) => item.totalAmount);
+  const revenue = sum(commissions, (item) => item.amount) + ledgerCredit(sales);
   const cost = sum(expenses, (item) => item.amount);
   // Sales are no longer attached to a batch; only commissions and expenses belong to one.
   const batchIds = new Set([...commissions, ...expenses].map((item) => item.batchId));
@@ -122,7 +124,7 @@ export function buildOverview(state: BusinessState, range: OverviewRange, asOf =
   const cashIn =
      sum(state.invoices, (item) => item.paidAmount) +
      sum(state.commissions, (item) => item.amount) +
-     sum(state.lapakSales, lapakSalePaid);
+     ledgerDebit(state.lapakSales);
   const restoIn = sum(state.invoices, (item) => item.paidAmount);
   const cashOut =
     sum(state.supplierPayments, (item) => item.amount) +

@@ -186,7 +186,7 @@ function LapakDashboard({
     (sum, item) => sum + item.amount,
     0,
   );
-  const salesTotal = sales.reduce((sum, item) => sum + item.totalAmount, 0);
+  const salesTotal = sales.reduce((sum, item) => sum + (item.kind === "KREDIT" ? item.amount : 0), 0);
   const sourcingTotal = sourcings.reduce(
     (sum, item) => sum + item.total,
     0,
@@ -531,7 +531,7 @@ function OverviewWorkspaceCards({
 }) {
   const lapakRevenue =
     business.commissions.reduce((sum, item) => sum + item.amount, 0) +
-    business.lapakSales.reduce((sum, item) => sum + item.totalAmount, 0);
+    business.lapakSales.reduce((sum, item) => sum + (item.kind === "KREDIT" ? item.amount : 0), 0);
   const restoRevenue = business.invoices.reduce(
     (sum, invoice) => sum + invoice.total,
     0,

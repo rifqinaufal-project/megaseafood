@@ -41,30 +41,20 @@ export interface Sourcing {
   note: string;
 }
 
-export interface LapakSaleItem {
-  productName: string;
-  quantity: number;
-  unit: string;
-  sellingPrice: number;
-  unitCost: number;
-  subtotal: number;
-  costTotal: number;
-  profit: number;
-}
-
+/**
+ * One line of the accounts-receivable ledger (Buku Tagihan).
+ * Kredit raises what a customer owes, debit lowers it; restan is never stored, it is summed.
+ */
 export interface LapakSale {
   id: string;
   date: string;
-  /** Nama customer pada buku tagihan; data lama yang tidak punya nama memakai "—". */
+  /** Nama pelanggan; data lama yang tidak punya nama memakai "—". */
   customerName: string;
-  items: LapakSaleItem[];
-  totalAmount: number;
-  payment1: number;
-  payment1Date: string;
-  payment2: number;
-  payment2Date: string;
-  payment3: number;
-  payment3Date: string;
+  kind: "KREDIT" | "DEBIT";
+  amount: number;
+  /** Keterangan bebas, mis. "Udang 2 kg" atau "Transfer BCA". */
+  note: string;
+  createdAt: string;
 }
 
 export interface LapakExpense {

@@ -11,7 +11,7 @@ const fields = {
   batches: ["batchNumber", "startDate", "notes"],
   commissions: ["batchId", "date", "partner", "note"],
   sourcings: ["date", "sourceType", "name", "type", "unit", "payment1Date", "payment2Date", "payment3Date", "note"],
-  lapakSales: ["date", "customerName", "payment1Date", "payment2Date", "payment3Date"],
+  lapakSales: ["date", "customerName", "kind", "note", "createdAt"],
   lapakExpenses: ["batchId", "date", "expenseName", "notes"],
   products: ["sku", "name", "category", "size", "unit", "status"],
   suppliers: ["name", "contactName", "phone", "email", "address", "status"],
@@ -31,7 +31,7 @@ const companyFields = ["name", "address", "phone", "email", "website", "npwp", "
 const amounts = {
   batches: [], commissions: ["amount"],
   sourcings: ["weight", "price", "total", "payment1", "payment2", "payment3"],
-  lapakSales: ["totalAmount", "payment1", "payment2", "payment3"], lapakExpenses: ["amount"],
+  lapakSales: ["amount"], lapakExpenses: ["amount"],
   products: ["defaultSellingPrice", "averageHpp", "latestPurchaseCost", "stockBalance", "minimumStock"],
   suppliers: [], restaurants: ["paymentTermDays"],
   receipts: ["subtotal"],
@@ -43,7 +43,7 @@ const amounts = {
   users: [], auditLogs: [],
 } as const;
 // Dates that may legitimately be empty (e.g. no receipt due date).
-const optionalDates = new Set(["receipts.dueDate", "sourcings.payment1Date", "sourcings.payment2Date", "sourcings.payment3Date", "lapakSales.payment1Date", "lapakSales.payment2Date", "lapakSales.payment3Date"]);
+const optionalDates = new Set(["receipts.dueDate", "sourcings.payment1Date", "sourcings.payment2Date", "sourcings.payment3Date"]);
 // Movements store signed quantities and balances can be reconciled to zero.
 const signedAmounts = new Set(["stockMovements.quantity"]);
 
@@ -87,41 +87,49 @@ function migrateLegacyState(value: Record<string, unknown>): Record<string, unkn
   if (!Array.isArray(rawLapakSales)) {
     migrated.lapakSales = [];
   } else {
-    const currentFields = ["date", "customerName", "items", "totalAmount", "payment1", "payment1Date", "payment2", "payment2Date", "payment3", "payment3Date"];
     const number = (candidate: unknown, fallback = 0) => typeof candidate === "number" && Number.isFinite(candidate) ? candidate : fallback;
     const text = (candidate: unknown, fallback = "") => typeof candidate === "string" ? candidate : fallback;
-    const migratedLapakSales = rawLapakSales.map((entry) => {
-      if (!isRecord(entry)) return entry;
-      const customerName = text(entry.customerName).trim();
-      if (currentFields.every((field) => field in entry) && customerName) return entry;
+    const fallbackCreatedAt = typeof value.updatedAt === "string" ? value.updatedAt : new Date(0).toISOString();
+    // The ledger used to be a product sales form (price x quantity plus three payments).
+    // Every legacy sale becomes one credit line, and each recorded payment becomes a debit line,
+    // so the running restan of old data stays exactly the same.
+    const migratedLapakSales = rawLapakSales.flatMap((entry) => {
+      if (!isRecord(entry)) return [entry];
+      if ("kind" in entry && "amount" in entry && !("items" in entry) && !("totalAmount" in entry)) return [entry];
       const items = Array.isArray(entry.items) ? entry.items : [];
       const itemTotal = items.reduce((sum, item) => isRecord(item) ? sum + number(item.subtotal) : sum, 0);
       const totalAmount = number(entry.totalAmount, number(entry.total, itemTotal));
       const legacyLabel = text(entry.customerLabel).trim();
       // The old UI stored the generic label "B2C" rather than a real customer.
-      // Keep meaningful labels, but make anonymous history explicit and groupable.
-      const migratedCustomer = customerName || (legacyLabel && legacyLabel.toUpperCase() !== "B2C" ? legacyLabel : "—");
-      const paidAmount = number(entry.paidAmount, entry.paymentStatus === "PAID" ? totalAmount : 0);
-      const payment1 = number(entry.payment1, paidAmount);
-      const payment1Date = text(entry.payment1Date, payment1 > 0 ? text(entry.date) : "");
-      const payment2 = number(entry.payment2);
-      const payment2Date = text(entry.payment2Date, payment2 > 0 ? text(entry.date) : "");
-      const payment3 = number(entry.payment3);
-      const payment3Date = text(entry.payment3Date, payment3 > 0 ? text(entry.date) : "");
-      // Sales stand on their own: the legacy batch link is dropped during migration.
-      return {
-        id: text(entry.id),
-        date: text(entry.date),
-        customerName: migratedCustomer,
-        items,
-        totalAmount,
-        payment1,
-        payment1Date,
-        payment2,
-        payment2Date,
-        payment3,
-        payment3Date,
-      };
+      const customerName = text(entry.customerName).trim() || (legacyLabel && legacyLabel.toUpperCase() !== "B2C" ? legacyLabel : "—");
+      const id = text(entry.id) || `lapak-sale-${Math.random().toString(36).slice(2, 10)}`;
+      const date = text(entry.date);
+      const createdAt = text(entry.createdAt, fallbackCreatedAt);
+      const description = items
+        .map((item) => {
+          if (!isRecord(item)) return "";
+          const product = text(item.productName).trim();
+          const quantity = number(item.quantity);
+          const unit = text(item.unit).trim();
+          return product ? `${product}${quantity ? ` · ${quantity} ${unit || ""}`.trimEnd() : ""}` : "";
+        })
+        .filter(Boolean)
+        .join(", ");
+      const rows: Record<string, unknown>[] = [];
+      if (totalAmount > 0) {
+        rows.push({ id: `${id}-kredit`, date, customerName, kind: "KREDIT", amount: totalAmount, note: description || "Penjualan", createdAt });
+      }
+      const legacyPayments: [unknown, unknown][] = [
+        [entry.payment1 ?? entry.paidAmount, entry.payment1Date],
+        [entry.payment2, entry.payment2Date],
+        [entry.payment3, entry.payment3Date],
+      ];
+      for (const [index, [amount, paymentDate]] of legacyPayments.entries()) {
+        const value = number(amount);
+        if (value <= 0) continue;
+        rows.push({ id: `${id}-debit-${index + 1}`, date: text(paymentDate) || date, customerName, kind: "DEBIT", amount: value, note: `Pembayaran ${index + 1}`, createdAt });
+      }
+      return rows;
     });
     if (migratedLapakSales.some((entry, index) => entry !== rawLapakSales[index])) migrated.lapakSales = migratedLapakSales;
   }
@@ -237,24 +245,9 @@ export function normalizeBusinessState(input: unknown): BusinessState {
         if (paid > calculatedTotal) throw new Error("Pembayaran pengadaan melebihi jumlah");
       }
       if (key === "lapakSales") {
-        if (!(entry.customerName as string).trim()) throw new Error("Customer penjualan wajib diisi");
-        if (!Array.isArray(entry.items) || entry.items.length === 0) throw new Error("Item penjualan tidak valid");
-        if (!(entry.totalAmount as number) || (entry.totalAmount as number) <= 0) throw new Error("Jumlah penjualan tidak valid");
-        const paymentDates = ["payment1Date", "payment2Date", "payment3Date"];
-        for (const field of paymentDates) {
-          const paymentDate = entry[field];
-          if (typeof paymentDate !== "string" || (paymentDate && (!isBusinessDate(paymentDate) || paymentDate < (entry.date as string)))) throw new Error("Tanggal pembayaran penjualan tidak valid");
-        }
-        const payments = [
-          [entry.payment1, entry.payment1Date],
-          [entry.payment2, entry.payment2Date],
-          [entry.payment3, entry.payment3Date],
-        ];
-        for (const [amount, paymentDate] of payments) {
-          if ((amount as number) > 0 && !(paymentDate as string)) throw new Error("Tanggal pembayaran penjualan wajib diisi");
-        }
-        const paid = (entry.payment1 as number) + (entry.payment2 as number) + (entry.payment3 as number);
-        if (paid > (entry.totalAmount as number)) throw new Error("Pembayaran penjualan melebihi jumlah");
+        if (!(entry.customerName as string).trim()) throw new Error("Pelanggan transaksi wajib diisi");
+        if (!["KREDIT", "DEBIT"].includes(entry.kind as string)) throw new Error("Jenis transaksi buku tagihan tidak valid");
+        if (!(entry.amount as number) || (entry.amount as number) <= 0) throw new Error("Nominal transaksi tidak valid");
       }
       if (key === "restaurants" && (!Number.isSafeInteger(entry.paymentTermDays) || (entry.paymentTermDays as number) > 3650)) throw new Error("Termin restoran tidak valid");
       if ((key === "invoices" || key === "payments") && entry.revision !== undefined && (!Number.isSafeInteger(entry.revision) || (entry.revision as number) < 0)) throw new Error("Revisi transaksi tidak valid");
@@ -284,12 +277,6 @@ export function normalizeBusinessState(input: unknown): BusinessState {
           if (key === "invoices" && ["productName", "unit"].some((field) => item[field] !== undefined && typeof item[field] !== "string")) throw new Error("Informasi produk invoice tidak valid");
         }
       }
-      if (key === "lapakSales") {
-        if (!Array.isArray(entry.items)) throw new Error("Item transaksi tidak valid");
-        for (const item of entry.items) {
-          if (!record(item) || ["productName", "unit"].some((field) => typeof item[field] !== "string") || ["quantity", "sellingPrice", "unitCost", "subtotal", "costTotal", "profit"].some((field) => typeof item[field] !== "number" || !Number.isFinite(item[field]) || (field !== "profit" && (item[field] as number) < 0))) throw new Error("Detail item transaksi tidak valid");
-        }
-      }
     }
   }
   if (!record(value.company) || companyFields.some((field) => typeof (value.company as Record<string, unknown>)[field] !== "string")) throw new Error("Profil bisnis tidak valid");
@@ -298,20 +285,13 @@ export function normalizeBusinessState(input: unknown): BusinessState {
   const normalizedSourcings = state.sourcings.every((item) => item.total === item.weight * item.price)
     ? state.sourcings
     : state.sourcings.map((item) => ({ ...item, total: item.weight * item.price }));
-  const standaloneSales = state.lapakSales.every((sale) => !("batchId" in sale))
-    ? state.lapakSales
-    : state.lapakSales.map((sale) => {
-        // Drop the legacy batch link; sales are standalone from here on.
-        const standalone = { ...sale } as BusinessState["lapakSales"][number] & { batchId?: string };
-        delete standalone.batchId;
-        return standalone;
-      });
+  const ledgerRows = state.lapakSales;
   return retainDocumentSequences({
     ...state,
     // Remove only obsolete batch lifecycle properties; preserve all business data.
     batches: state.batches.map((batch) => ({ id: batch.id, batchNumber: batch.batchNumber, startDate: batch.startDate, notes: batch.notes })),
     sourcings: normalizedSourcings,
-    lapakSales: standaloneSales,
+    lapakSales: ledgerRows,
   });
 }
 

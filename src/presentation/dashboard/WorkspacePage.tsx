@@ -24,6 +24,7 @@ import type { BusinessCommands } from "@/src/application/use-cases/business-comm
 import { receiptOutstanding } from "@/src/domain/business-integrity";
 import { resolveWorkspacePage } from "@/src/presentation/dashboard/workspace-routing";
 import InvoiceWorkspace from "@/src/presentation/dashboard/InvoiceWorkspace";
+import TagihanWorkspace from "@/src/presentation/dashboard/TagihanWorkspace";
 import { RestoReportsPage } from "@/src/presentation/dashboard/RestoReports";
 import { RestoSettingsPage } from "@/src/presentation/dashboard/RestoSettings";
 import {
@@ -288,25 +289,6 @@ function Field({
   );
 }
 
-/** The invoice book form posts straight to the ledger: one row per sale entry. */
-function invoiceInput(item: FormValue | Record<string, string>) {
-  return {
-    date: item.date || today(),
-    productName: item.productName || "",
-    customerName: item.customerName || "",
-    quantity: asNumber(item.quantity || "0"),
-    unit: item.unit || "kg",
-    sellingPrice: asMoney(item.sellingPrice || ""),
-    unitCost: asMoney(item.unitCost || ""),
-    payment1: asMoney(item.payment1 || ""),
-    payment1Date: item.payment1Date || "",
-    payment2: asMoney(item.payment2 || ""),
-    payment2Date: item.payment2Date || "",
-    payment3: asMoney(item.payment3 || ""),
-    payment3Date: item.payment3Date || "",
-  };
-}
-
 function ModalForm({
   page,
   state,
@@ -324,7 +306,6 @@ function ModalForm({
   initialBatchId?: string;
   editRecord?: EditRecord;
 }) {
-  const isInvoice = page === "B2C Sales";
   const isMultiItem = [
     "Expenses",
     "Commission",
@@ -366,28 +347,9 @@ function ModalForm({
         ? state.lapakExpenses.find((item) => item.id === editRecord.id)
         : editRecord?.page === "Sourcing & Bengkelan"
           ? state.sourcings.find((item) => item.id === editRecord.id)
-      : editRecord?.page === "B2C Sales"
-            ? state.lapakSales.find((item) => item.id === editRecord.id)
             : undefined;
   const initialItem =
-    existingItem && editRecord?.page === "B2C Sales" && "items" in existingItem
-      ? {
-          ...createItem(),
-           date: existingItem.date,
-           customerName: existingItem.customerName,
-           productName: existingItem.items[0]?.productName ?? "",
-           quantity: String(existingItem.items[0]?.quantity ?? "1"),
-           unit: existingItem.items[0]?.unit ?? "kg",
-           sellingPrice: String(existingItem.items[0]?.sellingPrice ?? ""),
-           unitCost: String(existingItem.items[0]?.unitCost ?? ""),
-           payment1: String(existingItem.payment1 ?? 0),
-           payment1Date: existingItem.payment1Date ?? "",
-           payment2: String(existingItem.payment2 ?? 0),
-           payment2Date: existingItem.payment2Date ?? "",
-           payment3: String(existingItem.payment3 ?? 0),
-           payment3Date: existingItem.payment3Date ?? "",
-         }
-      : existingItem
+    existingItem
         ? {
             ...createItem(),
             ...Object.fromEntries(
@@ -434,18 +396,6 @@ function ModalForm({
       (!item.expenseName?.trim() || asMoney(item.amount || "") <= 0)
     )
       return "Nama dan jumlah pengeluaran wajib diisi";
-    if (
-      page === "B2C Sales" &&
-      (!item.customerName?.trim() ||
-        !item.productName?.trim() ||
-        asNumber(item.quantity || "0") <= 0 ||
-        asMoney(item.sellingPrice || "") <= 0 ||
-        asMoney(item.unitCost || "") < 0 ||
-        asMoney(item.payment1 || "") < 0 ||
-        asMoney(item.payment2 || "") < 0 ||
-        asMoney(item.payment3 || "") < 0)
-    )
-      return "Customer, produk, quantity, dan harga penjualan wajib valid";
     if (
       page === "Sourcing & Bengkelan" &&
       (!item.name?.trim() ||
@@ -540,10 +490,6 @@ function ModalForm({
       return;
     }
     let result = { ok: false, message: "Form belum didukung" };
-    if (isInvoice)
-      result = editRecord
-        ? commands.updateLapakSale(editRecord.id, invoiceInput(form))
-        : commands.addLapakSale(invoiceInput(form));
     if (page === "Batches")
       result = commands.createBatch({
         startDate: form.startDate || today(),
@@ -804,84 +750,6 @@ function ModalForm({
   );
 
   const renderSingleFields = () => {
-    if (isInvoice)
-      return (
-        <>
-          <section className="tagihan-section">
-            <div className="sourcing-form-section-heading">
-              <strong>Detail tagihan</strong>
-              <span>Untuk siapa tagihan ini dan berapa nilainya.</span>
-            </div>
-            <div className="form-grid">
-              <Field
-                name="customerName"
-                suggestions={recentSuggestions(state.lapakSales.map((entry) => entry.customerName))}
-                value={form.customerName || ""}
-                onChange={(value) => set("customerName", value)}
-                placeholder="Nama customer"
-                required
-              />
-              <Field
-                name="date"
-                type="date"
-                value={form.date || ""}
-                onChange={(value) => set("date", value)}
-              />
-              <Field
-                name="sellingPrice"
-                type="number"
-                value={form.sellingPrice || ""}
-                onChange={(value) => set("sellingPrice", value)}
-                placeholder="Jumlah tagihan"
-              />
-              <Field
-                name="productName"
-                suggestions={recentSuggestions(state.lapakSales.flatMap((entry) => entry.items.map((line) => line.productName)))}
-                value={form.productName || ""}
-                onChange={(value) => set("productName", value)}
-                placeholder="Keterangan, mis. Udang 2 kg"
-              />
-              <input
-                type="hidden"
-                name="quantity"
-                value={form.quantity || "1"}
-                onChange={() => undefined}
-              />
-            </div>
-          </section>
-          <section className="tagihan-section">
-            <div className="sourcing-form-section-heading">
-              <strong>Pembayaran</strong>
-              <span>Catat sampai tiga tahap. Kosongkan kalau belum ada pembayaran.</span>
-            </div>
-            <div className="sourcing-payment-list">
-              {([1, 2, 3] as const).map((paymentNumber) => (
-                <div className="sourcing-payment-block" key={paymentNumber}>
-                  <div className="sourcing-payment-heading">
-                    <strong>Tahap pembayaran {paymentNumber}</strong>
-                    <span>{paymentNumber === 1 ? "Pembayaran awal" : "Opsional"}</span>
-                  </div>
-                  <div className="sourcing-payment-fields">
-                    <Field
-                      name={`payment${paymentNumber}`}
-                      type="number"
-                      value={form[`payment${paymentNumber}`] || ""}
-                      onChange={(value) => set(`payment${paymentNumber}`, value)}
-                      placeholder="0"
-                    />
-                    <Field
-                      name={`payment${paymentNumber}Date`}
-                      type="date"
-                      value={form[`payment${paymentNumber}Date`] || ""}
-                      onChange={(value) => set(`payment${paymentNumber}Date`, value)}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        </>
-      );
     if (page === "Batches")
       return (
         <>
@@ -1140,11 +1008,9 @@ function ModalForm({
             <p className="eyebrow">
               {editRecord
                 ? "Edit data"
-                : isInvoice
-                  ? "Buku tagihan"
-                  : isMultiItem
-                    ? `${items.length} item transaksi`
-                    : "Local workspace"}
+                : isMultiItem
+                  ? `${items.length} item transaksi`
+                  : "Local workspace"}
             </p>
             <h2>
               {editRecord
@@ -1164,16 +1030,12 @@ function ModalForm({
         <p className="modal-copy">
           {editRecord
             ? "Perbaiki data yang tersimpan lalu simpan perubahan."
-            : isInvoice
-              ? "Isi nama, tanggal, jumlah tagihan, dan pembayaran yang sudah diterima."
-              : isMultiItem
-                ? "Tambahkan beberapa item sekaligus, lalu simpan dalam satu proses."
-                : "Data tersimpan di browser ini."}
+            : isMultiItem
+              ? "Tambahkan beberapa item sekaligus, lalu simpan dalam satu proses."
+              : "Data tersimpan di browser ini."}
         </p>
         <form onSubmit={submit}>
-          {isInvoice ? (
-            <div className="tagihan-form">{renderSingleFields()}</div>
-          ) : isMultiItem ? (
+          {isMultiItem ? (
             <>
               <div className="multi-item-list">
                 {items.map(renderItemFields)}
@@ -1205,11 +1067,9 @@ function ModalForm({
               <Plus size={16} />{" "}
               {editRecord
                 ? "Simpan perubahan"
-                : isInvoice
-                  ? "Simpan tagihan"
-                  : isMultiItem
-                    ? `Simpan ${items.length} item`
-                    : "Simpan"}
+                : isMultiItem
+                  ? `Simpan ${items.length} item`
+                  : "Simpan"}
             </button>
           </div>
         </form>
@@ -1217,114 +1077,6 @@ function ModalForm({
     </div>
   );
   return portalReady ? createPortal(modal, document.body) : modal;
-}
-
-type SalesLedgerLine = {
-  id: string;
-  saleId: string;
-  date: string;
-  description: string;
-  credit: number;
-  debit: number;
-  restan: number;
-  kind: "sale" | "payment";
-};
-
-type SalesLedgerGroup = {
-  customerName: string;
-  lines: SalesLedgerLine[];
-  credit: number;
-  debit: number;
-  restan: number;
-};
-
-function buildSalesLedgerGroups(state: BusinessState): SalesLedgerGroup[] {
-  const groups = new Map<string, SalesLedgerLine[]>();
-  for (const sale of state.lapakSales) {
-    const customerName = sale.customerName.trim() || "—";
-    const lines = groups.get(customerName) ?? [];
-    const products = sale.items.map((item) => `${item.productName} · ${item.quantity} ${item.unit}`).join(", ");
-    lines.push({
-      id: `${sale.id}-sale`,
-      saleId: sale.id,
-      date: sale.date,
-      description: `Penjualan${products ? ` · ${products}` : ""}`,
-      credit: sale.totalAmount,
-      debit: 0,
-      restan: 0,
-      kind: "sale",
-    });
-    for (const paymentNumber of [1, 2, 3] as const) {
-      const amount = sale[`payment${paymentNumber}`];
-      const date = sale[`payment${paymentNumber}Date`];
-      if (amount <= 0) continue;
-      lines.push({
-        id: `${sale.id}-payment-${paymentNumber}`,
-        saleId: sale.id,
-        date,
-        description: `Pembayaran ${paymentNumber}`,
-        credit: 0,
-        debit: amount,
-        restan: 0,
-        kind: "payment",
-      });
-    }
-    groups.set(customerName, lines);
-  }
-  return [...groups.entries()]
-    .map(([customerName, rawLines]) => {
-      const lines = [...rawLines].sort((a, b) => a.date.localeCompare(b.date) || (a.kind === "sale" ? -1 : 1) - (b.kind === "sale" ? -1 : 1) || a.id.localeCompare(b.id));
-      let restan = 0;
-      for (const line of lines) {
-        restan += line.credit - line.debit;
-        line.restan = restan;
-      }
-      return {
-        customerName,
-        lines,
-        credit: lines.reduce((sum, line) => sum + line.credit, 0),
-        debit: lines.reduce((sum, line) => sum + line.debit, 0),
-        restan,
-      };
-    })
-    .sort((a, b) => a.customerName.localeCompare(b.customerName, "id"));
-}
-
-const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-
-/** `2026-06-13` reads better as `13 Jun 2026` for people who did not type it. */
-function formatDate(value: string) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value || "");
-  if (!match) return value || "—";
-  const [, year, month, day] = match;
-  return `${Number(day)} ${monthNames[Number(month) - 1] ?? month} ${year}`;
-}
-
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return "—";
-  return `${parts[0][0] ?? ""}${parts.length > 1 ? parts[parts.length - 1][0] ?? "" : ""}`.toUpperCase();
-}
-
-function progressLabel(credit: number, debit: number) {
-  if (credit <= 0) return "0%";
-  return `${Math.max(0, Math.min(100, Math.round((debit / credit) * 100)))}%`;
-}
-
-function salesLedgerRows(state: BusinessState) {
-  return {
-    columns: ["No", "Nama", "Tanggal", "Kredit", "Debit", "Restan"],
-    rows: buildSalesLedgerGroups(state)
-      .flatMap((group) => group.lines.map((line) => ({ ...line, customerName: group.customerName })))
-      .map((line, index) => [
-        String(index + 1),
-        line.customerName,
-        line.date,
-        line.credit ? money(line.credit) : "—",
-        line.debit ? money(line.debit) : "—",
-        money(line.restan),
-      ]),
-  };
 }
 
 function getRows(page: string, state: BusinessState) {
@@ -1371,8 +1123,6 @@ function getRows(page: string, state: BusinessState) {
         item.note,
       ]),
     };
-  if (page === "B2C Sales")
-    return salesLedgerRows(state);
   if (page === "Expenses")
     return {
       columns: ["Tanggal", "Kategori", "Batch", "Jumlah", "Catatan"],
@@ -2205,310 +1955,6 @@ function SourcingWorkspacePage({
   );
 }
 
-function SalesLedgerWorkspacePage({
-  state,
-  onAdd,
-  onExport,
-  onDelete,
-  onEdit,
-  onPayment,
-  onNotify,
-}: {
-  state: BusinessState;
-  onAdd: () => void;
-  onExport: () => void;
-  onDelete: (id: string) => void;
-  onEdit: (id: string) => void;
-  onPayment: (id: string, paymentNumber: 1 | 2 | 3, input: { amount: number; date: string }) => { ok: boolean; message: string };
-  onNotify: Notify;
-}) {
-  const [search, setSearch] = useState("");
-  const [editingPayment, setEditingPayment] = useState<{ saleId: string; paymentNumber: 1 | 2 | 3 } | null>(null);
-  const [paymentDraft, setPaymentDraft] = useState({ amount: "", date: "" });
-  const groups = buildSalesLedgerGroups(state);
-  const term = search.trim().toLowerCase();
-  const visible = term
-    ? groups
-        .filter((group) => `${group.customerName} ${group.lines.map((line) => `${line.date} ${line.description}`).join(" ")}`.toLowerCase().includes(term))
-        .map((group) => ({ ...group, lines: group.lines.filter((line) => `${line.date} ${line.description}`.toLowerCase().includes(term)) }))
-    : groups;
-  const ledgerTotals = groups.reduce(
-    (totals, group) => ({ credit: totals.credit + group.credit, debit: totals.debit + group.debit, restan: totals.restan + group.restan }),
-    { credit: 0, debit: 0, restan: 0 },
-  );
-  const beginPayment = (sale: BusinessState["lapakSales"][number], paymentNumber: 1 | 2 | 3) => {
-    setEditingPayment({ saleId: sale.id, paymentNumber });
-    setPaymentDraft({
-      amount: formatRupiah(String(sale[`payment${paymentNumber}`])),
-      date: sale[`payment${paymentNumber}Date`],
-    });
-  };
-  const finishPayment = (saleId: string, paymentNumber: 1 | 2 | 3, amount: number, date: string) => {
-    const result = onPayment(saleId, paymentNumber, { amount, date });
-    onNotify(result.message, result.ok ? "success" : "error");
-    if (result.ok) setEditingPayment(null);
-  };
-  const renderPaymentCell = (sale: BusinessState["lapakSales"][number], paymentNumber: 1 | 2 | 3) => {
-    const amount = sale[`payment${paymentNumber}`];
-    const date = sale[`payment${paymentNumber}Date`];
-    const isEditing = editingPayment?.saleId === sale.id && editingPayment.paymentNumber === paymentNumber;
-    if (isEditing) {
-      return (
-        <div className="sourcing-inline-payment-editor">
-          <label>
-            <span>Nominal</span>
-            <input
-              aria-label={`Nominal pembayaran ${paymentNumber} untuk ${sale.customerName}`}
-              inputMode="numeric"
-              value={paymentDraft.amount}
-              onChange={(event) => setPaymentDraft((current) => ({ ...current, amount: formatRupiah(event.target.value) }))}
-            />
-          </label>
-          <label>
-            <span>Tanggal</span>
-            <input
-              aria-label={`Tanggal pembayaran ${paymentNumber} untuk ${sale.customerName}`}
-              type="date"
-              value={paymentDraft.date}
-              onChange={(event) => setPaymentDraft((current) => ({ ...current, date: event.target.value }))}
-            />
-          </label>
-          <div className="sourcing-inline-payment-actions">
-            <button className="inline-save-button" type="button" onClick={() => finishPayment(sale.id, paymentNumber, asMoney(paymentDraft.amount), paymentDraft.date)}>
-              Simpan
-            </button>
-            <button className="inline-cancel-button" type="button" onClick={() => setEditingPayment(null)}>
-              Batal
-            </button>
-            {amount > 0 && (
-              <button className="inline-clear-button" type="button" onClick={() => finishPayment(sale.id, paymentNumber, 0, "")}>
-                Kosongkan
-              </button>
-            )}
-          </div>
-        </div>
-      );
-    }
-    if (amount <= 0) {
-      return (
-        <button className="payment-add-button" type="button" onClick={() => beginPayment(sale, paymentNumber)}>
-          + Bayar
-        </button>
-      );
-    }
-    return (
-      <div className="sourcing-payment-display">
-        <strong>{money(amount)}</strong>
-        <small>{date || "Tanggal belum dicatat"}</small>
-        <button className="payment-edit-link" type="button" onClick={() => beginPayment(sale, paymentNumber)}>
-          Edit
-        </button>
-      </div>
-    );
-  };
-  return (
-    <div className="workspace-page sales-ledger-workspace">
-      <div className="workspace-page-head">
-        <div>
-          <p className="eyebrow">Lapak / Penjualan</p>
-          <h1>Rekap Buku Tagihan</h1>
-          <p>Kolom No · Nama · Tanggal · Kredit · Debit · Restan, dikelompokkan per customer.</p>
-        </div>
-        <div className="workspace-actions">
-          <button className="secondary-outline-button" type="button" onClick={onExport}>
-            <Download size={15} /> Export
-          </button>
-          <button className="primary-button" type="button" onClick={onAdd}>
-            <Plus size={16} /> Tambah tagihan
-          </button>
-        </div>
-      </div>
-      <div className="resource-stats">
-        <div className="resource-stat">
-          <span>Total kredit</span>
-          <strong>{money(ledgerTotals.credit)}</strong>
-          <small>{state.lapakSales.length} transaksi penjualan</small>
-        </div>
-        <div className="resource-stat">
-          <span>Total debit</span>
-          <strong>{money(ledgerTotals.debit)}</strong>
-          <small>pembayaran diterima</small>
-        </div>
-        <div className="resource-stat">
-          <span>Total restan</span>
-          <strong className={ledgerTotals.restan > 0 ? "stat-warn" : "stat-ok"}>{money(ledgerTotals.restan)}</strong>
-          <small>{groups.length} customer tercatat</small>
-        </div>
-      </div>
-      <section className="panel resource-panel">
-        <div className="panel-heading">
-          <div>
-            <p className="eyebrow">Buku tagihan</p>
-            <h2>Tagihan per customer</h2>
-          </div>
-          <div className="sales-ledger-panel-actions">
-            <span className="resource-count">{visible.length} customer</span>
-            <button className="primary-button compact" type="button" onClick={onAdd}>
-              <Plus size={15} /> Tambah tagihan
-            </button>
-          </div>
-        </div>
-        <div className="resource-toolbar">
-          <label className="table-search">
-            <Search size={16} />
-            <input
-              placeholder="Cari customer atau keterangan..."
-              aria-label="Cari penjualan Lapak"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </label>
-        </div>
-        {visible.length ? (
-          <div className="sales-ledger-list">
-            {visible.map((group) => {
-              const sales = state.lapakSales.filter((sale) => (sale.customerName.trim() || "—") === group.customerName);
-              const customerCount = sales.length;
-              const settled = group.restan <= 0;
-              return (
-                <section className="panel sales-ledger-card" key={group.customerName}>
-                  <header className="sales-ledger-head">
-                    <div className="sales-ledger-identity">
-                      <span className="sales-ledger-avatar" aria-hidden="true">{initials(group.customerName)}</span>
-                      <div>
-                        <h3>{group.customerName}</h3>
-                        <p>{customerCount} tagihan · {group.lines.filter((line) => line.kind === "payment").length} pembayaran</p>
-                      </div>
-                    </div>
-                    <div className="sales-ledger-bill">
-                      <span>Restan</span>
-                      <strong className={settled ? "is-settled" : "is-open"}>{money(group.restan)}</strong>
-                      <em className={settled ? "is-settled" : "is-open"}>{settled ? "Lunas" : "Belum lunas"}</em>
-                    </div>
-                  </header>
-
-                  <div className="sales-ledger-metrics">
-                    <div>
-                      <span>Total tagihan</span>
-                      <strong>{money(group.credit)}</strong>
-                    </div>
-                    <div>
-                      <span>Sudah dibayar</span>
-                      <strong>{money(group.debit)}</strong>
-                    </div>
-                    <div className="sales-ledger-progress">
-                      <span>Terbayar {progressLabel(group.credit, group.debit)}</span>
-                      <div className="sales-ledger-bar" role="img" aria-label={`Terbayar ${progressLabel(group.credit, group.debit)}`}>
-                        <i style={{ width: progressLabel(group.credit, group.debit) }} />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="table-wrap sales-ledger-table-wrap">
-                    <table className="sales-ledger-table" aria-label={`Buku tagihan ${group.customerName}`}>
-                      <thead>
-                        <tr>
-                          <th className="ledger-no-cell">No</th>
-                          <th>Nama</th>
-                          <th>Tanggal</th>
-                          <th className="ledger-amount-cell">Kredit</th>
-                          <th className="ledger-amount-cell">Debit</th>
-                          <th className="ledger-amount-cell">Restan</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {group.lines.map((line, index) => (
-                          <tr
-                            key={line.id}
-                            className={[
-                              line.kind === "payment" ? "sales-ledger-payment-row" : "",
-                              index === group.lines.length - 1 ? "sales-ledger-last-row" : "",
-                            ].join(" ").trim()}
-                          >
-                            <td className="ledger-no-cell" data-label="No">{index + 1}</td>
-                            <td className="ledger-name-cell" data-label="Nama">
-                              <span className={`ledger-tag ledger-tag-${line.kind}`}>
-                                {line.kind === "payment" ? "Bayar" : "Tagihan"}
-                              </span>
-                              <span className="ledger-name-text">{index === 0 ? group.customerName : ""}</span>
-                              <small>{line.description}</small>
-                            </td>
-                            <td className="date-cell" data-label="Tanggal">{formatDate(line.date)}</td>
-                            <td className="amount-cell ledger-amount-cell ledger-credit" data-label="Kredit">
-                              {line.credit ? money(line.credit) : ""}
-                            </td>
-                            <td className="amount-cell ledger-amount-cell ledger-debit" data-label="Debit">
-                              {line.debit ? money(line.debit) : ""}
-                            </td>
-                            <td className={`amount-cell ledger-amount-cell ${line.restan > 0 ? "sourcing-outstanding" : "sourcing-paid"}`} data-label="Restan">
-                              {money(line.restan)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <details className="sales-ledger-paysection">
-                    <summary>
-                      <span>Catat pembayaran</span>
-                      <small>{group.debit > 0 ? `Sudah dibayar ${money(group.debit)}` : "Belum ada pembayaran"}</small>
-                    </summary>
-                    <div className="sales-ledger-sales">
-                      {sales
-                        .filter((sale) => !term || group.lines.some((line) => line.saleId === sale.id))
-                        .map((sale) => {
-                          const paid = sale.payment1 + sale.payment2 + sale.payment3;
-                          const remaining = sale.totalAmount - paid;
-                          return (
-                            <div className="sales-ledger-sale" key={sale.id}>
-                              <div className="sales-ledger-sale-top">
-                                <div className="sales-ledger-sale-identity">
-                                  <strong>{sale.items.map((item) => item.productName).join(", ") || "Tagihan"}</strong>
-                                  <small>{formatDate(sale.date)} · Kredit {money(sale.totalAmount)}</small>
-                                </div>
-                                <div className="item-actions">
-                                  <button className="sourcing-action-button sourcing-edit-button" type="button" aria-label={`Edit tagihan ${sale.id}`} onClick={() => onEdit(sale.id)}>
-                                    <Edit2 size={15} /> <span>Edit</span>
-                                  </button>
-                                  <button className="sourcing-action-button sourcing-delete-button" type="button" aria-label={`Hapus tagihan ${sale.id}`} onClick={() => onDelete(sale.id)}>
-                                    <Trash2 size={15} /> <span>Hapus</span>
-                                  </button>
-                                </div>
-                              </div>
-                              <div className="sales-ledger-sale-payments">
-                                {([1, 2, 3] as const).map((paymentNumber) => (
-                                  <div className="sales-payment-cell" key={paymentNumber}>
-                                    <span>Pembayaran {paymentNumber}</span>
-                                    {renderPaymentCell(sale, paymentNumber)}
-                                  </div>
-                                ))}
-                              </div>
-                              <div className="sales-ledger-sale-foot">
-                                <span>Dibayar {money(paid)}</span>
-                                <b className={remaining > 0 ? "sourcing-outstanding" : "sourcing-paid"}>
-                                  {remaining > 0 ? `Sisa ${money(remaining)}` : "Lunas"}
-                                </b>
-                              </div>
-                            </div>
-                          );
-                        })}
-                    </div>
-                  </details>
-                </section>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="empty-state">
-            {term ? "Tidak ada customer yang cocok dengan pencarian." : "Belum ada tagihan tercatat. Gunakan tombol Tambah tagihan untuk mencatat yang pertama."}
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-
 function LapakSummaryCards({
   page,
   state,
@@ -2517,44 +1963,7 @@ function LapakSummaryCards({
   state: BusinessState;
 }) {
   const cards =
-    page === "B2C Sales"
-      ? (() => {
-          const sales = state.lapakSales;
-          const revenue = sales.reduce(
-            (sum, item) => sum + item.totalAmount,
-            0,
-          );
-          const profit = sales.reduce(
-            (sum, item) =>
-              sum +
-              item.items.reduce((itemSum, line) => itemSum + line.profit, 0),
-            0,
-          );
-          const units = sales.reduce(
-            (sum, item) =>
-              sum +
-              item.items.reduce((itemSum, line) => itemSum + line.quantity, 0),
-            0,
-          );
-          return [
-            {
-              label: "Total penjualan",
-              value: money(revenue),
-              detail: `${sales.length} transaksi tercatat`,
-            },
-            {
-              label: "Total profit",
-              value: money(profit),
-              detail: "setelah perhitungan HPP",
-            },
-            {
-              label: "Unit terjual",
-              value: units.toLocaleString("id-ID"),
-              detail: "total quantity semua produk",
-            },
-          ];
-        })()
-      : page === "Commission"
+    page === "Commission"
         ? (() => {
             const commissions = state.commissions;
             const total = commissions.reduce(
@@ -2973,32 +2382,12 @@ export default function WorkspacePage({
     );
   if (module === "lapak" && effectivePage === "B2C Sales")
     return (
-      <>
-        <SalesLedgerWorkspacePage
-          state={business}
-          onAdd={() => openForm(effectivePage)}
-          onExport={exportTable}
-          onDelete={(id) => deleteLapakRecord("B2C Sales", id)}
-          onEdit={(id) => editLapakRecord("B2C Sales", id)}
-          onPayment={(id, paymentNumber, input) =>
-            commands.updateLapakSalePayment(id, paymentNumber, input)
-          }
-          onNotify={onNotify}
-        />
-        {formOpen && (
-          <ModalForm
-            page={formPage}
-            editRecord={editRecord}
-            state={business}
-            commands={commands}
-            onClose={() => {
-              setFormOpen(false);
-              setEditRecord(undefined);
-            }}
-            onNotify={onNotify}
-          />
-        )}
-      </>
+      <TagihanWorkspace
+        business={business}
+        commands={commands}
+        onNotify={onNotify}
+        initialFormOpen={initialFormOpen}
+      />
     );
   if (
     module === "lapak" &&

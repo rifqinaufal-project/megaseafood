@@ -57,12 +57,12 @@ export function searchBusiness(state: BusinessState, query: string, limit = 18):
     module: "lapak", page: "Pengadaan",
   }, [sourcing.name, sourcing.type, sourcing.sourceType, sourcing.date, sourcing.note, sourcing.id, sourcing.sequence]);
 
-  for (const sale of state.lapakSales) {
-    const products = sale.items.map((item) => item.productName).join(", ");
+  for (const row of state.lapakSales) {
+    const kindLabel = row.kind === "KREDIT" ? "Kredit" : "Debit";
     add({
-      kind: "Penjualan Lapak", title: sale.customerName || "—", detail: `${sale.date} · Rp ${formatRupiah(sale.totalAmount)} · ${products}`,
+      kind: "Buku Tagihan", title: row.customerName || "—", detail: `${row.date} · ${kindLabel} Rp ${formatRupiah(row.amount)}${row.note ? ` · ${row.note}` : ""}`,
       module: "lapak", page: "Penjualan",
-    }, [sale.customerName, sale.date, sale.id, products]);
+    }, [row.customerName, row.date, row.id, row.note, kindLabel]);
   }
 
   for (const expense of state.lapakExpenses) add({
