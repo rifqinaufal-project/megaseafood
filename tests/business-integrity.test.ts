@@ -802,7 +802,7 @@ test("period ranges follow the calendar without time-zone drift", () => {
   assert.equal(inRange("2026-11-30", week), false);
 });
 
-test("every lapak page offers Harian, Mingguan, Bulanan, and Semua", () => {
+test("lapak list pages offer period controls while batch detail stays focused", () => {
   const { commands, getState } = memoryCommands();
   // Batch ikut memakai pemilih yang sama, termasuk halaman detail per batch.
   const batchId = getState().batches[0].id;
@@ -823,24 +823,29 @@ test("every lapak page offers Harian, Mingguan, Bulanan, and Semua", () => {
         initialBatchId,
       }),
     );
-    for (const option of ["Harian", "Mingguan", "Bulanan", "Semua"])
+    if (label === "Batch detail") {
+      assert.doesNotMatch(html, /class="period-switcher"/);
+      assert.doesNotMatch(html, />Dikelompokkan per bulan</);
+    } else {
+      for (const option of ["Harian", "Mingguan", "Bulanan", "Semua"])
+        assert.match(
+          html,
+          new RegExp(`>${option}<`),
+          `${label} tanpa pilihan ${option}`,
+        );
+      // Memakai pemilih yang sama dengan Dashboard Lapak (.period-switcher), default "Semua".
       assert.match(
         html,
-        new RegExp(`>${option}<`),
-        `${label} tanpa pilihan ${option}`,
+        /class="period-switcher"/,
+        `${label} tidak memakai period-switcher`,
       );
-    // Memakai pemilih yang sama dengan Dashboard Lapak (.period-switcher), default "Semua".
-    assert.match(
-      html,
-      /class="period-switcher"/,
-      `${label} tidak memakai period-switcher`,
-    );
-    assert.match(
-      html,
-      /class="active"[^>]*>Semua</,
-      `${label} tidak default ke Semua`,
-    );
-    assert.match(html, /Dikelompokkan per bulan/);
+      assert.match(
+        html,
+        /class="active"[^>]*>Semua</,
+        `${label} tidak default ke Semua`,
+      );
+      assert.match(html, /Dikelompokkan per bulan/);
+    }
     if (label === "Tagihan") {
       assert.doesNotMatch(
         html,

@@ -1701,10 +1701,6 @@ function BatchDetail({
   onEdit: (page: string, id: string) => void;
   onDelete: (page: string, id: string) => void;
 }) {
-  // Hooks stay above the early return so hook order never depends on the batch being found.
-  const [period, setPeriod] = useState<LapakPeriod>("Semua");
-  const [anchor, setAnchor] = useState(today());
-  const range = useMemo(() => periodRange(period, anchor), [period, anchor]);
   const batch = state.batches.find((item) => item.id === batchId);
   if (!batch)
     return (
@@ -1715,12 +1711,12 @@ function BatchDetail({
         </button>
       </div>
     );
-  // Records inside a batch can be read per day/week/month; "Semua" shows the whole batch.
+  // Detail batch selalu menampilkan seluruh transaksi yang terkait dengan batch ini.
   const commissions = state.commissions
-    .filter((item) => item.batchId === batch.id && inRange(item.date, range))
+    .filter((item) => item.batchId === batch.id)
     .sort((a, b) => b.date.localeCompare(a.date));
   const expenses = state.lapakExpenses
-    .filter((item) => item.batchId === batch.id && inRange(item.date, range))
+    .filter((item) => item.batchId === batch.id)
     .sort((a, b) => b.date.localeCompare(a.date));
   const commissionTotal = commissions.reduce(
     (sum, item) => sum + item.amount,
@@ -1766,31 +1762,16 @@ function BatchDetail({
           </button>
         </div>
       </div>
-      <div className="lapak-period-toolbar">
-        <LapakPeriodControl
-          period={period}
-          anchor={anchor}
-          onPeriod={setPeriod}
-          onAnchor={setAnchor}
-          variant="bar"
-        />
-      </div>
       <div className="resource-stats batch-summary-stats">
         <div className="resource-stat">
           <span>Komisi</span>
           <strong>{money(commissionTotal)}</strong>
-          <small>
-            {commissions.length} catatan
-            {range ? " pada periode ini" : ""}
-          </small>
+          <small>{commissions.length} catatan</small>
         </div>
         <div className="resource-stat">
           <span>Total biaya</span>
           <strong>{money(expenseTotal)}</strong>
-          <small>
-            {expenses.length} catatan
-            {range ? " pada periode ini" : ""}
-          </small>
+          <small>{expenses.length} catatan</small>
         </div>
       </div>
       <div className="batch-detail-grid">
@@ -1836,9 +1817,7 @@ function BatchDetail({
             </div>
           ) : (
             <div className="empty-state">
-              {range
-                ? "Tidak ada pengeluaran pada periode ini."
-                : "Belum ada pengeluaran untuk batch ini."}
+              Belum ada pengeluaran untuk batch ini.
             </div>
           )}
         </section>
@@ -1883,11 +1862,7 @@ function BatchDetail({
               ))}
             </div>
           ) : (
-            <div className="empty-state">
-              {range
-                ? "Tidak ada komisi pada periode ini."
-                : "Belum ada komisi untuk batch ini."}
-            </div>
+            <div className="empty-state">Belum ada komisi untuk batch ini.</div>
           )}
         </section>
       </div>
