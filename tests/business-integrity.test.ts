@@ -6,6 +6,7 @@ import { createBusinessCommands } from "../src/application/use-cases/business-co
 import { formatRupiah, seedBusinessState, type BusinessState } from "../src/domain/business-state";
 import { addCalendarDays, isBusinessDate, localDate, receiptOutstanding } from "../src/domain/business-integrity";
 import WorkspacePage from "../src/presentation/dashboard/WorkspacePage";
+import { buildLedgerGroups } from "../src/presentation/dashboard/TagihanWorkspace";
 import { resolveWorkspacePage } from "../src/presentation/dashboard/workspace-routing";
 import { BUSINESS_STORAGE_KEY, createLocalBusinessStore, normalizeBusinessState } from "../src/infrastructure/repositories/local-business-store";
 
@@ -284,6 +285,12 @@ test("the sales page is the Buku Tagihan: header, summary cards and the ledger t
   assert.match(html, /Sri Sita/);
   // Dates read as "13 Jun 2026" instead of the raw ISO string.
   assert.match(html, /13 Jun 2026/);
+  // The customer name is rendered as visible text only in the card header; rows and a11y labels differ.
+  const header = html.slice(html.indexOf('class="ledger-customer"'), html.indexOf('class="ledger-customer-figures"'));
+  assert.match(header, /<h3>Sri Sita<\/h3>/);
+  assert.equal([...html.matchAll(/>Sri Sita</g)].length, 1);
+  // The transaction row leads with the kind badge and note instead of repeating the name.
+  assert.match(html, /<td class="ledger-name" data-label="Nama Pelanggan"><span class="ledger-badge ledger-badge-kredit">Kredit<\/span><small>Udang 2 kg<\/small><\/td>/);
   const headers = [...html.matchAll(/<th[^>]*>([^<]+)<\/th>/g)].map((match) => match[1]);
   assert.deepEqual(headers, ["No", "Nama Pelanggan", "Tanggal", "Kredit", "Debit", "Restan", "Aksi"]);
   assert.match(html, /<td class="ledger-no" data-label="No">1<\/td>/);
@@ -294,7 +301,10 @@ test("the sales page is the Buku Tagihan: header, summary cards and the ledger t
   assert.doesNotMatch(html, /Quantity/);
 });
 
-test("each customer group shows a running restan and a subtotal", () => {
+const groupRestans = (html: string) =>
+  [...html.matchAll(/<td class="ledger-amount is-(?:open|settled)" data-label="Restan">(?:<strong>)?([^<]+)/g)].map((match) => match[1]);
+
+test("each customer group shows a running restan and its current balance once", () => {
   const { commands, getState } = memoryCommands();
   commands.addLapakSaleEntries({
     customerName: "Pak Budi",
@@ -305,16 +315,47 @@ test("each customer group shows a running restan and a subtotal", () => {
     ],
   });
   const html = renderPenjualan(commands, getState);
-  assert.match(html, /Subtotal Pak Budi/);
   // 1.000.000, then 600.000 after the payment, then 850.000 after the second credit.
-  const restans = [...html.matchAll(/<td class="ledger-amount is-(?:open|settled)" data-label="Restan">(?:<strong>)?([^<]+)/g)].map((match) => match[1]);
-  assert.deepEqual(restans, ["Rp 1.000.000", "Rp 600.000", "Rp 850.000", "Rp 850.000"]);
+  assert.deepEqual(groupRestans(html), ["Rp 1.000.000", "Rp 600.000", "Rp 850.000"]);
+  // The customer header carries the totals, so the table no longer repeats them as a subtotal row.
+  assert.doesNotMatch(html, /Subtotal Pak Budi/);
+  assert.equal([...html.matchAll(/<b class="is-open">Rp 850\.000<\/b>/g)].length, 1);
+  assert.equal([...html.matchAll(/<b class="is-credit">Rp 1\.250\.000<\/b>/g)].length, 1);
+  assert.equal([...html.matchAll(/<b class="is-debit">Rp 400\.000<\/b>/g)].length, 1);
+});
+
+test("filters narrow the visible rows but never slice the running restan", () => {
+  const { commands, getState } = memoryCommands();
+  commands.addLapakSaleEntries({
+    customerName: "Pak Budi",
+    entries: [
+      { date: "2026-11-10", kind: "KREDIT", amount: 1000000 },
+      { date: "2026-11-12", kind: "DEBIT", amount: 400000 },
+    ],
+  });
+  // Only the payment is in period: its restan still comes from the earlier credit.
+  commands.addLapakSaleEntries({
+    customerName: "Lapak Pagi",
+    entries: [{ date: "2026-11-01", kind: "KREDIT", amount: 500000 }],
+  });
+  const groups = buildLedgerGroups(getState().lapakSales);
+  const filtered = groups
+    .map((group) => ({ ...group, lines: group.lines.filter((line) => line.row.date >= "2026-11-11") }))
+    .filter((group) => group.lines.length > 0);
+  assert.equal(filtered.length, 1);
+  assert.equal(filtered[0].customerName, "Pak Budi");
+  assert.deepEqual(filtered[0].lines.map((line) => line.restan), [600000]);
+  // The customer header keeps the real current balance, not the filtered slice.
+  assert.equal(filtered[0].restan, 600000);
+  assert.equal(filtered[0].credit, 1000000);
 });
 
 test("the Tambah Transaksi dialog records kredit and debit in one customer", () => {
   const { commands, getState } = memoryCommands();
   const html = renderPenjualan(commands, getState, { initialFormOpen: true });
   assert.match(html, /<h2 id="ledger-form-title">Tambah Transaksi<\/h2>/);
+  assert.match(html, /Restan transaksi/);
+  assert.doesNotMatch(html, />Selisih</);
   for (const label of ["Pelanggan", "Jenis", "Nominal", "Keterangan", "Tambah Baris", "Simpan Transaksi", "Batal"])
     assert.ok(html.includes(label), `the form must show "${label}"`);
   assert.match(html, /<option value="KREDIT">Kredit<\/option>/);
@@ -327,7 +368,8 @@ test("the ledger shows an informative empty state when nothing is recorded", () 
   const { commands, getState } = memoryCommands({ ...seedBusinessState(), lapakSales: [] });
   const html = renderPenjualan(commands, getState);
   assert.match(html, /Belum ada transaksi buku tagihan/);
-  assert.match(html, /Tambah Transaksi/);
+  // One primary action in the header, not a duplicate CTA inside the empty state.
+  assert.equal([...html.matchAll(/Tambah Transaksi/g)].length, 1);
 });
 
 test("legacy lapak sales migrate to one kredit row plus one debit row per payment", () => {

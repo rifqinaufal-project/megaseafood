@@ -318,7 +318,8 @@ button { cursor: pointer; }
 .ledger-avatar { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 36px; height: 36px; border-radius: 11px; background: var(--accent-soft); color: var(--accent-deep); font-size: 12.5px; font-weight: 800; letter-spacing: .4px; }
 .ledger-customer h3 { margin: 0; color: var(--ink); font-size: 15px; letter-spacing: -.2px; overflow-wrap: anywhere; }
 .ledger-customer p { margin: 2px 0 0; color: var(--faint); font-size: 11.5px; }
-.ledger-customer-figures { display: flex; gap: 22px; flex-wrap: wrap; }
+.ledger-customer-figures { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+.ledger-figures-note { color: var(--faint); font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; order: -1; }
 .ledger-customer-figures > span { display: flex; flex-direction: column; gap: 2px; min-width: 82px; }
 .ledger-customer-figures small { color: var(--faint); font-size: 10px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
 .ledger-customer-figures b { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -342,14 +343,11 @@ button { cursor: pointer; }
 .ledger-table td.ledger-date { color: var(--muted); white-space: nowrap; }
 .ledger-table td.ledger-amount { text-align: right; white-space: nowrap; font-weight: 600; }
 .ledger-name { min-width: 220px; }
-.ledger-name .ledger-name-text { display: block; margin-top: 3px; color: var(--ink); font-weight: 700; overflow-wrap: anywhere; }
 .ledger-name small { display: block; margin-top: 3px; color: var(--muted); font-size: 11.5px; font-weight: 400; white-space: normal; overflow-wrap: anywhere; }
 .ledger-badge { display: inline-flex; align-items: center; height: 18px; padding: 0 8px; border-radius: 6px; font-size: 10px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; }
 .ledger-badge-kredit { background: #e9f3ee; color: var(--ledger-credit); }
 .ledger-badge-debit { background: #e9f0fa; color: var(--ledger-debit); }
 .ledger-row-debit td.ledger-no { color: var(--faint); }
-.ledger-subtotal td { background: #f7f9fc; border-top: 1px solid var(--line); border-bottom: 0; font-weight: 700; }
-.ledger-subtotal td.ledger-name { color: var(--muted); font-size: 12px; }
 .ledger-row-actions { text-align: right; white-space: nowrap; }
 .ledger-icon-button { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1px solid #e7e7e4; border-radius: 8px; background: #fff; color: var(--muted); cursor: pointer; }
 .ledger-icon-button + .ledger-icon-button { margin-left: 5px; }
@@ -358,11 +356,8 @@ button { cursor: pointer; }
 .ledger-icon-button:disabled { opacity: .45; cursor: not-allowed; }
 
 .ledger-detail { padding: 16px 18px 18px; background: #fcfdfe; border-top: 1px solid var(--line); }
-.ledger-detail-figures { display: flex; gap: 26px; flex-wrap: wrap; }
-.ledger-detail-figures > span { display: flex; flex-direction: column; gap: 2px; }
-.ledger-detail-figures small { color: var(--faint); font-size: 10px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
-.ledger-detail-figures b { font-size: 15px; font-variant-numeric: tabular-nums; }
-.ledger-detail-note { margin: 10px 0 14px; color: var(--muted); font-size: 12px; line-height: 1.6; max-width: 74ch; }
+.ledger-detail-note { margin: 0 0 12px; color: var(--muted); font-size: 12px; line-height: 1.6; max-width: 74ch; }
+.ledger-detail-note b { font-variant-numeric: tabular-nums; }
 .ledger-history { list-style: none; display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; }
 .ledger-history li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-top: 1px dashed #eceef2; font-size: 12px; }
 .ledger-history li:first-child { border-top: 0; }
@@ -408,9 +403,8 @@ button { cursor: pointer; }
   .ledger-table td::before { content: attr(data-label); display: block; margin-bottom: 3px; color: var(--faint); font-size: 9.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
   .ledger-table td.ledger-no, .ledger-table td.ledger-name { grid-column: 1 / -1; }
   .ledger-table td.ledger-amount { text-align: left; }
-  .ledger-table td.ledger-row-actions::before, .ledger-subtotal td.ledger-name::before, .ledger-subtotal td.ledger-date, .ledger-subtotal td.ledger-no { display: none; }
+  .ledger-table td.ledger-row-actions::before { display: none; }
   .ledger-table td.ledger-row-actions { grid-column: 1 / -1; display: flex; gap: 6px; }
-  .ledger-subtotal { border-color: #dbe3ef !important; background: #f7f9fc !important; }
   .ledger-line-head { display: none; }
   .ledger-line { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; padding: 12px; border: 1px solid var(--line); border-radius: 14px; }
   .ledger-line label > span { display: block; color: var(--faint); font-size: 9.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }

@@ -125,26 +125,24 @@ export default function TagihanWorkspace({ business, commands, onNotify, initial
   const [page, setPage] = useState(1);
 
   const groups = useMemo(() => buildLedgerGroups(business.lapakSales), [business.lapakSales]);
+  /**
+   * Filters only narrow which transaction rows are visible. The running restan of a visible row
+   * still grows from the customer's full history, so a filtered row never shows a sliced balance,
+   * and the customer header keeps showing the real current restan.
+   */
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
+    const inRange = (date: string) => (!fromDate || date >= fromDate) && (!toDate || date <= toDate);
     const visible = groups
       .map((group) => ({
         ...group,
-        lines: group.lines.filter(
-          (line) =>
-            (kind === "ALL" || line.row.kind === kind) &&
-            (!fromDate || line.row.date >= fromDate) &&
-            (!toDate || line.row.date <= toDate),
-        ),
+        lines: group.lines.filter((line) => (kind === "ALL" || line.row.kind === kind) && inRange(line.row.date)),
       }))
       .filter((group) => group.lines.length > 0)
       .filter((group) => !term || group.customerName.toLowerCase().includes(term))
-      .map((group) => {
-        const credit = group.lines.filter((line) => line.row.kind === "KREDIT").reduce((sum, line) => sum + line.row.amount, 0);
-        const debit = group.lines.filter((line) => line.row.kind === "DEBIT").reduce((sum, line) => sum + line.row.amount, 0);
-        return { ...group, credit, debit, restan: credit - debit };
-      });
-    if (sort === "tanggal") return [...visible].sort((a, b) => a.lastDate.localeCompare(b.lastDate));
+      .map((group) => ({ ...group, lastDate: group.lines.at(-1)?.row.date ?? "" }));
+    if (sort === "tanggal")
+      return [...visible].sort((a, b) => b.lastDate.localeCompare(a.lastDate));
     if (sort === "nominal") return [...visible].sort((a, b) => b.restan - a.restan);
     return visible;
   }, [groups, search, kind, fromDate, toDate, sort]);
@@ -219,28 +217,28 @@ export default function TagihanWorkspace({ business, commands, onNotify, initial
           {
             title: "Total Pelanggan",
             value: totals.customers.toLocaleString("id-ID"),
-            detail: "pelanggan dengan catatan tagihan",
+            detail: "pelanggan dengan catatan tagihan (semua data)",
             icon: <Users size={16} />,
             tone: "",
           },
           {
             title: "Total Kredit",
             value: money(totals.credit),
-            detail: "akumulasi tagihan",
+            detail: "akumulasi tagihan (semua data)",
             icon: <ArrowUpRight size={16} />,
             tone: "is-credit",
           },
           {
             title: "Total Debit",
             value: money(totals.debit),
-            detail: "akumulasi pembayaran",
+            detail: "akumulasi pembayaran (semua data)",
             icon: <ArrowDownLeft size={16} />,
             tone: "is-debit",
           },
           {
             title: "Total Restan",
             value: money(totals.restan),
-            detail: "kredit dikurangi debit",
+            detail: "kredit dikurangi debit (semua data)",
             icon: <Wallet size={16} />,
             tone: totals.restan > 0 ? "is-open" : "is-settled",
           },
@@ -290,7 +288,7 @@ export default function TagihanWorkspace({ business, commands, onNotify, initial
             <span>Urutkan</span>
             <select value={sort} aria-label="Urutkan" onChange={(event) => setSort(event.target.value as typeof sort)}>
               <option value="nama">Nama</option>
-              <option value="tanggal">Tanggal terbaru</option>
+              <option value="tanggal">Periode terbaru</option>
               <option value="nominal">Restan terbesar</option>
             </select>
           </label>
@@ -325,13 +323,14 @@ export default function TagihanWorkspace({ business, commands, onNotify, initial
                         <p>{group.lines.length} transaksi · terakhir {formatLedgerDate(group.lastDate)}</p>
                       </div>
                     </div>
-                    <div className="ledger-customer-figures">
+                    <div className="ledger-customer-figures" aria-label={`Saldo ${group.customerName}`}>
+                      {filtersActive && <small className="ledger-figures-note">saldo semua transaksi</small>}
                       <span><small>Kredit</small><b className="is-credit">{money(group.credit)}</b></span>
                       <span><small>Debit</small><b className="is-debit">{money(group.debit)}</b></span>
                       <span><small>Restan</small><b className={group.restan > 0 ? "is-open" : "is-settled"}>{money(group.restan)}</b></span>
                     </div>
                     <button className="ledger-expand" type="button" aria-expanded={open} onClick={() => setExpanded(open ? null : group.customerName)}>
-                      {open ? "Tutup" : "Detail"} <ChevronDown size={14} className={open ? "is-flipped" : ""} />
+                      {open ? "Tutup" : "Riwayat"} <ChevronDown size={14} className={open ? "is-flipped" : ""} />
                     </button>
                   </header>
 
@@ -356,7 +355,6 @@ export default function TagihanWorkspace({ business, commands, onNotify, initial
                               <span className={`ledger-badge ledger-badge-${line.row.kind.toLowerCase()}`}>
                                 {line.row.kind === "KREDIT" ? "Kredit" : "Debit"}
                               </span>
-                              <span className="ledger-name-text">{index === 0 ? group.customerName : ""}</span>
                               {line.row.note && <small>{line.row.note}</small>}
                             </td>
                             <td className="ledger-date" data-label="Tanggal">{formatLedgerDate(line.row.date)}</td>
@@ -386,31 +384,16 @@ export default function TagihanWorkspace({ business, commands, onNotify, initial
                             </td>
                           </tr>
                         ))}
-                        <tr className="ledger-subtotal">
-                          <td className="ledger-no" />
-                          <td className="ledger-name" data-label="Subtotal"><strong>Subtotal {group.customerName}</strong></td>
-                          <td className="ledger-date" />
-                          <td className="ledger-amount is-credit" data-label="Kredit">{money(group.credit)}</td>
-                          <td className="ledger-amount is-debit" data-label="Debit">{money(group.debit)}</td>
-                          <td className={`ledger-amount ${group.restan > 0 ? "is-open" : "is-settled"}`} data-label="Restan">
-                            <strong>{money(group.restan)}</strong>
-                          </td>
-                          <td className="ledger-row-actions" />
-                        </tr>
                       </tbody>
                     </table>
                   </div>
 
                   {open && (
                     <div className="ledger-detail">
-                      <div className="ledger-detail-figures">
-                        <span><small>Total Kredit</small><b className="is-credit">{money(group.credit)}</b></span>
-                        <span><small>Total Debit</small><b className="is-debit">{money(group.debit)}</b></span>
-                        <span><small>Restan saat ini</small><b className={group.restan > 0 ? "is-open" : "is-settled"}>{money(group.restan)}</b></span>
-                      </div>
                       <p className="ledger-detail-note">
-                        Restan terbentuk dari {group.lines.filter((line) => line.row.kind === "KREDIT").length} transaksi kredit
-                        {" "}dikurangi {group.lines.filter((line) => line.row.kind === "DEBIT").length} transaksi debit, dihitung berurutan sesuai tabel di atas.
+                        Restan {money(group.restan)} terbentuk dari{" "}
+                        <b className="is-credit">{money(group.credit)}</b> kredit dikurangi{" "}
+                        <b className="is-debit">{money(group.debit)}</b> debit, dihitung berurutan sesuai tabel.
                       </p>
                       <ol className="ledger-history">
                         {group.lines.map((line) => (
@@ -439,11 +422,6 @@ export default function TagihanWorkspace({ business, commands, onNotify, initial
                 ? "Coba ubah kata kunci, jenis transaksi, atau rentang tanggal."
                 : "Mulai dengan mencatat transaksi kredit pertama. Debit dicatat saat pelanggan membayar."}
             </p>
-            {!filtersActive && (
-              <button className="primary-button" type="button" onClick={() => { setEditing(null); setFormOpen(true); }}>
-                <Plus size={16} /> Tambah Transaksi
-              </button>
-            )}
           </div>
         )}
 
@@ -664,7 +642,7 @@ function LedgerForm({
         <div className="ledger-preview">
           <span>Kredit <b className="is-credit">{money(previewCredit)}</b></span>
           <span>Debit <b className="is-debit">{money(previewDebit)}</b></span>
-          <span>Selisih <b className={previewCredit - previewDebit > 0 ? "is-open" : "is-settled"}>{money(previewCredit - previewDebit)}</b></span>
+          <span>Restan transaksi <b className={previewCredit - previewDebit > 0 ? "is-open" : "is-settled"}>{money(previewCredit - previewDebit)}</b></span>
         </div>
 
         {error && <p className="ledger-form-error" role="alert">{error}</p>}
