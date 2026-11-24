@@ -227,7 +227,7 @@ test("lapak sales require a customer and post a three-stage ledger", () => {
   const html = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {} }));
   assert.match(html, /Tagihan per customer/);
   assert.match(html, /Sri Sita/);
-  assert.doesNotMatch(html, /<th[^>]*>No<\/th>/, "the invoice book no longer numbers rows");
+  assert.match(html, /<th[^>]*>No<\/th>/, "the invoice book numbers its rows");
   assert.match(html, /<th[^>]*>Nama<\/th>/);
   assert.match(html, /<th[^>]*>Kredit<\/th>/);
   assert.match(html, /<th[^>]*>Debit<\/th>/);
@@ -236,26 +236,27 @@ test("lapak sales require a customer and post a three-stage ledger", () => {
   assert.match(html, /Rp 100\.000/);
 });
 
-test("the sales page is a pure invoice book with no way to open a sales form", () => {
+test("the sales page is titled as the invoice book recap and offers a Tambah tagihan button", () => {
   const { commands, getState } = memoryCommands();
-  commands.addLapakSale({ date: "2026-06-13", customerName: "Sri Sita", productName: "Udang", quantity: 2, unit: "kg", sellingPrice: 90000, unitCost: 70000 });
   const html = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {} }));
-  assert.doesNotMatch(html, /Tambah penjualan/);
+  assert.match(html, /<h1>Rekap Buku Tagihan<\/h1>/);
+  assert.match(html, /Tambah tagihan/);
+  // The entry form never renders on this page until the button is pressed.
   assert.doesNotMatch(html, /Catat penjualan baru/);
   assert.doesNotMatch(html, /Product Name/);
   assert.doesNotMatch(html, /modal-backdrop/);
+  assert.doesNotMatch(html, /Tambah penjualan/);
 });
 
-test("the sales page is a pure invoice book with only name, date, credit, debit and restan", () => {
+test("the invoice book is numbered and shows only name, date, credit, debit and restan", () => {
   const { commands, getState } = memoryCommands();
   commands.addLapakSale({ date: "2026-06-13", customerName: "Sri Sita", productName: "Udang", quantity: 2, unit: "kg", sellingPrice: 90000, unitCost: 70000 });
   const html = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {} }));
   assert.match(html, /Tagihan per customer/);
-  // The invoice book owns the page; the product entry form lives behind the add button.
-  assert.doesNotMatch(html, /Catat penjualan baru/);
   assert.doesNotMatch(html, /Pembayaran customer/);
   const headers = [...html.matchAll(/<th[^>]*>([^<]+)<\/th>/g)].map((match) => match[1]);
-  assert.deepEqual(headers, ["Nama", "Tanggal", "Kredit", "Debit", "Restan"]);
+  assert.deepEqual(headers, ["No", "Nama", "Tanggal", "Kredit", "Debit", "Restan"]);
+  assert.match(html, /<td class="ledger-no-cell" data-label="No">1<\/td>/);
 });
 
 test("legacy lapak sales migrate to named customers with their payments intact", () => {

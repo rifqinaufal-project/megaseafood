@@ -303,8 +303,9 @@ button { cursor: pointer; }
 .sales-ledger-table td { font-variant-numeric: tabular-nums; white-space: nowrap; vertical-align: top; }
 .sales-ledger-table .ledger-name-cell { min-width: 190px; }
 .sales-ledger-table .ledger-name-cell small { display: block; margin-top: 3px; color: var(--faint); font-size: 11px; white-space: normal; overflow-wrap: anywhere; }
-.sales-ledger-table th:nth-child(3), .sales-ledger-table th:nth-child(4), .sales-ledger-table th:nth-child(5),
-.sales-ledger-table td:nth-child(3), .sales-ledger-table td:nth-child(4), .sales-ledger-table td:nth-child(5) { text-align: right; }
+.sales-ledger-table th:nth-child(4), .sales-ledger-table th:nth-child(5), .sales-ledger-table th:nth-child(6),
+.sales-ledger-table td:nth-child(4), .sales-ledger-table td:nth-child(5), .sales-ledger-table td:nth-child(6) { text-align: right; }
+.sales-ledger-table .ledger-no-cell { width: 46px; color: var(--faint); text-align: center; font-variant-numeric: tabular-nums; }
 .sales-ledger-payment-row td { background: #fafbfd; color: var(--muted); }
 .sales-ledger-panel-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .sales-ledger-panel-actions .primary-button { height: 38px; padding: 0 16px; font-size: 12.5px; box-shadow: none; }
@@ -1010,7 +1011,8 @@ td strong { color: var(--ink); font-size: 12.5px; font-weight: 600; }
   .sales-ledger-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
   .sales-ledger-table td { display: block; padding: 0; border: 0; text-align: left !important; white-space: normal; }
   .sales-ledger-table td::before { content: attr(data-label); display: block; margin-bottom: 3px; color: var(--faint); font-size: 9.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
-  .sales-ledger-table td:nth-child(1), .sales-ledger-table td:nth-child(2) { grid-column: 1 / -1; }
+  .sales-ledger-table td.ledger-no-cell { display: none; }
+  .sales-ledger-table td:nth-child(2), .sales-ledger-table td:nth-child(3) { grid-column: 1 / -1; }
   .sales-ledger-sale-payments { grid-template-columns: 1fr; }
   .sales-ledger-sale-foot { align-items: flex-start; flex-direction: column; }
   .sales-ledger-sale-foot .item-actions { width: 100%; }

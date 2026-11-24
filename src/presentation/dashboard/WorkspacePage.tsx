@@ -111,9 +111,10 @@ const pageMeta: Record<
     action: "Tambah pengadaan",
   },
   "B2C Sales": {
-    title: "Penjualan Lapak",
-    description: "Catat penjualan langsung dengan cost basis per baris.",
-    action: "Buka buku tagihan",
+    title: "Rekap Buku Tagihan",
+    description:
+      "Buku tagihan per customer: kredit penjualan, debit pembayaran, dan restan berjalan.",
+    action: "Tambah tagihan",
   },
   Expenses: {
     title: "Pengeluaran Lapak",
@@ -1244,15 +1245,17 @@ function buildSalesLedgerGroups(state: BusinessState): SalesLedgerGroup[] {
 
 function salesLedgerRows(state: BusinessState) {
   return {
-    columns: ["Customer", "Tanggal", "Keterangan", "Kredit", "Debit", "Restan"],
-    rows: buildSalesLedgerGroups(state).flatMap((group) => group.lines.map((line) => [
-      group.customerName,
-      line.date,
-      line.description,
-      line.credit ? money(line.credit) : "—",
-      line.debit ? money(line.debit) : "—",
-      money(line.restan),
-    ])),
+    columns: ["No", "Nama", "Tanggal", "Kredit", "Debit", "Restan"],
+    rows: buildSalesLedgerGroups(state)
+      .flatMap((group) => group.lines.map((line) => ({ ...line, customerName: group.customerName })))
+      .map((line, index) => [
+        String(index + 1),
+        line.customerName,
+        line.date,
+        line.credit ? money(line.credit) : "—",
+        line.debit ? money(line.debit) : "—",
+        money(line.restan),
+      ]),
   };
 }
 
@@ -2136,14 +2139,18 @@ function SourcingWorkspacePage({
 
 function SalesLedgerWorkspacePage({
   state,
+  onAdd,
   onExport,
   onDelete,
+  onEdit,
   onPayment,
   onNotify,
 }: {
   state: BusinessState;
+  onAdd: () => void;
   onExport: () => void;
   onDelete: (id: string) => void;
+  onEdit: (id: string) => void;
   onPayment: (id: string, paymentNumber: 1 | 2 | 3, input: { amount: number; date: string }) => { ok: boolean; message: string };
   onNotify: Notify;
 }) {
@@ -2236,12 +2243,15 @@ function SalesLedgerWorkspacePage({
       <div className="workspace-page-head">
         <div>
           <p className="eyebrow">Lapak / Penjualan</p>
-          <h1>Penjualan Lapak</h1>
-          <p>Rekap buku tagihan per customer: kredit penjualan, debit pembayaran, dan restan berjalan.</p>
+          <h1>Rekap Buku Tagihan</h1>
+          <p>Kolom No · Nama · Tanggal · Kredit · Debit · Restan, dikelompokkan per customer.</p>
         </div>
         <div className="workspace-actions">
           <button className="secondary-outline-button" type="button" onClick={onExport}>
             <Download size={15} /> Export
+          </button>
+          <button className="primary-button" type="button" onClick={onAdd}>
+            <Plus size={16} /> Tambah tagihan
           </button>
         </div>
       </div>
@@ -2270,6 +2280,9 @@ function SalesLedgerWorkspacePage({
           </div>
           <div className="sales-ledger-panel-actions">
             <span className="resource-count">{visible.length} customer</span>
+            <button className="primary-button compact" type="button" onClick={onAdd}>
+              <Plus size={15} /> Tambah tagihan
+            </button>
           </div>
         </div>
         <div className="resource-toolbar">
@@ -2308,6 +2321,7 @@ function SalesLedgerWorkspacePage({
                     <table className="sales-ledger-table" aria-label={`Buku tagihan ${group.customerName}`}>
                       <thead>
                         <tr>
+                          <th className="ledger-no-cell">No</th>
                           <th>Nama</th>
                           <th>Tanggal</th>
                           <th>Kredit</th>
@@ -2318,6 +2332,7 @@ function SalesLedgerWorkspacePage({
                       <tbody>
                         {group.lines.map((line, index) => (
                           <tr key={line.id} className={line.kind === "payment" ? "sales-ledger-payment-row" : ""}>
+                            <td className="ledger-no-cell" data-label="No">{index + 1}</td>
                             <td className="ledger-name-cell" data-label="Nama">
                               {index === 0 ? group.customerName : ""}
                               <small>{line.description}</small>
@@ -2340,7 +2355,7 @@ function SalesLedgerWorkspacePage({
                           <div className="sales-ledger-sale" key={sale.id}>
                             <div className="sales-ledger-sale-identity">
                               <strong>{sale.items.map((item) => item.productName).join(", ") || "Penjualan"}</strong>
-                              <small>{sale.date} · {sale.items.map((item) => `${item.quantity} ${item.unit}`).join(", ")} · Tagihan {money(sale.totalAmount)}</small>
+                              <small>{sale.date} · {sale.items.map((item) => `${item.quantity} ${item.unit}`).join(", ")} · Kredit {money(sale.totalAmount)}</small>
                             </div>
                             <div className="sales-ledger-sale-payments">
                               {([1, 2, 3] as const).map((paymentNumber) => (
@@ -2351,9 +2366,12 @@ function SalesLedgerWorkspacePage({
                               ))}
                             </div>
                             <div className="sales-ledger-sale-foot">
-                              <span>Dibayar {money(paid)} · Restan <b className={sale.totalAmount - paid > 0 ? "sourcing-outstanding" : "sourcing-paid"}>{money(sale.totalAmount - paid)}</b></span>
+                              <span>Debit {money(paid)} · Restan <b className={sale.totalAmount - paid > 0 ? "sourcing-outstanding" : "sourcing-paid"}>{money(sale.totalAmount - paid)}</b></span>
                               <div className="item-actions">
-                                <button className="sourcing-action-button sourcing-delete-button" type="button" aria-label={`Hapus penjualan ${sale.id}`} onClick={() => onDelete(sale.id)}>
+                                <button className="sourcing-action-button sourcing-edit-button" type="button" aria-label={`Edit tagihan ${sale.id}`} onClick={() => onEdit(sale.id)}>
+                                  <Edit2 size={15} /> <span>Edit</span>
+                                </button>
+                                <button className="sourcing-action-button sourcing-delete-button" type="button" aria-label={`Hapus tagihan ${sale.id}`} onClick={() => onDelete(sale.id)}>
                                   <Trash2 size={15} /> <span>Hapus</span>
                                 </button>
                               </div>
@@ -2368,7 +2386,7 @@ function SalesLedgerWorkspacePage({
           </div>
         ) : (
           <div className="empty-state">
-            {term ? "Tidak ada customer yang cocok dengan pencarian." : "Belum ada penjualan yang tercatat."}
+            {term ? "Tidak ada customer yang cocok dengan pencarian." : "Belum ada tagihan tercatat. Gunakan tombol Tambah tagihan untuk mencatat yang pertama."}
           </div>
         )}
       </section>
@@ -2557,9 +2575,9 @@ function GroupedLapakPage({
       action: "Tambah komisi",
     },
     "B2C Sales": {
-      title: "Penjualan Lapak",
+      title: "Rekap Buku Tagihan",
       description: "Buku tagihan per customer: kredit penjualan, debit pembayaran, dan restan.",
-      action: "Buka buku tagihan",
+      action: "Tambah tagihan",
     },
   };
   const meta = labels[page];
@@ -2841,16 +2859,30 @@ export default function WorkspacePage({
   if (module === "lapak" && effectivePage === "B2C Sales")
     return (
       <>
-        {/* Read-only invoice book: sales are recorded elsewhere, this page only reports them. */}
         <SalesLedgerWorkspacePage
           state={business}
+          onAdd={() => openForm(effectivePage)}
           onExport={exportTable}
           onDelete={(id) => deleteLapakRecord("B2C Sales", id)}
+          onEdit={(id) => editLapakRecord("B2C Sales", id)}
           onPayment={(id, paymentNumber, input) =>
             commands.updateLapakSalePayment(id, paymentNumber, input)
           }
           onNotify={onNotify}
         />
+        {formOpen && (
+          <ModalForm
+            page={formPage}
+            editRecord={editRecord}
+            state={business}
+            commands={commands}
+            onClose={() => {
+              setFormOpen(false);
+              setEditRecord(undefined);
+            }}
+            onNotify={onNotify}
+          />
+        )}
       </>
     );
   if (
