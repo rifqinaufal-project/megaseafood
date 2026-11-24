@@ -71,6 +71,13 @@ export const dayLabel = (date: string) => {
   return `${Number(match[3])} ${MONTH_LABELS[Number(match[2]) - 1] ?? match[2]} ${match[1]}`;
 };
 
+/** Compact day heading used inside a month: `24 November`. */
+export const dayMonthLabel = (date: string) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || "");
+  if (!match) return date || "Tanpa tanggal";
+  return `${Number(match[3])} ${MONTH_LABELS[Number(match[2]) - 1] ?? match[2]}`;
+};
+
 /** Shift a `YYYY-MM-DD` string without going through time zones. */
 export const shiftDays = (date: string, days: number) => {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || "");
@@ -167,6 +174,38 @@ export type MonthGroup<T> = {
   items: T[];
   total: number;
 };
+
+export type DayGroup<T> = {
+  key: string;
+  label: string;
+  items: T[];
+  total: number;
+};
+
+/** Groups records by exact day, newest day first. */
+export function groupByDay<T>(
+  items: readonly T[],
+  pickDate: (item: T) => string,
+  pickAmount: (item: T) => number = () => 0,
+): DayGroup<T>[] {
+  const buckets = new Map<string, T[]>();
+  for (const item of items) {
+    const key = pickDate(item) || "";
+    buckets.set(key, [...(buckets.get(key) ?? []), item]);
+  }
+  return [...buckets.entries()]
+    .sort(([a], [b]) => {
+      if (!a) return 1;
+      if (!b) return -1;
+      return b.localeCompare(a);
+    })
+    .map(([key, groupItems]) => ({
+      key,
+      label: dayMonthLabel(key),
+      items: groupItems,
+      total: groupItems.reduce((sum, item) => sum + pickAmount(item), 0),
+    }));
+}
 
 /**
  * Groups records by month, newest month first. Records without a valid date are kept

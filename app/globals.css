@@ -214,6 +214,11 @@ button { cursor: pointer; }
 .period-switcher button.active { background: var(--accent); color: #fff; }
 .period-caption { color: var(--faint); font-size: 12px; margin: -12px 0 16px; }
 .batch-dashboard-list { display: flex; flex-direction: column; margin-top: 14px; }
+.dashboard-batch-month + .dashboard-batch-month { margin-top: 18px; }
+.dashboard-batch-month > .lapak-month-head { margin-bottom: 2px; padding: 0 8px 8px; }
+.dashboard-batch-month > .lapak-month-head h3 { margin: 0; color: var(--ink); font-size: 14px; }
+.dashboard-batch-day + .dashboard-batch-day { margin-top: 4px; }
+.dashboard-batch-day .lapak-day-divider { padding: 8px; }
 .batch-dashboard-row { display: grid; grid-template-columns: minmax(180px, 1.5fr) repeat(2, minmax(130px, 1fr)) auto auto; align-items: center; gap: 16px; border: 0; border-bottom: 1px solid var(--line); background: transparent; padding: 16px 8px; text-align: left; color: var(--muted); }
 .batch-dashboard-row:last-child { border-bottom: 0; }
 .batch-dashboard-row:hover { background: #f8f9fb; }
@@ -340,6 +345,15 @@ button { cursor: pointer; }
 .lapak-month-figures small { color: var(--faint); font-size: 10px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
 .lapak-month-figures b { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lapak-month > .panel { margin-bottom: 0; }
+.lapak-day-groups { display: flex; flex-direction: column; gap: 12px; }
+.lapak-day-group { display: flex; flex-direction: column; gap: 8px; }
+.lapak-day-divider { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
+.lapak-day-divider::after { content: ""; height: 1px; flex: 1; background: var(--line); }
+.lapak-day-divider strong { color: var(--ink); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.lapak-day-divider span { color: var(--faint); font-size: 11px; white-space: nowrap; }
+.lapak-day-table-divider td { padding: 12px 10px 8px !important; border-bottom: 1px solid var(--line); background: transparent; color: var(--muted); }
+.lapak-day-table-divider strong { color: var(--ink); font-size: 12px; }
+.lapak-day-table-divider span { margin-left: 10px; color: var(--faint); font-size: 11px; }
 
 .ledger-groups { display: flex; flex-direction: column; gap: 14px; }
 .ledger-card { padding: 0; overflow: hidden; border-radius: 18px; border: 1px solid var(--line); background: var(--card); }

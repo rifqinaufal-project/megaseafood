@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   FormEvent,
   useId,
   useMemo,
@@ -30,6 +31,7 @@ import type { BusinessCommands } from "@/src/application/use-cases/business-comm
 import { receiptOutstanding } from "@/src/domain/business-integrity";
 import { resolveWorkspacePage } from "@/src/presentation/dashboard/workspace-routing";
 import {
+  groupByDay,
   groupByMonth,
   inRange,
   periodRange,
@@ -1512,7 +1514,17 @@ function BatchListPage({
       state.commissions
         .filter((item) => item.batchId === batch.id)
         .reduce((sum, item) => sum + item.amount, 0),
-  );
+  ).map((month) => ({
+    ...month,
+    days: groupByDay(
+      month.items,
+      (batch) => batch.startDate,
+      (batch) =>
+        state.commissions
+          .filter((item) => item.batchId === batch.id)
+          .reduce((sum, item) => sum + item.amount, 0),
+    ),
+  }));
   return (
     <div className="workspace-page">
       <div className="workspace-page-head">
@@ -1579,91 +1591,104 @@ function BatchListPage({
                     </tr>
                   </thead>
                   <tbody>
-                    {month.items.map((batch) => {
-                      const commissionRevenue = state.commissions
-                        .filter((item) => item.batchId === batch.id)
-                        .reduce((sum, item) => sum + item.amount, 0);
-                      const expenseCost = state.lapakExpenses
-                        .filter((item) => item.batchId === batch.id)
-                        .reduce((sum, item) => sum + item.amount, 0);
-                      const note = batch.notes.trim();
-                      const batchName = note
-                        ? /^batch\b/i.test(note)
-                          ? note
-                          : `Batch ${note}`
-                        : "Batch tanpa nama";
-
-                      return (
-                        <tr
-                          className="batch-table-row"
-                          key={batch.id}
-                          role="link"
-                          tabIndex={0}
-                          aria-label={`Buka detail ${batch.batchNumber}`}
-                          onClick={() => onOpen(batch.id)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
-                              onOpen(batch.id);
-                            }
-                          }}
-                        >
-                          <td className="batch-table-identity">
-                            <strong>{batch.batchNumber}</strong>
-                            <small>
-                              {batchName} · {batch.startDate}
-                            </small>
-                          </td>
-                          <td className="batch-table-amount">
-                            {money(commissionRevenue)}
-                          </td>
-                          <td className="batch-table-amount">
-                            {money(expenseCost)}
-                          </td>
-                          <td>
-                            <div
-                              className="batch-table-actions"
-                              onKeyDown={(event) => event.stopPropagation()}
-                            >
-                              <button
-                                className="text-link"
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  onOpen(batch.id);
-                                }}
-                              >
-                                Lihat detail
-                              </button>
-                              <button
-                                className="icon-button"
-                                type="button"
-                                aria-label={`Edit ${batch.batchNumber}`}
-                                title={`Edit ${batch.batchNumber}`}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  onEdit(batch.id);
-                                }}
-                              >
-                                <Edit2 size={15} />
-                              </button>
-                              <button
-                                className="icon-button danger-button"
-                                type="button"
-                                aria-label={`Hapus ${batch.batchNumber}`}
-                                title={`Hapus ${batch.batchNumber}`}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  onDelete(batch.id);
-                                }}
-                              >
-                                <Trash2 size={15} />
-                              </button>
-                            </div>
+                    {month.days.map((day) => (
+                      <Fragment key={day.key || "no-date"}>
+                        <tr className="lapak-day-table-divider">
+                          <td colSpan={4}>
+                            <strong>{day.label}</strong>
+                            <span>{day.items.length} batch</span>
                           </td>
                         </tr>
-                      );
-                    })}
+                        {day.items.map((batch) => {
+                          const commissionRevenue = state.commissions
+                            .filter((item) => item.batchId === batch.id)
+                            .reduce((sum, item) => sum + item.amount, 0);
+                          const expenseCost = state.lapakExpenses
+                            .filter((item) => item.batchId === batch.id)
+                            .reduce((sum, item) => sum + item.amount, 0);
+                          const note = batch.notes.trim();
+                          const batchName = note
+                            ? /^batch\b/i.test(note)
+                              ? note
+                              : `Batch ${note}`
+                            : "Batch tanpa nama";
+
+                          return (
+                            <tr
+                              className="batch-table-row"
+                              key={batch.id}
+                              role="link"
+                              tabIndex={0}
+                              aria-label={`Buka detail ${batch.batchNumber}`}
+                              onClick={() => onOpen(batch.id)}
+                              onKeyDown={(event) => {
+                                if (
+                                  event.key === "Enter" ||
+                                  event.key === " "
+                                ) {
+                                  event.preventDefault();
+                                  onOpen(batch.id);
+                                }
+                              }}
+                            >
+                              <td className="batch-table-identity">
+                                <strong>{batch.batchNumber}</strong>
+                                <small>
+                                  {batchName} · {batch.startDate}
+                                </small>
+                              </td>
+                              <td className="batch-table-amount">
+                                {money(commissionRevenue)}
+                              </td>
+                              <td className="batch-table-amount">
+                                {money(expenseCost)}
+                              </td>
+                              <td>
+                                <div
+                                  className="batch-table-actions"
+                                  onKeyDown={(event) => event.stopPropagation()}
+                                >
+                                  <button
+                                    className="text-link"
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      onOpen(batch.id);
+                                    }}
+                                  >
+                                    Lihat detail
+                                  </button>
+                                  <button
+                                    className="icon-button"
+                                    type="button"
+                                    aria-label={`Edit ${batch.batchNumber}`}
+                                    title={`Edit ${batch.batchNumber}`}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      onEdit(batch.id);
+                                    }}
+                                  >
+                                    <Edit2 size={15} />
+                                  </button>
+                                  <button
+                                    className="icon-button danger-button"
+                                    type="button"
+                                    aria-label={`Hapus ${batch.batchNumber}`}
+                                    title={`Hapus ${batch.batchNumber}`}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      onDelete(batch.id);
+                                    }}
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </Fragment>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -1717,6 +1742,16 @@ function BatchDetail({
   const expenses = state.lapakExpenses
     .filter((item) => item.batchId === batch.id && inRange(item.date, range))
     .sort((a, b) => b.date.localeCompare(a.date));
+  const expenseDays = groupByDay(
+    expenses,
+    (item) => item.date,
+    (item) => item.amount,
+  );
+  const commissionDays = groupByDay(
+    commissions,
+    (item) => item.date,
+    (item) => item.amount,
+  );
   const commissionTotal = commissions.reduce(
     (sum, item) => sum + item.amount,
     0,
@@ -1798,35 +1833,45 @@ function BatchDetail({
             <span className="resource-count">{expenses.length} data</span>
           </div>
           {expenses.length ? (
-            <div className="batch-item-list">
-              {expenses.map((item) => (
-                <div className="batch-item" key={item.id}>
-                  <div>
-                    <strong>{item.expenseName}</strong>
-                    <small>
-                      {item.date} · {item.notes || "Tanpa catatan"}
-                    </small>
+            <div className="lapak-day-groups">
+              {expenseDays.map((day) => (
+                <section className="lapak-day-group" key={day.key || "no-date"}>
+                  <header className="lapak-day-divider">
+                    <strong>{day.label}</strong>
+                    <span>{day.items.length} catatan</span>
+                  </header>
+                  <div className="batch-item-list">
+                    {day.items.map((item) => (
+                      <div className="batch-item" key={item.id}>
+                        <div>
+                          <strong>{item.expenseName}</strong>
+                          <small>
+                            {item.date} · {item.notes || "Tanpa catatan"}
+                          </small>
+                        </div>
+                        <b>{money(item.amount)}</b>
+                        <div className="item-actions">
+                          <button
+                            className="icon-button"
+                            type="button"
+                            aria-label="Edit pengeluaran"
+                            onClick={() => onEdit("Expenses", item.id)}
+                          >
+                            <Edit2 size={15} />
+                          </button>
+                          <button
+                            className="icon-button danger-button"
+                            type="button"
+                            aria-label="Hapus pengeluaran"
+                            onClick={() => onDelete("Expenses", item.id)}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <b>{money(item.amount)}</b>
-                  <div className="item-actions">
-                    <button
-                      className="icon-button"
-                      type="button"
-                      aria-label="Edit pengeluaran"
-                      onClick={() => onEdit("Expenses", item.id)}
-                    >
-                      <Edit2 size={15} />
-                    </button>
-                    <button
-                      className="icon-button danger-button"
-                      type="button"
-                      aria-label="Hapus pengeluaran"
-                      onClick={() => onDelete("Expenses", item.id)}
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                </div>
+                </section>
               ))}
             </div>
           ) : (
@@ -1846,35 +1891,45 @@ function BatchDetail({
             <span className="resource-count">{commissions.length} data</span>
           </div>
           {commissions.length ? (
-            <div className="batch-item-list">
-              {commissions.map((item) => (
-                <div className="batch-item" key={item.id}>
-                  <div>
-                    <strong>{item.partner}</strong>
-                    <small>
-                      {item.date} · {item.note || "Tanpa catatan"}
-                    </small>
+            <div className="lapak-day-groups">
+              {commissionDays.map((day) => (
+                <section className="lapak-day-group" key={day.key || "no-date"}>
+                  <header className="lapak-day-divider">
+                    <strong>{day.label}</strong>
+                    <span>{day.items.length} catatan</span>
+                  </header>
+                  <div className="batch-item-list">
+                    {day.items.map((item) => (
+                      <div className="batch-item" key={item.id}>
+                        <div>
+                          <strong>{item.partner}</strong>
+                          <small>
+                            {item.date} · {item.note || "Tanpa catatan"}
+                          </small>
+                        </div>
+                        <b>{money(item.amount)}</b>
+                        <div className="item-actions">
+                          <button
+                            className="icon-button"
+                            type="button"
+                            aria-label="Edit komisi"
+                            onClick={() => onEdit("Commission", item.id)}
+                          >
+                            <Edit2 size={15} />
+                          </button>
+                          <button
+                            className="icon-button danger-button"
+                            type="button"
+                            aria-label="Hapus komisi"
+                            onClick={() => onDelete("Commission", item.id)}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <b>{money(item.amount)}</b>
-                  <div className="item-actions">
-                    <button
-                      className="icon-button"
-                      type="button"
-                      aria-label="Edit komisi"
-                      onClick={() => onEdit("Commission", item.id)}
-                    >
-                      <Edit2 size={15} />
-                    </button>
-                    <button
-                      className="icon-button danger-button"
-                      type="button"
-                      aria-label="Hapus komisi"
-                      onClick={() => onDelete("Commission", item.id)}
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                </div>
+                </section>
               ))}
             </div>
           ) : (
@@ -1932,7 +1987,16 @@ function SourcingWorkspacePage({
       (sum, item) => sum + item.payment1 + item.payment2 + item.payment3,
       0,
     );
-    return { ...month, paid, outstanding: month.total - paid };
+    return {
+      ...month,
+      days: groupByDay(
+        month.items,
+        (item) => item.date,
+        (item) => item.total,
+      ),
+      paid,
+      outstanding: month.total - paid,
+    };
   });
   const total = rows.reduce((sum, item) => sum + item.total, 0);
   const paid = rows.reduce(
@@ -2177,90 +2241,104 @@ function SourcingWorkspacePage({
                     </tr>
                   </thead>
                   <tbody>
-                    {month.items.map((item) => {
-                      const itemPaid =
-                        item.payment1 + item.payment2 + item.payment3;
-                      const itemOutstanding = item.total - itemPaid;
-                      return (
-                        <tr key={item.id}>
-                          <td className="date-cell" data-label="Tanggal">
-                            {item.date}
-                          </td>
-                          <td data-label="Sumber">
-                            <span className="sourcing-type-badge">
-                              {item.sourceType === "BENGKELAN"
-                                ? "Bengkelan"
-                                : "Supplier"}
-                            </span>
-                          </td>
-                          <td
-                            className="resource-primary-cell"
-                            data-label="Nama"
-                          >
-                            {item.name}
-                          </td>
-                          <td data-label="Jenis">{item.type}</td>
-                          <td className="nowrap" data-label="Bobot">
-                            {item.weight.toLocaleString("id-ID")} {item.unit}
-                          </td>
-                          <td className="amount-cell" data-label="Harga / unit">
-                            {money(item.price)}
-                          </td>
-                          <td className="amount-cell" data-label="Jumlah">
-                            <strong>{money(item.total)}</strong>
-                          </td>
-                          <td
-                            className="sourcing-payment-table-cell"
-                            data-label="Pembayaran 1"
-                          >
-                            {renderPaymentCell(item, 1)}
-                          </td>
-                          <td
-                            className="sourcing-payment-table-cell"
-                            data-label="Pembayaran 2"
-                          >
-                            {renderPaymentCell(item, 2)}
-                          </td>
-                          <td
-                            className="sourcing-payment-table-cell"
-                            data-label="Pembayaran 3"
-                          >
-                            {renderPaymentCell(item, 3)}
-                          </td>
-                          <td
-                            className={`amount-cell ${itemOutstanding > 0 ? "sourcing-outstanding" : "sourcing-paid"}`}
-                            data-label="Sisa"
-                          >
-                            {money(itemOutstanding)}
-                          </td>
-                          <td className="cell-wrap" data-label="Catatan">
-                            {item.note || "—"}
-                          </td>
-                          <td className="row-actions">
-                            <button
-                              className="sourcing-action-button sourcing-edit-button"
-                              type="button"
-                              aria-label={`Edit pengadaan ${item.name}`}
-                              onClick={() =>
-                                onEdit("Sourcing & Bengkelan", item.id)
-                              }
-                            >
-                              <Edit2 size={15} /> <span>Edit</span>
-                            </button>
-                            <button
-                              className="sourcing-action-button sourcing-delete-button"
-                              type="button"
-                              aria-label={`Hapus pengadaan ${item.name}`}
-                              onClick={() =>
-                                onDelete("Sourcing & Bengkelan", item.id)
-                              }
-                            >
-                              <Trash2 size={15} /> <span>Hapus</span>
-                            </button>
+                    {month.days.map((day) => (
+                      <Fragment key={day.key || "no-date"}>
+                        <tr className="lapak-day-table-divider">
+                          <td colSpan={13}>
+                            <strong>{day.label}</strong>
+                            <span>{day.items.length} catatan</span>
                           </td>
                         </tr>
-                      );
-                    })}
+                        {day.items.map((item) => {
+                          const itemPaid =
+                            item.payment1 + item.payment2 + item.payment3;
+                          const itemOutstanding = item.total - itemPaid;
+                          return (
+                            <tr key={item.id}>
+                              <td className="date-cell" data-label="Tanggal">
+                                {item.date}
+                              </td>
+                              <td data-label="Sumber">
+                                <span className="sourcing-type-badge">
+                                  {item.sourceType === "BENGKELAN"
+                                    ? "Bengkelan"
+                                    : "Supplier"}
+                                </span>
+                              </td>
+                              <td
+                                className="resource-primary-cell"
+                                data-label="Nama"
+                              >
+                                {item.name}
+                              </td>
+                              <td data-label="Jenis">{item.type}</td>
+                              <td className="nowrap" data-label="Bobot">
+                                {item.weight.toLocaleString("id-ID")}{" "}
+                                {item.unit}
+                              </td>
+                              <td
+                                className="amount-cell"
+                                data-label="Harga / unit"
+                              >
+                                {money(item.price)}
+                              </td>
+                              <td className="amount-cell" data-label="Jumlah">
+                                <strong>{money(item.total)}</strong>
+                              </td>
+                              <td
+                                className="sourcing-payment-table-cell"
+                                data-label="Pembayaran 1"
+                              >
+                                {renderPaymentCell(item, 1)}
+                              </td>
+                              <td
+                                className="sourcing-payment-table-cell"
+                                data-label="Pembayaran 2"
+                              >
+                                {renderPaymentCell(item, 2)}
+                              </td>
+                              <td
+                                className="sourcing-payment-table-cell"
+                                data-label="Pembayaran 3"
+                              >
+                                {renderPaymentCell(item, 3)}
+                              </td>
+                              <td
+                                className={`amount-cell ${itemOutstanding > 0 ? "sourcing-outstanding" : "sourcing-paid"}`}
+                                data-label="Sisa"
+                              >
+                                {money(itemOutstanding)}
+                              </td>
+                              <td className="cell-wrap" data-label="Catatan">
+                                {item.note || "—"}
+                              </td>
+                              <td className="row-actions">
+                                <button
+                                  className="sourcing-action-button sourcing-edit-button"
+                                  type="button"
+                                  aria-label={`Edit pengadaan ${item.name}`}
+                                  onClick={() =>
+                                    onEdit("Sourcing & Bengkelan", item.id)
+                                  }
+                                >
+                                  <Edit2 size={15} /> <span>Edit</span>
+                                </button>
+                                <button
+                                  className="sourcing-action-button sourcing-delete-button"
+                                  type="button"
+                                  aria-label={`Hapus pengadaan ${item.name}`}
+                                  onClick={() =>
+                                    onDelete("Sourcing & Bengkelan", item.id)
+                                  }
+                                >
+                                  <Trash2 size={15} /> <span>Hapus</span>
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </Fragment>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -2410,6 +2488,11 @@ function GroupedLapakPage({
     (item) => item.amount,
   ).map((month) => ({
     ...month,
+    days: groupByDay(
+      month.items,
+      (item) => item.date,
+      (item) => item.amount,
+    ),
     items: [...month.items].sort((a, b) => b.date.localeCompare(a.date)),
   }));
   const labels: Record<
@@ -2475,36 +2558,50 @@ function GroupedLapakPage({
                   </span>
                 </div>
               </div>
-              <div className="batch-item-list">
-                {group.items.map((item) => (
-                  <div className="batch-item" key={item.id}>
-                    <div>
-                      <strong>{item.title}</strong>
-                      <small>
-                        {item.date}
-                        {item.batch ? ` · ${item.batch}` : ""} · {item.detail}
-                      </small>
+              <div className="lapak-day-groups">
+                {group.days.map((day) => (
+                  <section
+                    className="lapak-day-group"
+                    key={day.key || "no-date"}
+                  >
+                    <header className="lapak-day-divider">
+                      <strong>{day.label}</strong>
+                      <span>{day.items.length} transaksi</span>
+                    </header>
+                    <div className="batch-item-list">
+                      {day.items.map((item) => (
+                        <div className="batch-item" key={item.id}>
+                          <div>
+                            <strong>{item.title}</strong>
+                            <small>
+                              {item.date}
+                              {item.batch ? ` · ${item.batch}` : ""} ·{" "}
+                              {item.detail}
+                            </small>
+                          </div>
+                          <b>{money(item.amount)}</b>
+                          <div className="item-actions">
+                            <button
+                              className="icon-button"
+                              type="button"
+                              aria-label="Edit data"
+                              onClick={() => onEdit(page, item.id)}
+                            >
+                              <Edit2 size={15} />
+                            </button>
+                            <button
+                              className="icon-button danger-button"
+                              type="button"
+                              aria-label="Hapus data"
+                              onClick={() => onDelete(page, item.id)}
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <b>{money(item.amount)}</b>
-                    <div className="item-actions">
-                      <button
-                        className="icon-button"
-                        type="button"
-                        aria-label="Edit data"
-                        onClick={() => onEdit(page, item.id)}
-                      >
-                        <Edit2 size={15} />
-                      </button>
-                      <button
-                        className="icon-button danger-button"
-                        type="button"
-                        aria-label="Hapus data"
-                        onClick={() => onDelete(page, item.id)}
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </div>
+                  </section>
                 ))}
               </div>
             </section>

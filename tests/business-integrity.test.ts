@@ -17,6 +17,7 @@ import {
 import WorkspacePage from "../src/presentation/dashboard/WorkspacePage";
 import { buildLedgerGroups } from "../src/presentation/dashboard/TagihanWorkspace";
 import {
+  groupByDay,
   groupByMonth,
   inRange,
   periodLabel,
@@ -913,6 +914,25 @@ test("month grouping puts the newest month first and keeps undated rows last", (
   assert.equal(grouped[0].total, 2000);
   assert.equal(grouped[1].total, 1500);
   assert.equal(grouped[1].items.length, 2);
+});
+
+test("day grouping separates dates inside a month", () => {
+  const grouped = groupByDay(
+    [
+      { date: "2026-11-23", amount: 100 },
+      { date: "2026-11-24", amount: 200 },
+      { date: "2026-11-24", amount: 300 },
+      { date: "", amount: 50 },
+    ],
+    (item) => item.date,
+    (item) => item.amount,
+  );
+  assert.deepEqual(
+    grouped.map((day) => day.label),
+    ["24 November", "23 November", "Tanpa tanggal"],
+  );
+  assert.equal(grouped[0].total, 500);
+  assert.equal(grouped[0].items.length, 2);
 });
 
 test("komisi and pengeluaran are grouped by month with a monthly subtotal", () => {

@@ -26,6 +26,7 @@ import {
 } from "@/src/domain/business-state";
 import type { BusinessCommands } from "@/src/application/use-cases/business-commands";
 import {
+  groupByDay,
   groupByMonth,
   inRange as inPeriodRange,
   monthKey,
@@ -204,6 +205,7 @@ export default function TagihanWorkspace({
         (group) => group.restan,
       ).map((month) => ({
         ...month,
+        days: groupByDay(month.items, (group) => group.lastDate),
         credit: month.items.reduce((sum, group) => sum + group.credit, 0),
         debit: month.items.reduce((sum, group) => sum + group.debit, 0),
         transactions: month.items.reduce(
@@ -248,10 +250,7 @@ export default function TagihanWorkspace({
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE,
   );
-  const filtersActive =
-    period !== "Semua" ||
-    kind !== "ALL" ||
-    !!search.trim();
+  const filtersActive = period !== "Semua" || kind !== "ALL" || !!search.trim();
 
   const exportCsv = () => {
     const rows: string[][] = [
@@ -495,212 +494,247 @@ export default function TagihanWorkspace({
                     </span>
                   </div>
                 </header>
-                <div className="ledger-groups">
-                  {month.items.map((group) => {
-                    const cardKey = `${month.key}-${group.customerName}`;
-                    const open = expanded === cardKey;
-                    return (
-                      <section
-                        className={`panel ledger-card${open ? " is-open" : ""}`}
-                        key={`${month.key}-${group.customerName}`}
-                      >
-                        <header className="ledger-card-head">
-                          <div className="ledger-customer">
-                            <span className="ledger-avatar" aria-hidden="true">
-                              {initials(group.customerName)}
-                            </span>
-                            <div>
-                              <h3>{group.customerName}</h3>
-                              <p>
-                                {group.lines.length} transaksi · terakhir{" "}
-                                {formatLedgerDate(group.lastDate)}
-                              </p>
-                            </div>
-                          </div>
-                          <div
-                            className="ledger-customer-figures"
-                            aria-label={`Saldo ${group.customerName}`}
-                          >
-                            {filtersActive && (
-                              <small className="ledger-figures-note">
-                                saldo semua transaksi
-                              </small>
-                            )}
-                            <span>
-                              <small>Kredit</small>
-                              <b className="is-credit">{money(group.credit)}</b>
-                            </span>
-                            <span>
-                              <small>Debit</small>
-                              <b className="is-debit">{money(group.debit)}</b>
-                            </span>
-                            <span>
-                              <small>Restan</small>
-                              <b
-                                className={
-                                  group.restan > 0 ? "is-open" : "is-settled"
-                                }
-                              >
-                                {money(group.restan)}
-                              </b>
-                            </span>
-                          </div>
-                          <button
-                            className="ledger-expand"
-                            type="button"
-                            aria-expanded={open}
-                            onClick={() => setExpanded(open ? null : cardKey)}
-                          >
-                            {open ? "Tutup" : "Riwayat"}{" "}
-                            <ChevronDown
-                              size={14}
-                              className={open ? "is-flipped" : ""}
-                            />
-                          </button>
-                        </header>
-
-                        <div className="table-wrap ledger-table-wrap">
-                          <table
-                            className="ledger-table"
-                            aria-label={`Buku tagihan ${group.customerName}`}
-                          >
-                            <thead>
-                              <tr>
-                                <th className="ledger-no">No</th>
-                                <th>Nama Pelanggan</th>
-                                <th>Tanggal</th>
-                                <th className="ledger-amount">Kredit</th>
-                                <th className="ledger-amount">Debit</th>
-                                <th className="ledger-amount">Restan</th>
-                                <th className="ledger-actions-head">Aksi</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {group.lines.map((line, index) => (
-                                <tr
-                                  key={line.row.id}
-                                  className={
-                                    line.row.kind === "DEBIT"
-                                      ? "ledger-row-debit"
-                                      : ""
+                <div className="ledger-day-groups">
+                  {month.days.map((day) => (
+                    <section
+                      className="lapak-day-group"
+                      key={day.key || "no-date"}
+                    >
+                      <header className="lapak-day-divider">
+                        <strong>{day.label}</strong>
+                        <span>{day.items.length} pelanggan</span>
+                      </header>
+                      <div className="ledger-groups">
+                        {day.items.map((group) => {
+                          const cardKey = `${month.key}-${group.customerName}`;
+                          const open = expanded === cardKey;
+                          return (
+                            <section
+                              className={`panel ledger-card${open ? " is-open" : ""}`}
+                              key={`${month.key}-${group.customerName}`}
+                            >
+                              <header className="ledger-card-head">
+                                <div className="ledger-customer">
+                                  <span
+                                    className="ledger-avatar"
+                                    aria-hidden="true"
+                                  >
+                                    {initials(group.customerName)}
+                                  </span>
+                                  <div>
+                                    <h3>{group.customerName}</h3>
+                                    <p>
+                                      {group.lines.length} transaksi · terakhir{" "}
+                                      {formatLedgerDate(group.lastDate)}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div
+                                  className="ledger-customer-figures"
+                                  aria-label={`Saldo ${group.customerName}`}
+                                >
+                                  {filtersActive && (
+                                    <small className="ledger-figures-note">
+                                      saldo semua transaksi
+                                    </small>
+                                  )}
+                                  <span>
+                                    <small>Kredit</small>
+                                    <b className="is-credit">
+                                      {money(group.credit)}
+                                    </b>
+                                  </span>
+                                  <span>
+                                    <small>Debit</small>
+                                    <b className="is-debit">
+                                      {money(group.debit)}
+                                    </b>
+                                  </span>
+                                  <span>
+                                    <small>Restan</small>
+                                    <b
+                                      className={
+                                        group.restan > 0
+                                          ? "is-open"
+                                          : "is-settled"
+                                      }
+                                    >
+                                      {money(group.restan)}
+                                    </b>
+                                  </span>
+                                </div>
+                                <button
+                                  className="ledger-expand"
+                                  type="button"
+                                  aria-expanded={open}
+                                  onClick={() =>
+                                    setExpanded(open ? null : cardKey)
                                   }
                                 >
-                                  <td className="ledger-no" data-label="No">
-                                    {index + 1}
-                                  </td>
-                                  <td
-                                    className="ledger-name"
-                                    data-label="Nama Pelanggan"
-                                  >
-                                    <span
-                                      className={`ledger-badge ledger-badge-${line.row.kind.toLowerCase()}`}
-                                    >
-                                      {line.row.kind === "KREDIT"
-                                        ? "Kredit"
-                                        : "Debit"}
-                                    </span>
-                                    {line.row.note && (
-                                      <small>{line.row.note}</small>
-                                    )}
-                                  </td>
-                                  <td
-                                    className="ledger-date"
-                                    data-label="Tanggal"
-                                  >
-                                    {formatLedgerDate(line.row.date)}
-                                  </td>
-                                  <td
-                                    className="ledger-amount is-credit"
-                                    data-label="Kredit"
-                                  >
-                                    {line.row.kind === "KREDIT"
-                                      ? money(line.row.amount)
-                                      : "—"}
-                                  </td>
-                                  <td
-                                    className="ledger-amount is-debit"
-                                    data-label="Debit"
-                                  >
-                                    {line.row.kind === "DEBIT"
-                                      ? money(line.row.amount)
-                                      : "—"}
-                                  </td>
-                                  <td
-                                    className={`ledger-amount ${line.restan > 0 ? "is-open" : "is-settled"}`}
-                                    data-label="Restan"
-                                  >
-                                    {money(line.restan)}
-                                  </td>
-                                  <td
-                                    className="ledger-row-actions"
-                                    data-label="Aksi"
-                                  >
-                                    <button
-                                      className="ledger-icon-button"
-                                      type="button"
-                                      aria-label={`Edit transaksi ${group.customerName} ${formatLedgerDate(line.row.date)}`}
-                                      onClick={() => {
-                                        setEditing(line.row);
-                                        setFormOpen(true);
-                                      }}
-                                    >
-                                      <Pencil size={14} />
-                                    </button>
-                                    <button
-                                      className="ledger-icon-button is-danger"
-                                      type="button"
-                                      aria-label={`Hapus transaksi ${group.customerName} ${formatLedgerDate(line.row.date)}`}
-                                      onClick={() => remove(line.row)}
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+                                  {open ? "Tutup" : "Riwayat"}{" "}
+                                  <ChevronDown
+                                    size={14}
+                                    className={open ? "is-flipped" : ""}
+                                  />
+                                </button>
+                              </header>
 
-                        {open && (
-                          <div className="ledger-detail">
-                            <p className="ledger-detail-note">
-                              Restan {money(group.restan)} terbentuk dari{" "}
-                              <b className="is-credit">{money(group.credit)}</b>{" "}
-                              kredit dikurangi{" "}
-                              <b className="is-debit">{money(group.debit)}</b>{" "}
-                              debit, dihitung berurutan sesuai tabel.
-                            </p>
-                            <ol className="ledger-history">
-                              {group.lines.map((line) => (
-                                <li key={line.row.id}>
-                                  <span className="ledger-history-date">
-                                    {formatLedgerDate(line.row.date)}
-                                  </span>
-                                  <span
-                                    className={`ledger-badge ledger-badge-${line.row.kind.toLowerCase()}`}
-                                  >
-                                    {line.row.kind === "KREDIT"
-                                      ? "Kredit"
-                                      : "Debit"}
-                                  </span>
-                                  <span className="ledger-history-amount">
-                                    {line.row.kind === "KREDIT" ? "+" : "−"}{" "}
-                                    {money(line.row.amount)}
-                                  </span>
-                                  <span className="ledger-history-restan">
-                                    Restan {money(line.restan)}
-                                  </span>
-                                  {line.row.note && (
-                                    <small>{line.row.note}</small>
-                                  )}
-                                </li>
-                              ))}
-                            </ol>
-                          </div>
-                        )}
-                      </section>
-                    );
-                  })}
+                              <div className="table-wrap ledger-table-wrap">
+                                <table
+                                  className="ledger-table"
+                                  aria-label={`Buku tagihan ${group.customerName}`}
+                                >
+                                  <thead>
+                                    <tr>
+                                      <th className="ledger-no">No</th>
+                                      <th>Nama Pelanggan</th>
+                                      <th>Tanggal</th>
+                                      <th className="ledger-amount">Kredit</th>
+                                      <th className="ledger-amount">Debit</th>
+                                      <th className="ledger-amount">Restan</th>
+                                      <th className="ledger-actions-head">
+                                        Aksi
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {group.lines.map((line, index) => (
+                                      <tr
+                                        key={line.row.id}
+                                        className={
+                                          line.row.kind === "DEBIT"
+                                            ? "ledger-row-debit"
+                                            : ""
+                                        }
+                                      >
+                                        <td
+                                          className="ledger-no"
+                                          data-label="No"
+                                        >
+                                          {index + 1}
+                                        </td>
+                                        <td
+                                          className="ledger-name"
+                                          data-label="Nama Pelanggan"
+                                        >
+                                          <span
+                                            className={`ledger-badge ledger-badge-${line.row.kind.toLowerCase()}`}
+                                          >
+                                            {line.row.kind === "KREDIT"
+                                              ? "Kredit"
+                                              : "Debit"}
+                                          </span>
+                                          {line.row.note && (
+                                            <small>{line.row.note}</small>
+                                          )}
+                                        </td>
+                                        <td
+                                          className="ledger-date"
+                                          data-label="Tanggal"
+                                        >
+                                          {formatLedgerDate(line.row.date)}
+                                        </td>
+                                        <td
+                                          className="ledger-amount is-credit"
+                                          data-label="Kredit"
+                                        >
+                                          {line.row.kind === "KREDIT"
+                                            ? money(line.row.amount)
+                                            : "—"}
+                                        </td>
+                                        <td
+                                          className="ledger-amount is-debit"
+                                          data-label="Debit"
+                                        >
+                                          {line.row.kind === "DEBIT"
+                                            ? money(line.row.amount)
+                                            : "—"}
+                                        </td>
+                                        <td
+                                          className={`ledger-amount ${line.restan > 0 ? "is-open" : "is-settled"}`}
+                                          data-label="Restan"
+                                        >
+                                          {money(line.restan)}
+                                        </td>
+                                        <td
+                                          className="ledger-row-actions"
+                                          data-label="Aksi"
+                                        >
+                                          <button
+                                            className="ledger-icon-button"
+                                            type="button"
+                                            aria-label={`Edit transaksi ${group.customerName} ${formatLedgerDate(line.row.date)}`}
+                                            onClick={() => {
+                                              setEditing(line.row);
+                                              setFormOpen(true);
+                                            }}
+                                          >
+                                            <Pencil size={14} />
+                                          </button>
+                                          <button
+                                            className="ledger-icon-button is-danger"
+                                            type="button"
+                                            aria-label={`Hapus transaksi ${group.customerName} ${formatLedgerDate(line.row.date)}`}
+                                            onClick={() => remove(line.row)}
+                                          >
+                                            <Trash2 size={14} />
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+
+                              {open && (
+                                <div className="ledger-detail">
+                                  <p className="ledger-detail-note">
+                                    Restan {money(group.restan)} terbentuk dari{" "}
+                                    <b className="is-credit">
+                                      {money(group.credit)}
+                                    </b>{" "}
+                                    kredit dikurangi{" "}
+                                    <b className="is-debit">
+                                      {money(group.debit)}
+                                    </b>{" "}
+                                    debit, dihitung berurutan sesuai tabel.
+                                  </p>
+                                  <ol className="ledger-history">
+                                    {group.lines.map((line) => (
+                                      <li key={line.row.id}>
+                                        <span className="ledger-history-date">
+                                          {formatLedgerDate(line.row.date)}
+                                        </span>
+                                        <span
+                                          className={`ledger-badge ledger-badge-${line.row.kind.toLowerCase()}`}
+                                        >
+                                          {line.row.kind === "KREDIT"
+                                            ? "Kredit"
+                                            : "Debit"}
+                                        </span>
+                                        <span className="ledger-history-amount">
+                                          {line.row.kind === "KREDIT"
+                                            ? "+"
+                                            : "−"}{" "}
+                                          {money(line.row.amount)}
+                                        </span>
+                                        <span className="ledger-history-restan">
+                                          Restan {money(line.restan)}
+                                        </span>
+                                        {line.row.note && (
+                                          <small>{line.row.note}</small>
+                                        )}
+                                      </li>
+                                    ))}
+                                  </ol>
+                                </div>
+                              )}
+                            </section>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  ))}
                 </div>
               </section>
             ))}

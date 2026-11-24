@@ -42,6 +42,8 @@ import {
 } from "@/src/domain/business-state";
 import AccountMenu from "@/src/presentation/auth/AccountMenu";
 import {
+  groupByDay,
+  groupByMonth,
   inRange,
   periodRange,
   type LapakPeriod,
@@ -190,6 +192,21 @@ function LapakDashboard({
       [...commissions, ...expenses].map((item) => item.batchId),
     ),
   ];
+  const batchGroups = groupByMonth(
+    batchIds
+      .map((batchId) => business.batches.find((batch) => batch.id === batchId))
+      .filter((batch): batch is BusinessState["batches"][number] =>
+        Boolean(batch),
+      ),
+    (batch) => batch.startDate,
+    (batch) =>
+      commissions
+        .filter((item) => item.batchId === batch.id)
+        .reduce((sum, item) => sum + item.amount, 0),
+  ).map((month) => ({
+    ...month,
+    days: groupByDay(month.items, (batch) => batch.startDate),
+  }));
   return (
     <div className="workspace-page lapak-dashboard">
       <div className="workspace-page-head">
@@ -251,45 +268,73 @@ function LapakDashboard({
           </button>
         </div>
         <div className="batch-dashboard-list">
-          {batchIds.length ? (
-            batchIds.map((batchId) => {
-              const batch = business.batches.find(
-                (item) => item.id === batchId,
-              );
-              const batchCommission = commissions
-                .filter((item) => item.batchId === batchId)
-                .reduce((sum, item) => sum + item.amount, 0);
-              const batchCosts = expenses
-                .filter((item) => item.batchId === batchId)
-                .reduce((sum, item) => sum + item.amount, 0);
-              return (
-                <button
-                  className="batch-dashboard-row"
-                  type="button"
-                  key={batchId}
-                  onClick={() =>
-                    onNavigate("lapak", "Batch", false, undefined, batchId)
-                  }
-                >
-                  <span>
-                    <strong>
-                      {batch?.batchNumber ?? "Batch tidak ditemukan"}
-                    </strong>
-                    <small>{batch?.notes || "Tanpa catatan"}</small>
-                  </span>
-                  <span>
-                    <small>Pendapatan</small>
-                    <b>Rp {formatRupiah(batchCommission)}</b>
-                  </span>
-                  <span>
-                    <small>Biaya</small>
-                    <b>Rp {formatRupiah(batchCosts)}</b>
-                  </span>
-                  <span className="status status-tercatat">Batch</span>
-                  <ChevronRight size={17} />
-                </button>
-              );
-            })
+          {batchGroups.length ? (
+            batchGroups.map((month) => (
+              <section
+                className="dashboard-batch-month"
+                key={month.key || "no-date"}
+              >
+                <header className="lapak-month-head">
+                  <div>
+                    <h3>{month.label}</h3>
+                    <small>{month.items.length} batch</small>
+                  </div>
+                </header>
+                {month.days.map((day) => (
+                  <div
+                    className="dashboard-batch-day"
+                    key={day.key || "no-date"}
+                  >
+                    <div className="lapak-day-divider">
+                      <strong>{day.label}</strong>
+                      <span>{day.items.length} batch</span>
+                    </div>
+                    {day.items.map((batch) => {
+                      const batchId = batch.id;
+                      const batchCommission = commissions
+                        .filter((item) => item.batchId === batchId)
+                        .reduce((sum, item) => sum + item.amount, 0);
+                      const batchCosts = expenses
+                        .filter((item) => item.batchId === batchId)
+                        .reduce((sum, item) => sum + item.amount, 0);
+                      return (
+                        <button
+                          className="batch-dashboard-row"
+                          type="button"
+                          key={batchId}
+                          onClick={() =>
+                            onNavigate(
+                              "lapak",
+                              "Batch",
+                              false,
+                              undefined,
+                              batchId,
+                            )
+                          }
+                        >
+                          <span>
+                            <strong>
+                              {batch?.batchNumber ?? "Batch tidak ditemukan"}
+                            </strong>
+                            <small>{batch?.notes || "Tanpa catatan"}</small>
+                          </span>
+                          <span>
+                            <small>Pendapatan</small>
+                            <b>Rp {formatRupiah(batchCommission)}</b>
+                          </span>
+                          <span>
+                            <small>Biaya</small>
+                            <b>Rp {formatRupiah(batchCosts)}</b>
+                          </span>
+                          <span className="status status-tercatat">Batch</span>
+                          <ChevronRight size={17} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </section>
+            ))
           ) : (
             <div className="empty-state">
               Belum ada transaksi pada periode ini.
