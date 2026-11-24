@@ -289,6 +289,7 @@ function ModalForm({
   onNotify,
   initialBatchId,
   editRecord,
+  inline = false,
 }: {
   page: string;
   state: BusinessState;
@@ -297,6 +298,8 @@ function ModalForm({
   onNotify: Notify;
   initialBatchId?: string;
   editRecord?: EditRecord;
+  /** Renders the form directly on the page instead of behind a modal backdrop. */
+  inline?: boolean;
 }) {
   const isMultiItem = [
     "Expenses",
@@ -1088,11 +1091,15 @@ function ModalForm({
   };
 
   const modal = (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+    <div
+      className={inline ? "form-inline" : "modal-backdrop"}
+      role={inline ? undefined : "presentation"}
+      onMouseDown={inline ? undefined : onClose}
+    >
       <div
-        className="form-modal"
+        className={inline ? "form-modal form-modal-inline" : "form-modal"}
         role="dialog"
-        aria-modal="true"
+        aria-modal={inline ? undefined : "true"}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="modal-head">
@@ -1168,6 +1175,7 @@ function ModalForm({
       </div>
     </div>
   );
+  if (inline) return modal;
   return portalReady ? createPortal(modal, document.body) : modal;
 }
 
@@ -2136,7 +2144,10 @@ function SourcingWorkspacePage({
 
 function SalesLedgerWorkspacePage({
   state,
+  commands,
   onAdd,
+  initialOpen,
+  onCloseAdd,
   onExport,
   onEdit,
   onDelete,
@@ -2144,13 +2155,18 @@ function SalesLedgerWorkspacePage({
   onNotify,
 }: {
   state: BusinessState;
+  commands: BusinessCommands;
   onAdd: () => void;
+  initialOpen?: boolean;
+  onCloseAdd: () => void;
   onExport: () => void;
   onEdit: (page: string, id: string) => void;
   onDelete: (page: string, id: string) => void;
   onPayment: (id: string, paymentNumber: 1 | 2 | 3, input: { amount: number; date: string }) => { ok: boolean; message: string };
   onNotify: Notify;
 }) {
+  // The writing panel lives on the page, so the invoice book stays visible underneath.
+  const [adding, setAdding] = useState(Boolean(initialOpen));
   const [search, setSearch] = useState("");
   const [editingPayment, setEditingPayment] = useState<{ saleId: string; paymentNumber: 1 | 2 | 3 } | null>(null);
   const [paymentDraft, setPaymentDraft] = useState({ amount: "", date: "" });
@@ -2247,11 +2263,46 @@ function SalesLedgerWorkspacePage({
           <button className="secondary-outline-button" type="button" onClick={onExport}>
             <Download size={15} /> Export
           </button>
-          <button className="primary-button" type="button" onClick={onAdd}>
-            <Plus size={16} /> Tambah penjualan
+          <button
+            className="primary-button"
+            type="button"
+            aria-expanded={adding}
+            onClick={() => {
+              if (adding) {
+                setAdding(false);
+                onCloseAdd();
+                return;
+              }
+              setAdding(true);
+              onAdd();
+            }}
+          >
+            {adding ? <X size={16} /> : <Plus size={16} />} {adding ? "Tutup form" : "Tambah penjualan"}
           </button>
         </div>
       </div>
+      {adding && (
+        <section className="panel sales-entry-panel" aria-label="Form penjualan baru">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Input penjualan</p>
+              <h2>Catat penjualan baru</h2>
+            </div>
+            <button className="icon-button" type="button" aria-label="Tutup form penjualan" onClick={() => { setAdding(false); onCloseAdd(); }}>
+              <X size={18} />
+            </button>
+          </div>
+          <p className="sales-entry-note">Isi data customer dan produk, lalu simpan. Penjualan langsung masuk ke buku tagihan di bawah.</p>
+          <ModalForm
+            page="B2C Sales"
+            state={state}
+            commands={commands}
+            inline
+            onClose={() => { setAdding(false); onCloseAdd(); }}
+            onNotify={onNotify}
+          />
+        </section>
+      )}
       <div className="resource-stats">
         <div className="resource-stat">
           <span>Total kredit</span>
@@ -2275,7 +2326,12 @@ function SalesLedgerWorkspacePage({
             <p className="eyebrow">Buku tagihan</p>
             <h2>Tagihan per customer</h2>
           </div>
-          <span className="resource-count">{visible.length} customer</span>
+          <div className="sales-ledger-panel-actions">
+            <span className="resource-count">{visible.length} customer</span>
+            <button className="primary-button compact" type="button" onClick={() => { setAdding(true); onAdd(); }}>
+              <Plus size={15} /> Tambah penjualan
+            </button>
+          </div>
         </div>
         <div className="resource-toolbar">
           <label className="table-search">
@@ -2853,7 +2909,13 @@ export default function WorkspacePage({
       <>
         <SalesLedgerWorkspacePage
           state={business}
+          commands={commands}
           onAdd={() => openForm(effectivePage)}
+          initialOpen={formOpen && !editRecord}
+          onCloseAdd={() => {
+            setFormOpen(false);
+            setEditRecord(undefined);
+          }}
           onExport={exportTable}
           onEdit={editLapakRecord}
           onDelete={deleteLapakRecord}
@@ -2862,7 +2924,7 @@ export default function WorkspacePage({
           }
           onNotify={onNotify}
         />
-        {formOpen && (
+        {formOpen && editRecord?.page === "B2C Sales" && (
           <ModalForm
             page={formPage}
             editRecord={editRecord}

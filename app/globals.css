@@ -307,6 +307,16 @@ button { cursor: pointer; }
 .sales-ledger-table th:nth-child(4), .sales-ledger-table th:nth-child(5), .sales-ledger-table th:nth-child(6),
 .sales-ledger-table td:nth-child(4), .sales-ledger-table td:nth-child(5), .sales-ledger-table td:nth-child(6) { text-align: right; }
 .sales-ledger-payment-row td { background: #fafbfd; color: var(--muted); }
+.sales-ledger-panel-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sales-ledger-panel-actions .primary-button { height: 38px; padding: 0 16px; font-size: 12.5px; box-shadow: none; }
+.sales-entry-panel { margin-bottom: 16px; border: 1px solid #cfdcef; box-shadow: 0 14px 30px rgba(28, 58, 110, 0.08); }
+.sales-entry-note { margin: 8px 0 0; color: var(--muted); font-size: 12.5px; }
+.sales-entry-panel .sales-entry-note { margin-bottom: 4px; }
+.form-inline { width: 100%; }
+.form-inline .form-modal-inline { width: 100%; max-height: none; overflow: visible; border: 0; border-radius: 0; padding: 0; box-shadow: none; background: transparent; }
+.form-inline .modal-head { display: none; }
+.form-inline .modal-copy { display: none; }
+.form-inline .form-modal-inline form { margin-top: 16px; }
 .sales-ledger-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border-radius: 12px; background: #fdf6cf; }
 .sales-ledger-card-head strong { color: var(--ink); font-size: 13px; letter-spacing: .4px; text-transform: uppercase; }
 .sales-ledger-card-head small { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }

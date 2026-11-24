@@ -17,16 +17,25 @@ function inRange(range: OverviewRange, date: string, asOf: string) {
   return Math.floor((Number(date.slice(5, 7)) - 1) / 3) === Math.floor((Number(asOf.slice(5, 7)) - 1) / 3);
 }
 
+// Pengadaan is tracked as its own pot of money: it never counts as profit cost here.
 function lapakFigures(state: BusinessState, keep: (date: string) => boolean) {
   const commissions = state.commissions.filter((item) => keep(item.date));
   const sales = state.lapakSales.filter((item) => keep(item.date));
-  const sourcings = state.sourcings.filter((item) => keep(item.date));
   const expenses = state.lapakExpenses.filter((item) => keep(item.date));
   const revenue = sum(commissions, (item) => item.amount) + sum(sales, (item) => item.totalAmount);
-  const cost = sum(sourcings, (item) => item.total) + sum(expenses, (item) => item.amount);
+  const cost = sum(expenses, (item) => item.amount);
   // Sales are no longer attached to a batch; only commissions and expenses belong to one.
   const batchIds = new Set([...commissions, ...expenses].map((item) => item.batchId));
-  return { revenue, cost, profit: revenue - cost, batches: batchIds.size, records: commissions.length + sales.length + sourcings.length + expenses.length };
+  return { revenue, cost, profit: revenue - cost, batches: batchIds.size, records: commissions.length + sales.length + expenses.length };
+}
+
+function sourcingFigures(state: BusinessState, keep: (date: string) => boolean) {
+  const sourcings = state.sourcings.filter((item) => keep(item.date));
+  return {
+    total: sum(sourcings, (item) => item.total),
+    paid: sum(sourcings, (item) => item.payment1 + item.payment2 + item.payment3),
+    count: sourcings.length,
+  };
 }
 
 function restoFigures(state: BusinessState, keep: (date: string) => boolean) {
@@ -91,6 +100,7 @@ function recentActivities(state: BusinessState): ActivityRow[] {
 export function buildOverview(state: BusinessState, range: OverviewRange, asOf = today()): DashboardSnapshot {
   const keep = (date: string) => inRange(range, date, asOf);
   const lapak = lapakFigures(state, keep);
+  const sourcing = sourcingFigures(state, keep);
   const resto = restoFigures(state, keep);
   const open = state.invoices.filter((item) => item.outstandingAmount > 0);
 
@@ -122,9 +132,10 @@ export function buildOverview(state: BusinessState, range: OverviewRange, asOf =
 
   return {
     stats: [
-      { label: "Profit gabungan", value: money(lapak.profit + resto.profit), change: `${lapak.records + resto.orders} transaksi`, detail: range.toLowerCase(), tone: "primary", iconKey: "wallet" },
-      { label: "Profit Lapak", value: money(lapak.profit), change: `${lapak.batches} batch`, detail: "komisi + penjualan − biaya", tone: "soft", iconKey: "lapak" },
+      { label: "Profit gabungan", value: money(lapak.profit + resto.profit), change: `${lapak.records + resto.orders} transaksi`, detail: "komisi + penjualan − biaya", tone: "primary", iconKey: "wallet" },
+      { label: "Profit Lapak", value: money(lapak.profit), change: `${lapak.batches} batch`, detail: "komisi + penjualan − pengeluaran", tone: "soft", iconKey: "lapak" },
       { label: "Profit Resto & Online", value: money(resto.profit), change: `${resto.orders} pesanan`, detail: "setelah HPP dan biaya", tone: "soft", iconKey: "resto" },
+      { label: "Pengadaan & Bengkelan", value: money(sourcing.total), change: `${sourcing.count} catatan`, detail: `terpisah dari profit · sisa ${money(sourcing.total - sourcing.paid)}`, tone: "soft", iconKey: "lapak" },
       { label: "Piutang berjalan", value: money(sum(open, (item) => item.outstandingAmount)), change: `${open.length} invoice`, detail: open.length ? "perlu ditindaklanjuti" : "tidak ada tunggakan", tone: "warning", iconKey: "receivable" },
     ],
     activities: recentActivities(state),

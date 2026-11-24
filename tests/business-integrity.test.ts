@@ -236,6 +236,19 @@ test("lapak sales require a customer and post a three-stage ledger", () => {
   assert.match(html, /Rp 100\.000/);
 });
 
+test("the sales page keeps the invoice book visible when the entry form opens", () => {
+  const { commands, getState } = memoryCommands();
+  const closed = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {} }));
+  assert.match(closed, /Tagihan per customer/);
+  assert.doesNotMatch(closed, /Catat penjualan baru/);
+  const open = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {}, initialFormOpen: true }));
+  // The form renders on the page; the ledger underneath must stay rendered and no backdrop may cover it.
+  assert.match(open, /Tagihan per customer/);
+  assert.match(open, /Catat penjualan baru/);
+  assert.match(open, /form-modal-inline/);
+  assert.doesNotMatch(open, /modal-backdrop/);
+});
+
 test("legacy lapak sales migrate to named customers with their payments intact", () => {
   const initial = seedBusinessState();
   const legacy = {

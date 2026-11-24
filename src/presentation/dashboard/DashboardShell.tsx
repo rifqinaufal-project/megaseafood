@@ -233,18 +233,23 @@ function LapakDashboard({
         </div>
         <div className="resource-stat">
           <span>Total biaya</span>
-          <strong>Rp {formatRupiah(sourcingTotal + expenseTotal)}</strong>
-          <small>{sourcings.length + expenses.length} transaksi</small>
+          <strong>Rp {formatRupiah(expenseTotal)}</strong>
+          <small>{expenses.length} pengeluaran</small>
         </div>
         <div className="resource-stat">
           <span>Profit kotor</span>
           <strong>
             Rp{" "}
-            {formatRupiah(
-              commissionTotal + salesTotal - sourcingTotal - expenseTotal,
-            )}
+            {formatRupiah(commissionTotal + salesTotal - expenseTotal)}
           </strong>
           <small>{batchIds.length} batch terlibat</small>
+        </div>
+        <div className="resource-stat">
+          <span>Pengadaan &amp; Bengkelan</span>
+          <strong>Rp {formatRupiah(sourcingTotal)}</strong>
+          <small>
+            {sourcings.length} catatan · terpisah dari profit
+          </small>
         </div>
       </div>
       <section className="panel resource-panel">

@@ -5,7 +5,7 @@ import { buildOverview } from "../src/domain/overview";
 
 test("an empty account shows zero everywhere and no sample activity", () => {
   const overview = buildOverview(emptyBusinessState(), "Bulan ini", "2026-11-17");
-  assert.deepEqual(overview.stats.map((item) => item.value), ["Rp 0", "Rp 0", "Rp 0", "Rp 0"]);
+  assert.deepEqual(overview.stats.map((item) => item.value), ["Rp 0", "Rp 0", "Rp 0", "Rp 0", "Rp 0"]);
   assert.equal(overview.activities.length, 0);
   assert.equal(overview.cashTotal, "Rp 0");
   assert.ok(overview.wallets.every((item) => item.amount === "Rp 0"));
@@ -19,8 +19,12 @@ test("overview figures are computed from the business data", () => {
   const state = seedBusinessState();
   const overview = buildOverview(state, "Tahun ini", "2026-06-30");
   assert.ok(overview.activities.length > 0);
-  assert.equal(overview.stats[3].value, "Rp 6.420.000");
-  assert.equal(overview.stats[3].change, "1 invoice");
+  assert.equal(overview.stats[4].value, "Rp 6.420.000");
+  assert.equal(overview.stats[4].change, "1 invoice");
+  // Pengadaan gets its own card and never reduces profit.
+  assert.equal(overview.stats[3].label, "Pengadaan & Bengkelan");
+  assert.equal(overview.stats[3].value, "Rp 3.456.000");
+  assert.equal(overview.stats[1].value, "Rp 6.530.000");
   assert.equal(overview.activities[0].date.endsWith("2026"), true);
   assert.equal(overview.chart.hasData, true);
   assert.equal(overview.chart.labels.at(-1), "Jun");
