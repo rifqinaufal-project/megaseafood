@@ -1761,6 +1761,15 @@ function BatchDetail({
           </button>
         </div>
       </div>
+      <div className="lapak-period-toolbar">
+        <LapakPeriodControl
+          period={period}
+          anchor={anchor}
+          onPeriod={setPeriod}
+          onAnchor={setAnchor}
+          variant="bar"
+        />
+      </div>
       <div className="resource-stats batch-summary-stats">
         <div className="resource-stat">
           <span>Komisi</span>
@@ -1778,15 +1787,6 @@ function BatchDetail({
             {range ? " pada periode ini" : ""}
           </small>
         </div>
-      </div>
-      <div className="lapak-period-toolbar">
-        <LapakPeriodControl
-          period={period}
-          anchor={anchor}
-          onPeriod={setPeriod}
-          onAnchor={setAnchor}
-          variant="bar"
-        />
       </div>
       <div className="batch-detail-grid">
         <section className="panel">
@@ -2083,6 +2083,15 @@ function SourcingWorkspacePage({
           </button>
         </div>
       </div>
+      <div className="lapak-period-toolbar">
+        <LapakPeriodControl
+          period={period}
+          anchor={anchor}
+          onPeriod={setPeriod}
+          onAnchor={setAnchor}
+          variant="bar"
+        />
+      </div>
       <div className="resource-stats">
         <div className="resource-stat">
           <span>Total pengadaan</span>
@@ -2101,15 +2110,6 @@ function SourcingWorkspacePage({
           <strong>{money(outstanding)}</strong>
           <small>belum dibayar</small>
         </div>
-      </div>
-      <div className="lapak-period-toolbar">
-        <LapakPeriodControl
-          period={period}
-          anchor={anchor}
-          onPeriod={setPeriod}
-          onAnchor={setAnchor}
-          variant="bar"
-        />
       </div>
       <section className="panel resource-panel">
         <div className="panel-heading">
@@ -2446,7 +2446,6 @@ function GroupedLapakPage({
           <Plus size={16} /> {meta.action}
         </button>
       </div>
-      <LapakSummaryCards page={page} state={state} range={range} />
       <div className="lapak-period-toolbar">
         <LapakPeriodControl
           period={period}
@@ -2456,6 +2455,7 @@ function GroupedLapakPage({
           variant="bar"
         />
       </div>
+      <LapakSummaryCards page={page} state={state} range={range} />
       {groups.length ? (
         <div className="lapak-group-list">
           {groups.map((group) => (

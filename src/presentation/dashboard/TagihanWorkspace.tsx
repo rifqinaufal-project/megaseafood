@@ -150,8 +150,6 @@ export default function TagihanWorkspace({
   const [expanded, setExpanded] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState<"ALL" | "KREDIT" | "DEBIT">("ALL");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
   const [sort, setSort] = useState<"nama" | "tanggal" | "nominal">("nama");
   const [page, setPage] = useState(1);
   const [period, setPeriod] = useState<LapakPeriod>("Semua");
@@ -169,16 +167,13 @@ export default function TagihanWorkspace({
    */
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    const inManualRange = (date: string) =>
-      (!fromDate || date >= fromDate) && (!toDate || date <= toDate);
     const visible = groups
       .map((group) => ({
         ...group,
         lines: group.lines.filter(
           (line) =>
             (kind === "ALL" || line.row.kind === kind) &&
-            inPeriodRange(line.row.date, range) &&
-            inManualRange(line.row.date),
+            inPeriodRange(line.row.date, range),
         ),
       }))
       .filter((group) => group.lines.length > 0)
@@ -194,7 +189,7 @@ export default function TagihanWorkspace({
     if (sort === "nominal")
       return [...visible].sort((a, b) => b.restan - a.restan);
     return visible;
-  }, [groups, search, kind, fromDate, toDate, sort, range]);
+  }, [groups, search, kind, sort, range]);
 
   /**
    * Buku Tagihan is read per month, like the spreadsheet it replaces. A card belongs to the month of
@@ -256,8 +251,6 @@ export default function TagihanWorkspace({
   const filtersActive =
     period !== "Semua" ||
     kind !== "ALL" ||
-    !!fromDate ||
-    !!toDate ||
     !!search.trim();
 
   const exportCsv = () => {
@@ -450,34 +443,6 @@ export default function TagihanWorkspace({
               <option value="DEBIT">Debit</option>
             </select>
           </label>
-          {period === "Semua" && (
-            <>
-              <label className="ledger-filter">
-                <span>Dari</span>
-                <input
-                  type="date"
-                  value={fromDate}
-                  aria-label="Tanggal mulai"
-                  onChange={(event) => {
-                    setFromDate(event.target.value);
-                    setPage(1);
-                  }}
-                />
-              </label>
-              <label className="ledger-filter">
-                <span>Sampai</span>
-                <input
-                  type="date"
-                  value={toDate}
-                  aria-label="Tanggal akhir"
-                  onChange={(event) => {
-                    setToDate(event.target.value);
-                    setPage(1);
-                  }}
-                />
-              </label>
-            </>
-          )}
           <label className="ledger-filter">
             <span>Urutkan</span>
             <select
@@ -499,8 +464,6 @@ export default function TagihanWorkspace({
                 setKind("ALL");
                 setPeriod("Semua");
                 setAnchor(today());
-                setFromDate("");
-                setToDate("");
                 setPage(1);
               }}
             >
