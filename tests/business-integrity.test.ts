@@ -290,8 +290,10 @@ test("each customer card shows a readable bill summary, plain-language dates and
   assert.match(html, /Terbayar 40%/);
   assert.match(html, /Total tagihan/);
   assert.match(html, /Sudah dibayar/);
-  // Payment recording is grouped under a plain heading.
-  assert.match(html, /Catat pembayaran/);
+  // Payment recording is collapsed under a summary so the ledger leads the card.
+  assert.match(html, /<details class="sales-ledger-paysection">/);
+  assert.doesNotMatch(html, /<details class="sales-ledger-paysection" open/);
+  assert.match(html, /<summary>[\s\S]*?Catat pembayaran/);
 });
 
 test("legacy lapak sales migrate to named customers with their payments intact", () => {

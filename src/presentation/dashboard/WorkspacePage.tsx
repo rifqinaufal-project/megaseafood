@@ -2449,47 +2449,52 @@ function SalesLedgerWorkspacePage({
                     </table>
                   </div>
 
-                  <div className="sales-ledger-sales">
-                    <p className="sales-ledger-sales-title">Catat pembayaran</p>
-                    {sales
-                      .filter((sale) => !term || group.lines.some((line) => line.saleId === sale.id))
-                      .map((sale) => {
-                        const paid = sale.payment1 + sale.payment2 + sale.payment3;
-                        const remaining = sale.totalAmount - paid;
-                        return (
-                          <div className="sales-ledger-sale" key={sale.id}>
-                            <div className="sales-ledger-sale-top">
-                              <div className="sales-ledger-sale-identity">
-                                <strong>{sale.items.map((item) => item.productName).join(", ") || "Tagihan"}</strong>
-                                <small>{formatDate(sale.date)} · Kredit {money(sale.totalAmount)}</small>
-                              </div>
-                              <div className="item-actions">
-                                <button className="sourcing-action-button sourcing-edit-button" type="button" aria-label={`Edit tagihan ${sale.id}`} onClick={() => onEdit(sale.id)}>
-                                  <Edit2 size={15} /> <span>Edit</span>
-                                </button>
-                                <button className="sourcing-action-button sourcing-delete-button" type="button" aria-label={`Hapus tagihan ${sale.id}`} onClick={() => onDelete(sale.id)}>
-                                  <Trash2 size={15} /> <span>Hapus</span>
-                                </button>
-                              </div>
-                            </div>
-                            <div className="sales-ledger-sale-payments">
-                              {([1, 2, 3] as const).map((paymentNumber) => (
-                                <div className="sales-payment-cell" key={paymentNumber}>
-                                  <span>Pembayaran {paymentNumber}</span>
-                                  {renderPaymentCell(sale, paymentNumber)}
+                  <details className="sales-ledger-paysection">
+                    <summary>
+                      <span>Catat pembayaran</span>
+                      <small>{group.debit > 0 ? `Sudah dibayar ${money(group.debit)}` : "Belum ada pembayaran"}</small>
+                    </summary>
+                    <div className="sales-ledger-sales">
+                      {sales
+                        .filter((sale) => !term || group.lines.some((line) => line.saleId === sale.id))
+                        .map((sale) => {
+                          const paid = sale.payment1 + sale.payment2 + sale.payment3;
+                          const remaining = sale.totalAmount - paid;
+                          return (
+                            <div className="sales-ledger-sale" key={sale.id}>
+                              <div className="sales-ledger-sale-top">
+                                <div className="sales-ledger-sale-identity">
+                                  <strong>{sale.items.map((item) => item.productName).join(", ") || "Tagihan"}</strong>
+                                  <small>{formatDate(sale.date)} · Kredit {money(sale.totalAmount)}</small>
                                 </div>
-                              ))}
+                                <div className="item-actions">
+                                  <button className="sourcing-action-button sourcing-edit-button" type="button" aria-label={`Edit tagihan ${sale.id}`} onClick={() => onEdit(sale.id)}>
+                                    <Edit2 size={15} /> <span>Edit</span>
+                                  </button>
+                                  <button className="sourcing-action-button sourcing-delete-button" type="button" aria-label={`Hapus tagihan ${sale.id}`} onClick={() => onDelete(sale.id)}>
+                                    <Trash2 size={15} /> <span>Hapus</span>
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="sales-ledger-sale-payments">
+                                {([1, 2, 3] as const).map((paymentNumber) => (
+                                  <div className="sales-payment-cell" key={paymentNumber}>
+                                    <span>Pembayaran {paymentNumber}</span>
+                                    {renderPaymentCell(sale, paymentNumber)}
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="sales-ledger-sale-foot">
+                                <span>Dibayar {money(paid)}</span>
+                                <b className={remaining > 0 ? "sourcing-outstanding" : "sourcing-paid"}>
+                                  {remaining > 0 ? `Sisa ${money(remaining)}` : "Lunas"}
+                                </b>
+                              </div>
                             </div>
-                            <div className="sales-ledger-sale-foot">
-                              <span>Dibayar {money(paid)}</span>
-                              <b className={remaining > 0 ? "sourcing-outstanding" : "sourcing-paid"}>
-                                {remaining > 0 ? `Sisa ${money(remaining)}` : "Lunas"}
-                              </b>
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
+                          );
+                        })}
+                    </div>
+                  </details>
                 </section>
               );
             })}
