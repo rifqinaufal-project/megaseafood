@@ -104,7 +104,6 @@ export function buildOverview(state: BusinessState, range: OverviewRange, asOf =
   const lapak = lapakFigures(state, keep);
   const sourcing = sourcingFigures(state, keep);
   const resto = restoFigures(state, keep);
-  const open = state.invoices.filter((item) => item.outstandingAmount > 0);
 
   const monthKeys = Array.from({ length: CHART_MONTHS }, (_, index) => {
     const date = new Date(Date.UTC(Number(asOf.slice(0, 4)), Number(asOf.slice(5, 7)) - 1 - (CHART_MONTHS - 1 - index), 1));
@@ -138,7 +137,6 @@ export function buildOverview(state: BusinessState, range: OverviewRange, asOf =
       { label: "Profit Lapak", value: money(lapak.profit), change: `${lapak.batches} batch`, detail: "komisi + penjualan − pengeluaran", tone: "soft", iconKey: "lapak" },
       { label: "Profit Resto & Online", value: money(resto.profit), change: `${resto.orders} pesanan`, detail: "setelah HPP dan biaya", tone: "soft", iconKey: "resto" },
       { label: "Pengadaan & Bengkelan", value: money(sourcing.total), change: `${sourcing.count} catatan`, detail: `terpisah dari profit · sisa ${money(sourcing.total - sourcing.paid)}`, tone: "soft", iconKey: "lapak" },
-      { label: "Piutang berjalan", value: money(sum(open, (item) => item.outstandingAmount)), change: `${open.length} invoice`, detail: open.length ? "perlu ditindaklanjuti" : "tidak ada tunggakan", tone: "warning", iconKey: "receivable" },
     ],
     activities: recentActivities(state),
     chart: {

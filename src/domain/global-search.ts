@@ -61,7 +61,7 @@ export function searchBusiness(state: BusinessState, query: string, limit = 18):
     const kindLabel = row.kind === "KREDIT" ? "Kredit" : "Debit";
     add({
       kind: "Buku Tagihan", title: row.customerName || "—", detail: `${row.date} · ${kindLabel} Rp ${formatRupiah(row.amount)}${row.note ? ` · ${row.note}` : ""}`,
-      module: "lapak", page: "Penjualan",
+      module: "lapak", page: "Tagihan",
     }, [row.customerName, row.date, row.id, row.note, kindLabel]);
   }
 

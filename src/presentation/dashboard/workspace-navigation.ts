@@ -11,7 +11,7 @@ export const workspaceNavLabels: Record<Module, readonly string[]> = {
   lapak: [
     "Dashboard",
     "Batch",
-    "Penjualan",
+    "Tagihan",
     "Komisi",
     "Pengadaan",
     "Pengeluaran",

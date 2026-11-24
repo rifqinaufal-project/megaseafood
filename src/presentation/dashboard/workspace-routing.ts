@@ -2,6 +2,8 @@ import type { Module } from "@/src/domain/dashboard";
 
 const lapakPages: Record<string, string> = {
   Batch: "Batches",
+  Tagihan: "B2C Sales",
+  // Legacy visible label kept resolvable for saved shortcuts and older links.
   Penjualan: "B2C Sales",
   Pengeluaran: "Expenses",
   Pengadaan: "Sourcing & Bengkelan",

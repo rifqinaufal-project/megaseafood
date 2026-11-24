@@ -5,7 +5,9 @@ import { buildOverview } from "../src/domain/overview";
 
 test("an empty account shows zero everywhere and no sample activity", () => {
   const overview = buildOverview(emptyBusinessState(), "Bulan ini", "2026-11-17");
-  assert.deepEqual(overview.stats.map((item) => item.value), ["Rp 0", "Rp 0", "Rp 0", "Rp 0", "Rp 0"]);
+  assert.deepEqual(overview.stats.map((item) => item.value), ["Rp 0", "Rp 0", "Rp 0", "Rp 0"]);
+  // Ringkasan Overview tidak lagi menampilkan kartu piutang; piutang hidup di modul Resto.
+  assert.equal(overview.stats.some((item) => item.label === "Piutang berjalan"), false);
   assert.equal(overview.activities.length, 0);
   assert.equal(overview.cashTotal, "Rp 0");
   assert.ok(overview.wallets.every((item) => item.amount === "Rp 0"));
@@ -19,8 +21,6 @@ test("overview figures are computed from the business data", () => {
   const state = seedBusinessState();
   const overview = buildOverview(state, "Tahun ini", "2026-06-30");
   assert.ok(overview.activities.length > 0);
-  assert.equal(overview.stats[4].value, "Rp 6.420.000");
-  assert.equal(overview.stats[4].change, "1 invoice");
   // Pengadaan gets its own card and never reduces profit.
   assert.equal(overview.stats[3].label, "Pengadaan & Bengkelan");
   assert.equal(overview.stats[3].value, "Rp 3.456.000");

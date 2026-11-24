@@ -17,7 +17,7 @@ test("workspace navigation has one clear menu per module", () => {
   assert.deepEqual(workspaceNavLabels.lapak, [
     "Dashboard",
     "Batch",
-    "Penjualan",
+    "Tagihan",
     "Komisi",
     "Pengadaan",
     "Pengeluaran",
@@ -43,7 +43,7 @@ test("visible workspace labels resolve to their existing page implementations", 
   const visiblePages: Record<Exclude<Module, "overview">, Record<string, string>> = {
     lapak: {
       Batch: "Batches",
-      Penjualan: "B2C Sales",
+      Tagihan: "B2C Sales",
       Komisi: "Commission",
       Pengadaan: "Sourcing & Bengkelan",
       Pengeluaran: "Expenses",
@@ -83,6 +83,8 @@ test("legacy page aliases remain resolvable", () => {
     assert.equal(resolveWorkspacePage("lapak", page), page);
   }
   assert.equal(resolveWorkspacePage("lapak", "Pengadaan"), "Sourcing & Bengkelan");
+  // Halaman Buku Tagihan sempat tampil sebagai "Penjualan"; shortcut lama tetap jalan.
+  assert.equal(resolveWorkspacePage("lapak", "Penjualan"), "B2C Sales");
   assert.equal(resolveWorkspacePage("lapak", "Bengkelan"), "Sourcing & Bengkelan");
   assert.equal(resolveWorkspacePage("lapak", "Laporan"), "Laporan Lapak");
   for (const page of [
