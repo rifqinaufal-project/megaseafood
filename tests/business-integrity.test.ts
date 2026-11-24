@@ -259,6 +259,26 @@ test("the invoice book is numbered and shows only name, date, credit, debit and 
   assert.match(html, /<td class="ledger-no-cell" data-label="No">1<\/td>/);
 });
 
+test("the Tambah tagihan dialog is an invoice form, not the product entry form", () => {
+  const { commands, getState } = memoryCommands();
+  const html = renderToStaticMarkup(createElement(WorkspacePage, { module: "lapak", page: "Penjualan", business: getState(), commands, onNotify: () => {}, initialFormOpen: true }));
+  assert.match(html, /<h2>Tambah tagihan<\/h2>/);
+  assert.match(html, /Detail tagihan/);
+  assert.match(html, /Kredit \/ nilai tagihan/);
+  for (const legacy of [
+    "item transaksi",
+    "Item 1",
+    "Product Name",
+    "Quantity",
+    "Unit Cost",
+    "Tambah item",
+    "Simpan 1 item",
+    "Pembayaran customer",
+  ])
+    assert.ok(!html.includes(legacy), `the invoice dialog must not show "${legacy}"`);
+  assert.match(html, /Simpan tagihan/);
+});
+
 test("legacy lapak sales migrate to named customers with their payments intact", () => {
   const initial = seedBusinessState();
   const legacy = {

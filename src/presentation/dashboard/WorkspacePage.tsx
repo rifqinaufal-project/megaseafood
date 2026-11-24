@@ -198,7 +198,7 @@ function fieldLabel(key: string) {
   if (key === "paidAmount") return "Sudah dibayar";
   const labels: Record<string, string> = {
     sourceType: "Sumber",
-    customerName: "Customer",
+    customerName: "Nama",
     name: "Nama",
     type: "Jenis",
     weight: "Bobot",
@@ -210,6 +210,12 @@ function fieldLabel(key: string) {
     payment2Date: "Tanggal pembayaran 2",
     payment3: "Pembayaran 3",
     payment3Date: "Tanggal pembayaran 3",
+    productName: "Produk",
+    quantity: "Qty",
+    unit: "Satuan",
+    date: "Tanggal",
+    sellingPrice: "Kredit / nilai tagihan",
+    unitCost: "Harga modal",
     note: "Catatan",
   };
   if (labels[key]) return labels[key];
@@ -282,6 +288,25 @@ function Field({
   );
 }
 
+/** The invoice book form posts straight to the ledger: one row per sale entry. */
+function invoiceInput(item: FormValue | Record<string, string>) {
+  return {
+    date: item.date || today(),
+    productName: item.productName || "",
+    customerName: item.customerName || "",
+    quantity: asNumber(item.quantity || "0"),
+    unit: item.unit || "kg",
+    sellingPrice: asMoney(item.sellingPrice || ""),
+    unitCost: asMoney(item.unitCost || ""),
+    payment1: asMoney(item.payment1 || ""),
+    payment1Date: item.payment1Date || "",
+    payment2: asMoney(item.payment2 || ""),
+    payment2Date: item.payment2Date || "",
+    payment3: asMoney(item.payment3 || ""),
+    payment3Date: item.payment3Date || "",
+  };
+}
+
 function ModalForm({
   page,
   state,
@@ -299,10 +324,10 @@ function ModalForm({
   initialBatchId?: string;
   editRecord?: EditRecord;
 }) {
+  const isInvoice = page === "B2C Sales";
   const isMultiItem = [
     "Expenses",
     "Commission",
-    "B2C Sales",
     "Sourcing & Bengkelan",
   ].includes(page);
   const createItem = (): FormValue => ({
@@ -484,26 +509,6 @@ function ModalForm({
               ? commands.updateSourcing(editRecord.id, input)
               : commands.addSourcing(input);
           }
-          if (page === "B2C Sales") {
-            const input = {
-              date: item.date || today(),
-              productName: item.productName || "",
-              customerName: item.customerName || "",
-              quantity: asNumber(item.quantity || "0"),
-              unit: item.unit || "kg",
-              sellingPrice: asMoney(item.sellingPrice || ""),
-              unitCost: asMoney(item.unitCost || ""),
-              payment1: asMoney(item.payment1 || ""),
-              payment1Date: item.payment1Date || "",
-              payment2: asMoney(item.payment2 || ""),
-              payment2Date: item.payment2Date || "",
-              payment3: asMoney(item.payment3 || ""),
-              payment3Date: item.payment3Date || "",
-            };
-            result = editRecord
-              ? commands.updateLapakSale(editRecord.id, input)
-              : commands.addLapakSale(input);
-          }
           if (page === "Expenses") {
             const input = {
               batchId: item.batchId,
@@ -535,6 +540,10 @@ function ModalForm({
       return;
     }
     let result = { ok: false, message: "Form belum didukung" };
+    if (isInvoice)
+      result = editRecord
+        ? commands.updateLapakSale(editRecord.id, invoiceInput(form))
+        : commands.addLapakSale(invoiceInput(form));
     if (page === "Batches")
       result = commands.createBatch({
         startDate: form.startDate || today(),
@@ -789,60 +798,90 @@ function ModalForm({
               />
             </>
           )}
-          {page === "B2C Sales" && (
-            <>
-              <Field
-                name="customerName"
-                suggestions={recentSuggestions(state.lapakSales.map((entry) => entry.customerName))}
-                value={item.customerName || ""}
-                onChange={(value) => setItem(index, "customerName", value)}
-                placeholder="Nama customer"
-                required
-              />
-              <Field
-                name="productName"
-                suggestions={recentSuggestions(state.lapakSales.flatMap((entry) => entry.items.map((line) => line.productName)))}
-                value={item.productName || ""}
-                onChange={(value) => setItem(index, "productName", value)}
-                placeholder="Nama produk"
-              />
-              <Field
-                name="quantity"
-                type="number"
-                value={item.quantity || ""}
-                onChange={(value) => setItem(index, "quantity", value)}
-              />
-              <Field
-                name="sellingPrice"
-                type="number"
-                value={item.sellingPrice || ""}
-                onChange={(value) => setItem(index, "sellingPrice", value)}
-              />
-              <Field
-                name="unitCost"
-                type="number"
-                value={item.unitCost || ""}
-                onChange={(value) => setItem(index, "unitCost", value)}
-              />
-              <div className="sales-payment-form-section">
-                <div className="sourcing-form-section-heading">
-                  <strong>Pembayaran customer</strong>
-                  <span>Catat sampai tiga tahap untuk buku tagihan.</span>
-                </div>
-                <div className="sourcing-payment-list">
-                  {([1, 2, 3] as const).map((paymentNumber) =>
-                    renderSourcingPayment(item, index, paymentNumber),
-                  )}
-                </div>
-              </div>
-            </>
-          )}
         </div>
       )}
     </div>
   );
 
   const renderSingleFields = () => {
+    if (isInvoice)
+      return (
+        <>
+          <section className="tagihan-section">
+            <div className="sourcing-form-section-heading">
+              <strong>Detail tagihan</strong>
+              <span>Untuk siapa tagihan ini dan berapa nilainya.</span>
+            </div>
+            <div className="form-grid">
+              <Field
+                name="customerName"
+                suggestions={recentSuggestions(state.lapakSales.map((entry) => entry.customerName))}
+                value={form.customerName || ""}
+                onChange={(value) => set("customerName", value)}
+                placeholder="Nama customer"
+                required
+              />
+              <Field
+                name="date"
+                type="date"
+                value={form.date || ""}
+                onChange={(value) => set("date", value)}
+              />
+              <Field
+                name="sellingPrice"
+                type="number"
+                value={form.sellingPrice || ""}
+                onChange={(value) => set("sellingPrice", value)}
+                placeholder="Jumlah tagihan"
+              />
+              <Field
+                name="productName"
+                suggestions={recentSuggestions(state.lapakSales.flatMap((entry) => entry.items.map((line) => line.productName)))}
+                value={form.productName || ""}
+                onChange={(value) => set("productName", value)}
+                placeholder="Keterangan, mis. Udang 2 kg"
+              />
+              <input
+                type="hidden"
+                name="quantity"
+                value={form.quantity || "1"}
+                onChange={() => undefined}
+              />
+            </div>
+          </section>
+          <section className="tagihan-section">
+            <div className="sourcing-form-section-heading">
+              <strong>Pembayaran</strong>
+              <span>Catat sampai tiga tahap. Kosongkan kalau belum ada pembayaran.</span>
+            </div>
+            <div className="sourcing-payment-list">
+              {([1, 2, 3] as const).map((paymentNumber) => (
+                <div className="sourcing-payment-block" key={paymentNumber}>
+                  <div className="sourcing-payment-heading">
+                    <strong>Tahap pembayaran {paymentNumber}</strong>
+                    <span>{paymentNumber === 1 ? "Pembayaran awal" : "Opsional"}</span>
+                  </div>
+                  <div className="sourcing-payment-fields">
+                    <Field
+                      name={`payment${paymentNumber}`}
+                      type="number"
+                      value={form[`payment${paymentNumber}`] || ""}
+                      onChange={(value) => set(`payment${paymentNumber}`, value)}
+                      placeholder="0"
+                    />
+                    <Field
+                      name={`payment${paymentNumber}Date`}
+                      type="date"
+                      value={form[`payment${paymentNumber}Date`] || ""}
+                      onChange={(value) => set(`payment${paymentNumber}Date`, value)}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </>
+      );
     if (page === "Batches")
       return (
         <>
@@ -1101,9 +1140,11 @@ function ModalForm({
             <p className="eyebrow">
               {editRecord
                 ? "Edit data"
-                : isMultiItem
-                  ? `${items.length} item transaksi`
-                  : "Local workspace"}
+                : isInvoice
+                  ? "Buku tagihan"
+                  : isMultiItem
+                    ? `${items.length} item transaksi`
+                    : "Local workspace"}
             </p>
             <h2>
               {editRecord
@@ -1123,12 +1164,16 @@ function ModalForm({
         <p className="modal-copy">
           {editRecord
             ? "Perbaiki data yang tersimpan lalu simpan perubahan."
-            : isMultiItem
-              ? "Tambahkan beberapa item sekaligus, lalu simpan dalam satu proses."
-              : "Data tersimpan di browser ini."}
+            : isInvoice
+              ? "Isi nama, tanggal, jumlah tagihan, dan pembayaran yang sudah diterima."
+              : isMultiItem
+                ? "Tambahkan beberapa item sekaligus, lalu simpan dalam satu proses."
+                : "Data tersimpan di browser ini."}
         </p>
         <form onSubmit={submit}>
-          {isMultiItem ? (
+          {isInvoice ? (
+            <div className="tagihan-form">{renderSingleFields()}</div>
+          ) : isMultiItem ? (
             <>
               <div className="multi-item-list">
                 {items.map(renderItemFields)}
@@ -1160,9 +1205,11 @@ function ModalForm({
               <Plus size={16} />{" "}
               {editRecord
                 ? "Simpan perubahan"
-                : isMultiItem
-                  ? `Simpan ${items.length} item`
-                  : "Simpan"}
+                : isInvoice
+                  ? "Simpan tagihan"
+                  : isMultiItem
+                    ? `Simpan ${items.length} item`
+                    : "Simpan"}
             </button>
           </div>
         </form>

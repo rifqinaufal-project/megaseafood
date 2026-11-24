@@ -307,6 +307,10 @@ button { cursor: pointer; }
 .sales-ledger-table td:nth-child(4), .sales-ledger-table td:nth-child(5), .sales-ledger-table td:nth-child(6) { text-align: right; }
 .sales-ledger-table .ledger-no-cell { width: 46px; color: var(--faint); text-align: center; font-variant-numeric: tabular-nums; }
 .sales-ledger-payment-row td { background: #fafbfd; color: var(--muted); }
+.tagihan-form { display: flex; flex-direction: column; gap: 18px; }
+.tagihan-section { padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: #fafaf8; }
+.tagihan-section .sourcing-form-section-heading { margin-bottom: 12px; }
+.tagihan-form .form-grid { gap: 12px; }
 .sales-ledger-panel-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .sales-ledger-panel-actions .primary-button { height: 38px; padding: 0 16px; font-size: 12.5px; box-shadow: none; }
 .sales-ledger-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border-radius: 12px; background: #fdf6cf; }
