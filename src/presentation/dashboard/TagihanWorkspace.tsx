@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -35,6 +36,8 @@ type Props = {
 };
 
 const PAGE_SIZE = 25;
+const portalReady =
+  typeof document !== "undefined" ? createPortal !== undefined : false;
 const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
 export function formatLedgerDate(value: string) {
@@ -211,39 +214,46 @@ export default function TagihanWorkspace({ business, commands, onNotify, initial
         </div>
       </div>
 
-      <div className="resource-stats ledger-stats">
-        <div className="resource-stat ledger-stat">
-          <span className="ledger-stat-icon"><Users size={16} /></span>
-          <div>
-            <span>Total Pelanggan</span>
-            <strong>{totals.customers.toLocaleString("id-ID")}</strong>
-            <small>pelanggan dengan catatan tagihan</small>
+      <div className="resource-stats metric-grid ledger-stats">
+        {[
+          {
+            title: "Total Pelanggan",
+            value: totals.customers.toLocaleString("id-ID"),
+            detail: "pelanggan dengan catatan tagihan",
+            icon: <Users size={16} />,
+            tone: "",
+          },
+          {
+            title: "Total Kredit",
+            value: money(totals.credit),
+            detail: "akumulasi tagihan",
+            icon: <ArrowUpRight size={16} />,
+            tone: "is-credit",
+          },
+          {
+            title: "Total Debit",
+            value: money(totals.debit),
+            detail: "akumulasi pembayaran",
+            icon: <ArrowDownLeft size={16} />,
+            tone: "is-debit",
+          },
+          {
+            title: "Total Restan",
+            value: money(totals.restan),
+            detail: "kredit dikurangi debit",
+            icon: <Wallet size={16} />,
+            tone: totals.restan > 0 ? "is-open" : "is-settled",
+          },
+        ].map((card) => (
+          <div className="resource-stat metric-card ledger-stat" key={card.title}>
+            <div className="metric-head">
+              <span>{card.title}</span>
+              <i className={`metric-icon${card.tone ? ` ${card.tone}` : ""}`}>{card.icon}</i>
+            </div>
+            <strong className={card.tone || undefined}>{card.value}</strong>
+            <small>{card.detail}</small>
           </div>
-        </div>
-        <div className="resource-stat ledger-stat ledger-stat-credit">
-          <span className="ledger-stat-icon"><ArrowUpRight size={16} /></span>
-          <div>
-            <span>Total Kredit</span>
-            <strong>{money(totals.credit)}</strong>
-            <small>akumulasi tagihan</small>
-          </div>
-        </div>
-        <div className="resource-stat ledger-stat ledger-stat-debit">
-          <span className="ledger-stat-icon"><ArrowDownLeft size={16} /></span>
-          <div>
-            <span>Total Debit</span>
-            <strong>{money(totals.debit)}</strong>
-            <small>akumulasi pembayaran</small>
-          </div>
-        </div>
-        <div className="resource-stat ledger-stat ledger-stat-restan">
-          <span className="ledger-stat-icon"><Wallet size={16} /></span>
-          <div>
-            <span>Total Restan</span>
-            <strong className={totals.restan > 0 ? "stat-warn" : "stat-ok"}>{money(totals.restan)}</strong>
-            <small>kredit dikurangi debit</small>
-          </div>
-        </div>
+        ))}
       </div>
 
       <section className="panel resource-panel ledger-panel">
@@ -562,7 +572,7 @@ function LedgerForm({
     if (result.ok) onClose();
   };
 
-  return (
+  const modal = (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
       <div className="form-modal ledger-form" role="dialog" aria-modal="true" aria-labelledby="ledger-form-title" onMouseDown={(event) => event.stopPropagation()}>
         <div className="modal-head">
@@ -668,4 +678,5 @@ function LedgerForm({
       </div>
     </div>
   );
+  return portalReady ? createPortal(modal, document.body) : modal;
 }
