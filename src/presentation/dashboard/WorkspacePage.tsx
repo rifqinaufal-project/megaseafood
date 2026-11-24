@@ -32,7 +32,6 @@ import { resolveWorkspacePage } from "@/src/presentation/dashboard/workspace-rou
 import {
   groupByMonth,
   inRange,
-  periodLabel,
   periodRange,
   type DateRange,
   type LapakPeriod,
@@ -1522,22 +1521,20 @@ function BatchListPage({
           <h1>Batch Lapak</h1>
           <p>Lihat pendapatan dan biaya untuk setiap batch.</p>
         </div>
+        <button className="primary-button" type="button" onClick={onCreate}>
+          <Plus size={16} /> Buat batch
+        </button>
+      </div>
+      <div className="lapak-period-bar batch-period-row">
         <LapakPeriodControl
           period={period}
           anchor={anchor}
           onPeriod={setPeriod}
           onAnchor={setAnchor}
-          showAnchor={false}
+          showAnchor
+          variant="bar"
         />
-        <button className="primary-button" type="button" onClick={onCreate}>
-          <Plus size={16} /> Buat batch
-        </button>
       </div>
-      <p className="period-caption">
-        {period === "Semua"
-          ? "Dikelompokkan per bulan"
-          : `Periode ${periodLabel(period, anchor).toLowerCase()}`}
-      </p>
       <section className="panel resource-panel">
         <div className="panel-heading">
           <div>
