@@ -2570,9 +2570,12 @@ export default function WorkspacePage({
   const [formBatchId, setFormBatchId] = useState<string | undefined>(
     initialBatchId,
   );
-  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(
-    initialBatchId ?? null,
-  );
+  // Detail navigation is controlled by the URL in the app. Keep a local
+  // fallback only for isolated renders that do not provide onNavigate.
+  const [uncontrolledBatchId, setUncontrolledBatchId] = useState<
+    string | undefined
+  >();
+  const activeBatchId = initialBatchId ?? uncontrolledBatchId;
   const [editingBatchId, setEditingBatchId] = useState<string | null>(null);
   const [editRecord, setEditRecord] = useState<EditRecord | undefined>();
   const [createBatchMode, setCreateBatchMode] = useState(initialCreateBatch);
@@ -2619,7 +2622,7 @@ export default function WorkspacePage({
       return;
     }
     setFormPage(resolveWorkspacePage(module, targetPage));
-    setFormBatchId(batchId ?? selectedBatchId ?? undefined);
+    setFormBatchId(batchId ?? activeBatchId);
     setEditRecord(undefined);
     setFormOpen(true);
   };
@@ -2650,11 +2653,14 @@ export default function WorkspacePage({
     onNotify(result.message, result.ok ? "success" : "error");
     if (result.ok && result.id) {
       setCreateBatchMode(false);
-      setSelectedBatchId(result.id);
       setFormPage(targetPage);
       setFormBatchId(result.id);
       setFormOpen(true);
-      onNavigate?.("lapak", "Batch", true, undefined, result.id, targetPage);
+      if (onNavigate) {
+        onNavigate("lapak", "Batch", true, undefined, result.id, targetPage);
+      } else {
+        setUncontrolledBatchId(result.id);
+      }
     }
   };
   const restoProps = { state: business, commands, onNotify, initialFormOpen };
@@ -2700,7 +2706,7 @@ export default function WorkspacePage({
   if (
     effectivePage === "Batches" &&
     createBatchMode &&
-    !selectedBatchId &&
+    !activeBatchId &&
     !editingBatchId
   )
     return (
@@ -2713,7 +2719,7 @@ export default function WorkspacePage({
           if (onNavigate) {
             onNavigate("lapak", "Batch", false, undefined, batchId);
           } else {
-            setSelectedBatchId(batchId);
+            setUncontrolledBatchId(batchId);
           }
         }}
         onCreateAndAdd={createAndAdd}
@@ -2795,20 +2801,20 @@ export default function WorkspacePage({
         )}
       </>
     );
-  if (effectivePage === "Batches" && selectedBatchId)
+  if (effectivePage === "Batches" && activeBatchId)
     return (
       <div className="workspace-page">
         <BatchDetail
-          batchId={selectedBatchId}
+          batchId={activeBatchId}
           state={business}
           onBack={() => {
             if (onNavigate) {
               onNavigate("lapak", "Batch");
             } else {
-              setSelectedBatchId(null);
+              setUncontrolledBatchId(undefined);
             }
           }}
-          onAdd={(targetPage) => openForm(targetPage, selectedBatchId)}
+          onAdd={(targetPage) => openForm(targetPage, activeBatchId)}
           onEdit={editLapakRecord}
           onDelete={deleteLapakRecord}
         />
@@ -2833,13 +2839,11 @@ export default function WorkspacePage({
       <BatchListPage
         state={business}
         onCreate={() => setCreateBatchMode(true)}
-        onOpen={(id) => {
-          if (onNavigate) {
-            onNavigate("lapak", "Batch", false, undefined, id);
-          } else {
-            setSelectedBatchId(id);
-          }
-        }}
+        onOpen={(id) =>
+          onNavigate
+            ? onNavigate("lapak", "Batch", false, undefined, id)
+            : setUncontrolledBatchId(id)
+        }
         onEdit={(id) => setEditingBatchId(id)}
         onDelete={(id) => {
           if (!window.confirm("Hapus batch beserta seluruh transaksinya?"))
@@ -3055,8 +3059,13 @@ export default function WorkspacePage({
                   className={effectivePage === "Batches" ? "clickable-row" : ""}
                   key={`${row[0]}-${rowIndex}`}
                   onClick={() => {
-                    if (effectivePage === "Batches")
-                      setSelectedBatchId(String(row[row.length - 1]));
+                    if (effectivePage !== "Batches") return;
+                    const batchId = String(row[row.length - 1]);
+                    if (onNavigate) {
+                      onNavigate("lapak", "Batch", false, undefined, batchId);
+                    } else {
+                      setUncontrolledBatchId(batchId);
+                    }
                   }}
                 >
                   {row.map((cell, index) => (
@@ -3071,7 +3080,18 @@ export default function WorkspacePage({
                           type="button"
                           onClick={(event) => {
                             event.stopPropagation();
-                            setSelectedBatchId(String(cell));
+                            const batchId = String(cell);
+                            if (onNavigate) {
+                              onNavigate(
+                                "lapak",
+                                "Batch",
+                                false,
+                                undefined,
+                                batchId,
+                              );
+                            } else {
+                              setUncontrolledBatchId(batchId);
+                            }
                           }}
                         >
                           Lihat detail

@@ -1855,9 +1855,12 @@ export default function InvoiceWorkspace({
         ? "create"
         : "list",
   );
-  const [selectedId, setSelectedId] = useState<string | undefined>(
-    initialInvoiceId,
-  );
+  // Direct detail routes are controlled by initialInvoiceId. The local value
+  // only bridges an isolated render until its navigation callback updates the
+  // URL.
+  const [uncontrolledInvoiceId, setUncontrolledInvoiceId] = useState<
+    string | undefined
+  >();
   const [paymentForm, setPaymentForm] = useState<{
     invoiceId?: string;
     payment?: Payment;
@@ -1868,9 +1871,10 @@ export default function InvoiceWorkspace({
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("ALL");
   const [pageNumber, setPageNumber] = useState(1);
-  const invoice = business.invoices.find((item) => item.id === selectedId);
+  const invoiceId = initialInvoiceId ?? uncontrolledInvoiceId;
+  const invoice = business.invoices.find((item) => item.id === invoiceId);
   const showInvoice = (id: string) => {
-    setSelectedId(id);
+    setUncontrolledInvoiceId(id);
     setView("detail");
     setPaymentForm(null);
     setDeleteOpen(false);
@@ -1885,6 +1889,13 @@ export default function InvoiceWorkspace({
       return;
     }
     navigate(() => showInvoice(id));
+  };
+  const backToInvoiceList = () => {
+    setUncontrolledInvoiceId(undefined);
+    setPaymentForm(null);
+    setDeleteOpen(false);
+    setView("list");
+    onNavigate?.("resto", "Invoice");
   };
   const requestPayment = (form: { invoiceId?: string; payment?: Payment }) =>
     navigate(() => {
@@ -1932,13 +1943,7 @@ export default function InvoiceWorkspace({
                 })
               }
               onBack={() =>
-                onNavigate
-                  ? onNavigate("resto", "Invoice")
-                  : navigate(() => {
-                      setPaymentForm(null);
-                      setDeleteOpen(false);
-                      setView("list");
-                    })
+                onNavigate ? backToInvoiceList() : navigate(backToInvoiceList)
               }
               onPayment={() => requestPayment({ invoiceId: invoice.id })}
               onDelete={() =>
@@ -1965,6 +1970,7 @@ export default function InvoiceWorkspace({
                 onCancel={() => setDeleteOpen(false)}
                 onDeleted={() => {
                   setDeleteOpen(false);
+                  setUncontrolledInvoiceId(undefined);
                   if (onNavigate) {
                     onNavigate("resto", "Invoice");
                   } else {
@@ -1980,7 +1986,9 @@ export default function InvoiceWorkspace({
             <button
               className="secondary-outline-button"
               type="button"
-              onClick={() => setView("list")}
+              onClick={() =>
+                onNavigate ? backToInvoiceList() : setView("list")
+              }
             >
               Kembali ke daftar
             </button>
@@ -2035,15 +2043,19 @@ export default function InvoiceWorkspace({
   const paymentPage = paginate(payments, pageNumber);
   const tabLabel = (label: string, count?: number) =>
     count === undefined ? label : `${label} ${count}`;
-  const goInvoice = (id: string, next: "detail" | "edit" | "delete") =>
-    next === "detail" && onNavigate
-      ? onNavigate("resto", "Invoice", false, id)
-      : navigate(() => {
-          setSelectedId(id);
-          setPaymentForm(null);
-          setDeleteOpen(next === "delete");
-          setView(next === "edit" ? "edit" : "detail");
-        });
+  const goInvoice = (id: string, next: "detail" | "edit" | "delete") => {
+    if (next === "detail" && onNavigate) {
+      setUncontrolledInvoiceId(id);
+      onNavigate("resto", "Invoice", false, id);
+      return;
+    }
+    navigate(() => {
+      setUncontrolledInvoiceId(id);
+      setPaymentForm(null);
+      setDeleteOpen(next === "delete");
+      setView(next === "edit" ? "edit" : "detail");
+    });
+  };
   const exportInvoices = () => {
     downloadCsv(
       "invoice-resto",

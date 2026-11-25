@@ -4,6 +4,7 @@ import type { Module } from "../src/domain/dashboard";
 import {
   dashboardLocationFromPath,
   dashboardPathForTarget,
+  resolveDashboardRoute,
   resolveWorkspacePage,
 } from "../src/presentation/dashboard/workspace-routing";
 import {
@@ -158,4 +159,58 @@ test("dashboard routes round-trip visible workspace navigation", () => {
     module: "resto",
     page: "Invoice",
   });
+});
+
+test("legacy dashboard slugs resolve to canonical redirects", () => {
+  const legacyRoutes = [
+    ["lapak/batches", "/dashboard/lapak/batch"],
+    ["lapak/b2c-sales", "/dashboard/lapak/tagihan"],
+    ["resto/invoices/inv-1", "/dashboard/resto/invoice/inv-1"],
+    ["resto/operating-expenses", "/dashboard/resto/pengeluaran"],
+    ["overview", "/dashboard"],
+  ] as const;
+
+  for (const [segments, canonicalPath] of legacyRoutes) {
+    const route = resolveDashboardRoute(segments.split("/"));
+    assert.ok(route);
+    assert.equal(route.isCanonical, false);
+    assert.equal(route.canonicalPath, canonicalPath);
+  }
+});
+
+test("unknown dashboard slugs and extra segments are invalid", () => {
+  for (const pathname of [
+    "/dashboard/unknown",
+    "/dashboard/lapak/not-a-page",
+    "/dashboard/resto/invoice/inv-1/extra",
+    "/dashboard/lapak/komisi/batch-42",
+    "/dashboard/overview/aktivitas/extra",
+  ]) {
+    assert.equal(dashboardLocationFromPath(pathname), null, pathname);
+  }
+
+  assert.equal(resolveDashboardRoute(["lapak", "batch", ""]), null);
+});
+
+test("detail identifiers are accepted only by their detail routes", () => {
+  assert.deepEqual(
+    dashboardLocationFromPath("/dashboard/lapak/batch/batch%2F42"),
+    { module: "lapak", page: "Batch", batchId: "batch/42" },
+  );
+  assert.deepEqual(
+    dashboardLocationFromPath("/dashboard/resto/invoice/inv-1"),
+    { module: "resto", page: "Invoice", invoiceId: "inv-1" },
+  );
+  assert.equal(
+    dashboardLocationFromPath("/dashboard/lapak/komisi/batch-42"),
+    null,
+  );
+  assert.equal(
+    dashboardLocationFromPath("/dashboard/resto/pembayaran/inv-1"),
+    null,
+  );
+  assert.equal(
+    dashboardPathForTarget("lapak", "Batch", undefined, "batch/42"),
+    "/dashboard/lapak/batch/batch%2F42",
+  );
 });

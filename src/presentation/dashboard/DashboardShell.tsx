@@ -950,7 +950,11 @@ function DashboardContent({ session }: { session: BusinessSession }) {
   const pathname = usePathname();
   const router = useRouter();
   const location = useMemo(
-    () => dashboardLocationFromPath(pathname),
+    () =>
+      dashboardLocationFromPath(pathname) ?? {
+        module: "overview" as const,
+        page: null,
+      },
     [pathname],
   );
   const requestId = useRef(0);
@@ -976,28 +980,13 @@ function DashboardContent({ session }: { session: BusinessSession }) {
     page: string;
     id: number;
     openForm: boolean;
-    invoiceId?: string;
-    batchId?: string;
     formPage?: string;
   } | null>(null);
-  const routeRequest = useMemo(() => {
-    if (!location.invoiceId && !location.batchId) return null;
-    return {
-      module: location.module,
-      page: location.page ?? "",
-      id: 0,
-      openForm: false,
-      invoiceId: location.invoiceId,
-      batchId: location.batchId,
-      formPage: undefined,
-    };
-  }, [location]);
   const createRequest =
-    routeRequest ??
-    (pendingRequest?.module === activeModule &&
+    pendingRequest?.module === activeModule &&
     pendingRequest.page === (activeNav ?? "")
       ? pendingRequest
-      : null);
+      : null;
   const [toast, setToast] = useState<{
     message: string;
     tone: "success" | "error" | "info";
@@ -1052,14 +1041,12 @@ function DashboardContent({ session }: { session: BusinessSession }) {
     router.push(dashboardPathForTarget(nextModule, page, invoiceId, batchId));
     setShowQuickAdd(false);
     setPendingRequest(
-      openForm || invoiceId || batchId
+      openForm
         ? {
             module: nextModule,
             page,
             id: ++requestId.current,
             openForm,
-            invoiceId,
-            batchId,
             formPage,
           }
         : null,
@@ -1331,7 +1318,7 @@ function DashboardContent({ session }: { session: BusinessSession }) {
             <RestoDashboardPage business={business} onNavigate={navigateTo} />
           ) : (
             <WorkspacePage
-              key={`${activeModule}-${activeNav}-${createRequest?.id || createRequest?.invoiceId || createRequest?.batchId || "view"}`}
+              key={`${activeModule}-${activeNav}-${location.invoiceId ?? location.batchId ?? createRequest?.id ?? "view"}`}
               module={activeModule}
               page={activeNav ?? ""}
               business={business}
@@ -1344,13 +1331,13 @@ function DashboardContent({ session }: { session: BusinessSession }) {
                 createRequest.page === activeNav &&
                 createRequest.openForm
               }
-              initialInvoiceId={createRequest?.invoiceId}
-              initialBatchId={createRequest?.batchId}
+              initialInvoiceId={location.invoiceId}
+              initialBatchId={location.batchId}
               initialFormPage={createRequest?.formPage}
               initialCreateBatch={
                 createRequest?.module === "lapak" &&
                 createRequest.openForm &&
-                !createRequest.batchId &&
+                !location.batchId &&
                 (createRequest.page === "Batch" ||
                   createRequest.page === "Batches")
               }
