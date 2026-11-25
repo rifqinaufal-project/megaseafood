@@ -25,6 +25,20 @@ test("a product can be added from scratch with auto SKU and no stock", () => {
   assert.equal(commands.addProduct(productInput).ok, false);
 });
 
+test("a non-stock product uses manual cost and cannot enter stock workflows", () => {
+  const { commands, getState } = fixture();
+  const result = commands.addProduct({ name: "Saus Sambal", category: "Lainnya", unit: "botol", sellingPrice: 100000, trackStock: false, manualCost: 60000, minimumStock: 10 });
+  assert.equal(result.ok, true);
+  const product = getState().products.find((item) => item.id === result.id)!;
+  assert.equal(product.trackStock, false);
+  assert.equal(product.manualCost, 60000);
+  assert.equal(product.minimumStock, 0);
+  assert.equal(commands.adjustStock(product.id, { actualQuantity: 1, minimumStock: 1, notes: "uji" }).message, "Produk ini tidak menggunakan pengelolaan stok dan tidak dapat disesuaikan stoknya.");
+  assert.equal(commands.receiveStock({ supplierId: "supplier-1", date: "2026-11-11", productId: product.id, manualWeight: 1, digitalWeight: 1, unitPurchasePrice: 60000, paidAmount: 0 }).message, "Produk ini tidak menggunakan pengelolaan stok dan tidak dapat menerima stok.");
+  assert.equal(getState().receipts.length, 0);
+  assert.equal(getState().stockMovements.length, 0);
+});
+
 test("a product can be edited, deactivated, and only deleted while it has no history", () => {
   const { commands, getState } = fixture();
   const id = commands.addProduct(productInput).id!;
@@ -167,6 +181,8 @@ test("data saved by the previous version migrates in place with defaults", () =>
   const migrated = normalizeBusinessState(legacy);
   assert.equal(migrated.products[0].size, "");
   assert.equal(migrated.products[0].latestPurchaseCost, migrated.products[0].averageHpp);
+  assert.equal(migrated.products[0].trackStock, true);
+  assert.equal(migrated.products[0].manualCost, 0);
   assert.equal(migrated.suppliers[0].address, "");
   assert.equal(migrated.restaurants[0].notes, "");
   assert.deepEqual(migrated.stockMovements, []);

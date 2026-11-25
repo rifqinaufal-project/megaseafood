@@ -173,7 +173,7 @@ export function calculateInvoice(
   for (const [id, quantity] of Object.entries(quantities)) {
     const product = state.products.find((item) => item.id === id);
     const available = (product?.stockBalance ?? 0) + (oldQuantities[id] ?? 0);
-    if (product && quantity > available + 1e-9)
+    if (product && product.trackStock !== false && quantity > available + 1e-9)
       input.items.forEach((line, index) => {
         if (line.productId === id)
           errors[`items.${index}.quantity`] =
@@ -186,10 +186,11 @@ export function calculateInvoice(
     const oldQuantity = oldQuantities[id] ?? 0;
     const product = state.products.find((item) => item.id === id);
     const retained = Math.min(oldQuantity, quantity);
+    const currentCost = product?.trackStock === false ? (product.manualCost ?? 0) : (product?.averageHpp ?? 0);
     unitCosts[id] =
       quantity > 0
         ? ((oldQuantity > 0 ? (retained * oldCosts[id]) / oldQuantity : 0) +
-            Math.max(0, quantity - oldQuantity) * (product?.averageHpp ?? 0)) /
+            Math.max(0, quantity - oldQuantity) * currentCost) /
           quantity
         : 0;
   }
@@ -241,7 +242,7 @@ export function calculateInvoice(
   const products = state.products.map((product) => {
     const oldQty = oldQuantities[product.id] ?? 0;
     const newQty = quantities[product.id] ?? 0;
-    if (!oldQty && !newQty) return product;
+    if (product.trackStock === false || (!oldQty && !newQty)) return product;
     const stockBalance = Math.max(
       0,
       Number((product.stockBalance + oldQty - newQty).toFixed(9)),
@@ -276,6 +277,7 @@ export function calculateInvoice(
 
 export function restoreInvoiceStock(state: BusinessState, invoice: Invoice) {
   return state.products.map((product) => {
+    if (product.trackStock === false) return product;
     const lines = invoice.items.filter((item) => item.productId === product.id);
     if (!lines.length) return product;
     const returnedQuantity = lines.reduce(

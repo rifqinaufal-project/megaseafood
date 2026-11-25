@@ -28,7 +28,7 @@ export function searchBusiness(state: BusinessState, query: string, limit = 18):
   }, [invoice.invoiceNumber, invoice.customerName, invoice.date, ...invoice.items.map((item) => item.productName)]);
 
   for (const product of state.products) add({
-    kind: "Produk", title: product.name, detail: `${product.sku} · ${product.category} · Stok ${product.stockBalance} ${product.unit}`,
+    kind: "Produk", title: product.name, detail: product.trackStock === false ? `${product.sku} · ${product.category} · Non-stok` : `${product.sku} · ${product.category} · Stok ${product.stockBalance} ${product.unit}`,
     module: "resto", page: "Stok",
   }, [product.name, product.sku, product.category, product.size]);
 

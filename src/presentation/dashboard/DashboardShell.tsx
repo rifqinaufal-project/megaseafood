@@ -673,6 +673,7 @@ function OverviewAttentionPanel({
   const lowStockProducts = business.products.filter(
     (product) =>
       product.status === "ACTIVE" &&
+      product.trackStock !== false &&
       product.stockBalance <= product.minimumStock,
   );
   const totalReceivables = outstandingInvoices.reduce(

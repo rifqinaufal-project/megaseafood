@@ -296,11 +296,14 @@ function Field({
           type={isMoney ? "text" : type}
           step={type === "number" ? "any" : undefined}
           inputMode={isMoney ? "numeric" : undefined}
+          checked={type === "checkbox" ? value !== "false" : undefined}
           value={isMoney ? formatRupiah(value) : value}
           readOnly={readOnly}
           onChange={(event) =>
             onChange(
-              isMoney ? formatRupiah(event.target.value) : event.target.value,
+              type === "checkbox"
+                ? (event.target.checked ? "true" : "false")
+                : isMoney ? formatRupiah(event.target.value) : event.target.value,
             )
           }
           placeholder={placeholder}
@@ -403,7 +406,7 @@ function ModalForm({
     );
   const batches = state.batches;
   const products = state.products.filter(
-    (product) => product.status === "ACTIVE",
+    (product) => product.status === "ACTIVE" && (page !== "Stock, Price & Cost" || product.trackStock !== false),
   );
   const suppliers = state.suppliers.filter(
     (supplier) => supplier.status === "ACTIVE",
@@ -528,6 +531,8 @@ function ModalForm({
         category: form.category || "",
         unit: form.unit || "kg",
         sellingPrice: asMoney(form.sellingPrice || ""),
+        trackStock: form.trackStock !== "false",
+        manualCost: asMoney(form.manualCost || ""),
         minimumStock: asNumber(form.minimumStock || "0"),
       });
     if (page === "Suppliers")
@@ -842,11 +847,27 @@ function ModalForm({
             onChange={(value) => set("sellingPrice", value)}
           />
           <Field
-            name="minimumStock"
-            type="number"
-            value={form.minimumStock || ""}
-            onChange={(value) => set("minimumStock", value)}
+            name="trackStock"
+            type="checkbox"
+            value={form.trackStock === "false" ? "false" : "true"}
+            onChange={(value) => set("trackStock", value)}
           />
+          {form.trackStock !== "false" && (
+            <Field
+              name="minimumStock"
+              type="number"
+              value={form.minimumStock || ""}
+              onChange={(value) => set("minimumStock", value)}
+            />
+          )}
+          {form.trackStock === "false" && (
+            <Field
+              name="manualCost"
+              type="number"
+              value={form.manualCost || ""}
+              onChange={(value) => set("manualCost", value)}
+            />
+          )}
         </>
       );
     if (page === "Suppliers")
@@ -916,7 +937,7 @@ function ModalForm({
           <Field
             name="productId"
             options={products.map((product) => ({
-              label: `${product.name} · stok ${product.stockBalance} ${product.unit}`,
+              label: product.trackStock === false ? `${product.name} · non-stok` : `${product.name} · stok ${product.stockBalance} ${product.unit}`,
               value: product.id,
             }))}
             value={form.productId || ""}
@@ -1199,16 +1220,18 @@ function getRows(page: string, state: BusinessState) {
         "SKU",
         "Nama produk",
         "Kategori",
+        "Mode",
         "Stok",
-        "HPP rata-rata",
+        "HPP",
         "Harga jual",
       ],
       rows: state.products.map((item) => [
         item.sku,
         item.name,
         item.category,
-        `${item.stockBalance} ${item.unit}`,
-        money(item.averageHpp),
+        item.trackStock === false ? "Non-stok" : "Stok",
+        item.trackStock === false ? "—" : `${item.stockBalance} ${item.unit}`,
+        money(item.trackStock === false ? (item.manualCost ?? 0) : item.averageHpp),
         money(item.defaultSellingPrice),
       ]),
     };
@@ -1235,13 +1258,14 @@ function getRows(page: string, state: BusinessState) {
     };
   if (page === "Stock, Price & Cost")
     return {
-      columns: ["Produk", "Stok", "Minimum", "HPP", "Status"],
-      rows: state.products.map((item) => [
-        item.name,
-        `${item.stockBalance} ${item.unit}`,
-        `${item.minimumStock} ${item.unit}`,
-        money(item.averageHpp),
-        item.stockBalance <= item.minimumStock ? "Menipis" : "Aman",
+       columns: ["Produk", "Mode", "Stok", "Minimum", "HPP", "Status"],
+       rows: state.products.map((item) => [
+         item.name,
+         item.trackStock === false ? "Non-stok" : "Stok",
+         item.trackStock === false ? "—" : `${item.stockBalance} ${item.unit}`,
+         item.trackStock === false ? "—" : `${item.minimumStock} ${item.unit}`,
+         money(item.trackStock === false ? (item.manualCost ?? 0) : item.averageHpp),
+         item.trackStock === false ? "Non-stok" : item.stockBalance <= item.minimumStock ? "Menipis" : "Aman",
       ]),
     };
   if (page === "Invoices")
@@ -2885,16 +2909,16 @@ export default function WorkspacePage({
       : effectivePage === "Stock, Price & Cost"
         ? [
             {
-              label: "Total SKU",
-              value: business.products.length.toString(),
-              change: `${business.products.filter((item) => item.stockBalance <= item.minimumStock).length} menipis`,
+               label: "Total SKU berstok",
+               value: business.products.filter((item) => item.status === "ACTIVE" && item.trackStock !== false).length.toString(),
+              change: `${business.products.filter((item) => item.trackStock !== false && item.stockBalance <= item.minimumStock).length} menipis`,
               direction: "neutral" as const,
             },
             {
               label: "Nilai inventory",
               value: money(
                 business.products.reduce(
-                  (sum, item) => sum + item.stockBalance * item.averageHpp,
+                  (sum, item) => sum + (item.trackStock === false ? 0 : item.stockBalance * item.averageHpp),
                   0,
                 ),
               ),

@@ -21,15 +21,18 @@ export function ProductDialog({ commands, onNotify, onClose, product }: DialogPr
   const [unitChoice, setUnitChoice] = useState(product ? optionOf(product.unit, PRODUCT_UNITS) : PRODUCT_UNITS[0]);
   const [customUnit, setCustomUnit] = useState(product && !PRODUCT_UNITS.includes(product.unit as never) ? product.unit : "");
   const [price, setPrice] = useState(product ? String(product.defaultSellingPrice) : "");
-  const [cost, setCost] = useState("");
+  const [trackStock, setTrackStock] = useState(product?.trackStock !== false);
+  const [manualCost, setManualCost] = useState(product ? String(product.manualCost ?? 0) : "");
+  const [initialCost, setInitialCost] = useState("");
   const [minimum, setMinimum] = useState(product ? String(product.minimumStock) : "");
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const category = categoryChoice === CUSTOM_PRODUCT_OPTION ? customCategory : categoryChoice;
     const unit = unitChoice === CUSTOM_PRODUCT_OPTION ? customUnit : unitChoice;
-    const base = { name, category, size, unit, sellingPrice: parseMoney(price), minimumStock: parseNumber(minimum) };
-    const result = product ? commands.updateProduct(product.id, base) : commands.addProduct({ ...base, initialCost: parseMoney(cost) });
+    if (product && trackStock !== (product.trackStock !== false) && !window.confirm("Produk ini memiliki histori stok. Jika pengelolaan stok dimatikan, invoice baru tidak lagi mengurangi stok dan akan menggunakan HPP manual. Lanjutkan?")) return;
+    const base = { name, category, size, unit, sellingPrice: parseMoney(price), trackStock, manualCost: parseMoney(manualCost), minimumStock: parseNumber(minimum) };
+    const result = product ? commands.updateProduct(product.id, base) : commands.addProduct({ ...base, initialCost: parseMoney(initialCost) });
     if (report(onNotify, result)) onClose();
   };
 
@@ -79,14 +82,27 @@ export function ProductDialog({ commands, onNotify, onClose, product }: DialogPr
           <FormField label="Harga jual standar (Rp)">
             <MoneyInput value={price} onChange={setPrice} placeholder="0" />
           </FormField>
-          {!product && (
-            <FormField label="HPP awal (Rp)" hint="Opsional. Diperbarui otomatis saat stok diterima.">
-              <MoneyInput value={cost} onChange={setCost} placeholder="0" />
+          <FormField label="Kelola stok produk ini" hint={trackStock ? "ON · Produk berstok" : "OFF · Produk non-stok"}>
+            <label className="checkbox-label">
+              <input type="checkbox" checked={trackStock} onChange={(event) => setTrackStock(event.target.checked)} />
+              <span>{trackStock ? "Produk berstok" : "Produk non-stok"}</span>
+            </label>
+          </FormField>
+          {!trackStock && (
+            <FormField label="HPP manual (Rp) *" hint="Dipakai untuk menghitung HPP dan profit invoice baru.">
+              <MoneyInput required value={manualCost} onChange={setManualCost} placeholder="0" />
             </FormField>
           )}
-          <FormField label="Stok minimum" hint="Peringatan stok menipis muncul di bawah angka ini.">
-            <input type="number" min="0" step="any" value={minimum} onChange={(event) => setMinimum(event.target.value)} placeholder="0" />
-          </FormField>
+          {!product && trackStock && (
+            <FormField label="HPP awal (Rp)" hint="Opsional. Diperbarui otomatis saat stok diterima.">
+              <MoneyInput value={initialCost} onChange={setInitialCost} placeholder="0" />
+            </FormField>
+          )}
+          {trackStock && (
+            <FormField label="Stok minimum" hint="Peringatan stok menipis muncul di bawah angka ini.">
+              <input type="number" min="0" step="any" value={minimum} onChange={(event) => setMinimum(event.target.value)} placeholder="0" />
+            </FormField>
+          )}
         </div>
         <ModalActions onCancel={onClose} submitLabel={product ? "Simpan perubahan" : "Simpan produk"} />
       </form>
@@ -100,7 +116,7 @@ const blankItem = (): DraftItem => ({ key: ++draftKey, productId: "", manual: ""
 
 export function ReceiveStockDialog({ commands, onNotify, onClose, state }: DialogProps & { state: BusinessState }) {
   const suppliers = state.suppliers.filter((item) => item.status === "ACTIVE");
-  const products = state.products.filter((item) => item.status === "ACTIVE");
+  const products = state.products.filter((item) => item.status === "ACTIVE" && item.trackStock !== false);
   const [supplierId, setSupplierId] = useState("");
   const [date, setDate] = useState(today());
   const [dueDate, setDueDate] = useState("");

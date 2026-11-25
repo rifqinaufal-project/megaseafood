@@ -177,7 +177,7 @@ export function buildRestoReport(state: BusinessState, period: ReportPeriod, asO
       paidProfit: invoices.reduce((sum, item) => sum + invoiceTransactionProfit(item) * paidRatio(item), 0),
       paidScaleMargin: invoices.reduce((sum, item) => sum + invoiceScaleMargin(item) * paidRatio(item), 0),
       inventoryValue: state.products
-        .filter((item) => item.status === "ACTIVE")
+        .filter((item) => item.status === "ACTIVE" && item.trackStock !== false)
         .reduce((sum, item) => sum + item.stockBalance * item.averageHpp, 0),
     },
   };

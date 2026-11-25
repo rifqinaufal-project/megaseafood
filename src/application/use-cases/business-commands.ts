@@ -23,7 +23,7 @@ export type ReceiveStockInput = {
   digitalWeight?: number;
   unitPurchasePrice?: number;
 };
-export type ProductInput = { sku?: string; name: string; category: string; size?: string; unit: string; sellingPrice: number; minimumStock?: number; initialCost?: number };
+export type ProductInput = { sku?: string; name: string; category: string; size?: string; unit: string; sellingPrice: number; trackStock?: boolean; manualCost?: number; minimumStock?: number; initialCost?: number };
 export type SupplierInput = { name: string; contactName: string; phone: string; email?: string; address?: string };
 export type RestaurantInput = { name: string; contactName: string; phone: string; email?: string; address?: string; notes?: string; paymentTermDays: number };
 export type UserInput = { name: string; email: string; role: UserRole };
@@ -428,14 +428,16 @@ export function createBusinessCommands(persistState: (updater: BusinessUpdater) 
       const size = (input.size ?? "").trim();
       const minimumStock = input.minimumStock ?? 0;
       const initialCost = input.initialCost ?? 0;
+      const trackStock = input.trackStock ?? true;
+      const manualCost = input.manualCost ?? 0;
       if (!name || !category || !input.unit.trim()) return { ok: false, message: "Nama, kategori, dan satuan wajib diisi" };
-      if (!Number.isFinite(input.sellingPrice) || input.sellingPrice < 0 || minimumStock < 0 || !Number.isFinite(initialCost) || initialCost < 0) return { ok: false, message: "Harga jual, HPP, dan stok minimum tidak boleh negatif" };
+      if (!Number.isFinite(input.sellingPrice) || input.sellingPrice < 0 || minimumStock < 0 || !Number.isFinite(initialCost) || initialCost < 0 || !Number.isFinite(manualCost) || manualCost < 0) return { ok: false, message: "Harga jual, HPP, dan stok minimum tidak boleh negatif" };
       const state = getState();
       const sku = input.sku?.trim() || skuFromName(name, category, state.products.map((product) => product.sku));
       if (state.products.some((product) => product.sku.toLowerCase() === sku.toLowerCase())) return { ok: false, message: "SKU sudah digunakan" };
       if (state.products.some((product) => product.name.toLowerCase() === name.toLowerCase() && product.size.toLowerCase() === size.toLowerCase() && product.category.toLowerCase() === category.toLowerCase())) return { ok: false, message: "Produk dengan nama, kategori, dan ukuran yang sama sudah ada" };
       const id = makeId("product");
-      setState((current) => ({ ...current, products: [...current.products, { id, sku, name, category, size, unit: input.unit.trim(), defaultSellingPrice: input.sellingPrice, averageHpp: initialCost, latestPurchaseCost: initialCost, stockBalance: 0, minimumStock, status: "ACTIVE" }] }));
+       setState((current) => ({ ...current, products: [...current.products, { id, sku, name, category, size, unit: input.unit.trim(), defaultSellingPrice: input.sellingPrice, trackStock, manualCost, averageHpp: trackStock ? initialCost : 0, latestPurchaseCost: trackStock ? initialCost : 0, stockBalance: 0, minimumStock: trackStock ? minimumStock : 0, status: "ACTIVE" }] }));
       return { ok: true, id, message: "Produk berhasil ditambahkan" };
     },
     updateProduct: (id, input) => {
@@ -445,10 +447,13 @@ export function createBusinessCommands(persistState: (updater: BusinessUpdater) 
       const name = input.name.trim();
       const category = input.category.trim();
       const size = (input.size ?? "").trim();
+      const trackStock = input.trackStock ?? current.trackStock;
+      const manualCost = input.manualCost ?? current.manualCost ?? 0;
       if (!name || !category || !input.unit.trim()) return { ok: false, message: "Nama, kategori, dan satuan wajib diisi" };
-      if (!Number.isFinite(input.sellingPrice) || input.sellingPrice < 0 || (input.minimumStock ?? 0) < 0) return { ok: false, message: "Harga jual dan stok minimum tidak boleh negatif" };
+      if (!Number.isFinite(input.sellingPrice) || input.sellingPrice < 0 || (input.minimumStock ?? 0) < 0 || !Number.isFinite(manualCost) || manualCost < 0) return { ok: false, message: "Harga jual, HPP manual, dan stok minimum tidak boleh negatif" };
+      if (trackStock && current.trackStock === false && current.averageHpp <= 0 && manualCost <= 0) return { ok: false, message: "Produk harus memiliki HPP awal sebelum pengelolaan stok diaktifkan." };
       if (state.products.some((product) => product.id !== id && product.name.toLowerCase() === name.toLowerCase() && product.size.toLowerCase() === size.toLowerCase() && product.category.toLowerCase() === category.toLowerCase())) return { ok: false, message: "Produk dengan nama, kategori, dan ukuran yang sama sudah ada" };
-      setState((draft) => ({ ...draft, products: draft.products.map((product) => product.id === id ? { ...product, name, category, size, unit: input.unit.trim(), defaultSellingPrice: input.sellingPrice, minimumStock: input.minimumStock ?? product.minimumStock } : product) }));
+       setState((draft) => ({ ...draft, products: draft.products.map((product) => product.id === id ? { ...product, name, category, size, unit: input.unit.trim(), defaultSellingPrice: input.sellingPrice, trackStock, manualCost, averageHpp: trackStock && product.trackStock === false && product.averageHpp <= 0 ? manualCost : product.averageHpp, minimumStock: trackStock ? input.minimumStock ?? product.minimumStock : 0 } : product) }));
       return { ok: true, message: "Produk berhasil diperbarui" };
     },
     toggleProductStatus: (id) => {
@@ -468,6 +473,7 @@ export function createBusinessCommands(persistState: (updater: BusinessUpdater) 
     adjustStock: (productId, input) => {
       const product = getState().products.find((item) => item.id === productId);
       if (!product) return { ok: false, message: "Produk tidak ditemukan" };
+      if (product.trackStock === false) return { ok: false, message: "Produk ini tidak menggunakan pengelolaan stok dan tidak dapat disesuaikan stoknya." };
       if (!Number.isFinite(input.minimumStock) || input.minimumStock < 0) return { ok: false, message: "Batas minimum stok tidak valid" };
       const error = validateStockAdjustment(input.actualQuantity, product.stockBalance, input.notes);
       if (error) return { ok: false, message: error };
@@ -484,6 +490,13 @@ export function createBusinessCommands(persistState: (updater: BusinessUpdater) 
       if (!product) return { ok: false, message: "Produk tidak ditemukan" };
       if (!Number.isFinite(input.newCost) || input.newCost < 0) return { ok: false, message: "HPP baru tidak boleh negatif" };
       if (!input.reason.trim()) return { ok: false, message: "Alasan penyesuaian HPP wajib diisi" };
+      if (product.trackStock === false) {
+        setState((state) => audit({
+          ...state,
+          products: state.products.map((item) => item.id === productId ? { ...item, manualCost: input.newCost } : item),
+        }, "PRODUCT_MANUAL_COST_CHANGED", "Produk", product.name));
+        return { ok: true, message: "HPP manual berhasil disesuaikan" };
+      }
       setState((state) => audit({
         ...state,
         products: state.products.map((item) => item.id === productId ? { ...item, averageHpp: input.newCost } : item),
@@ -566,6 +579,7 @@ export function createBusinessCommands(persistState: (updater: BusinessUpdater) 
       const state = getState();
       if (!state.suppliers.some((supplier) => supplier.id === input.supplierId)) return { ok: false, message: "Supplier belum dipilih" };
       if (items.some((item) => !state.products.some((product) => product.id === item.productId))) return { ok: false, message: "Produk belum dipilih" };
+      if (items.some((item) => state.products.find((product) => product.id === item.productId)?.trackStock === false)) return { ok: false, message: "Produk ini tidak menggunakan pengelolaan stok dan tidak dapat menerima stok." };
       const id = makeId("receipt");
       setState((current) => {
         const reserved = reserveDocumentNumber(current, `RCV/${input.date.slice(0, 7).replace("-", "/")}/`, 4);

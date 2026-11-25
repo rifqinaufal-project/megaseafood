@@ -120,6 +120,66 @@ test("multi-product preview is pure and matches the single atomic save", () => {
   assert.equal(invoice.items[0].hppTotal, 144000);
 });
 
+test("non-stock invoices use manual HPP without stock validation, movements, or payable records", () => {
+  const f = fixture();
+  f.store.update((state) => ({
+    ...state,
+    products: state.products.map((product) => product.id === "product-2" ? { ...product, trackStock: false, manualCost: 60000 } : product),
+  }));
+  const invoice = f.create({
+    ...input,
+    items: [{ productId: "product-2", quantity: 3, marginQuantity: 0, sellingPrice: 100000 }],
+    discount: 0,
+  });
+  assert.equal(invoice.total, 300000);
+  assert.equal(invoice.items[0].hpp, 60000);
+  assert.equal(invoice.items[0].hppTotal, 180000);
+  assert.equal(invoice.items[0].profit, 120000);
+  assert.equal(f.getState().products.find((product) => product.id === "product-2")!.stockBalance, 4);
+  assert.equal(f.getState().stockMovements.length, 0);
+  assert.equal(f.getState().receipts.length, 0);
+  assert.equal(f.commands.updateInvoice(invoice.id, {
+    ...editable(invoice),
+    items: [{ productId: "product-2", quantity: 1000, marginQuantity: 0, sellingPrice: 100000 }],
+  }).ok, true);
+  assert.equal(f.getState().invoices.at(-1)!.items[0].hppTotal, 60000000);
+  assert.equal(f.commands.deleteInvoice(invoice.id).ok, true);
+  assert.equal(f.getState().products.find((product) => product.id === "product-2")!.stockBalance, 4);
+  assert.equal(f.getState().stockMovements.length, 0);
+});
+
+test("mixed invoices isolate stock effects and retain historical HPP on edits", () => {
+  const f = fixture();
+  f.store.update((state) => ({
+    ...state,
+    products: state.products.map((product) => product.id === "product-2" ? { ...product, trackStock: false, manualCost: 60000 } : product),
+  }));
+  const invoice = f.create({
+    ...input,
+    items: [
+      { productId: "product-1", quantity: 2, marginQuantity: 0, sellingPrice: 86000 },
+      { productId: "product-2", quantity: 3, marginQuantity: 0, sellingPrice: 100000 },
+    ],
+    discount: 0,
+  });
+  assert.equal(f.getState().products.find((product) => product.id === "product-1")!.stockBalance, 6);
+  assert.equal(f.getState().products.find((product) => product.id === "product-2")!.stockBalance, 4);
+  assert.equal(f.getState().stockMovements.length, 1);
+  f.store.update((state) => ({ ...state, products: state.products.map((product) => product.id === "product-2" ? { ...product, manualCost: 70000 } : product) }));
+  assert.equal(f.commands.updateInvoice(invoice.id, { ...editable(invoice), items: [
+    { productId: "product-1", quantity: 2, marginQuantity: 0, sellingPrice: 86000 },
+    { productId: "product-2", quantity: 4, marginQuantity: 0, sellingPrice: 100000 },
+  ] }).ok, true);
+  const updated = f.getState().invoices.at(-1)!;
+  assert.equal(updated.items[0].hppTotal, 144000);
+  assert.equal(updated.items[1].hppTotal, 180000 + 70000);
+  assert.equal(f.getState().products.find((product) => product.id === "product-1")!.stockBalance, 6);
+  assert.equal(f.getState().products.find((product) => product.id === "product-2")!.stockBalance, 4);
+  assert.equal(f.commands.deleteInvoice(invoice.id).ok, true);
+  assert.equal(f.getState().products.find((product) => product.id === "product-1")!.stockBalance, 8);
+  assert.equal(f.getState().products.find((product) => product.id === "product-2")!.stockBalance, 4);
+});
+
 test("duplicate product lines share stock validation and cannot partially save", () => {
   const f = fixture();
   const before = f.getState();

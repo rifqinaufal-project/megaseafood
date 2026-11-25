@@ -74,6 +74,10 @@ export interface Product {
   size: string;
   unit: string;
   defaultSellingPrice: number;
+  /** Whether new stock receipts and invoices affect inventory for this product. */
+  trackStock: boolean;
+  /** Manual unit cost used only when stock tracking is disabled. */
+  manualCost: number;
   averageHpp: number;
   latestPurchaseCost: number;
   stockBalance: number;
@@ -364,9 +368,9 @@ export const seedBusinessState = (): BusinessState => ({
     { id: "lapak-expense-1", batchId: "batch-42", date: "2026-06-12", expenseName: "Es", amount: 420000, notes: "Es balok" },
   ],
   products: [
-    { id: "product-1", sku: "UDG-3140", name: "Udang Vaname 31/40", category: "Udang", size: "31/40", unit: "kg", defaultSellingPrice: 86000, averageHpp: 72000, latestPurchaseCost: 72000, stockBalance: 8, minimumStock: 15, status: "ACTIVE" },
-    { id: "product-2", sku: "KER-001", name: "Kerang Hijau", category: "Kerang", size: "", unit: "kg", defaultSellingPrice: 32000, averageHpp: 24000, latestPurchaseCost: 24000, stockBalance: 4, minimumStock: 10, status: "ACTIVE" },
-    { id: "product-3", sku: "CUM-001", name: "Cumi Ring", category: "Cumi", size: "Ring", unit: "kg", defaultSellingPrice: 74000, averageHpp: 58000, latestPurchaseCost: 58000, stockBalance: 6, minimumStock: 10, status: "ACTIVE" },
+    { id: "product-1", sku: "UDG-3140", name: "Udang Vaname 31/40", category: "Udang", size: "31/40", unit: "kg", defaultSellingPrice: 86000, trackStock: true, manualCost: 0, averageHpp: 72000, latestPurchaseCost: 72000, stockBalance: 8, minimumStock: 15, status: "ACTIVE" },
+    { id: "product-2", sku: "KER-001", name: "Kerang Hijau", category: "Kerang", size: "", unit: "kg", defaultSellingPrice: 32000, trackStock: true, manualCost: 0, averageHpp: 24000, latestPurchaseCost: 24000, stockBalance: 4, minimumStock: 10, status: "ACTIVE" },
+    { id: "product-3", sku: "CUM-001", name: "Cumi Ring", category: "Cumi", size: "Ring", unit: "kg", defaultSellingPrice: 74000, trackStock: true, manualCost: 0, averageHpp: 58000, latestPurchaseCost: 58000, stockBalance: 6, minimumStock: 10, status: "ACTIVE" },
   ],
   suppliers: [
     { id: "supplier-1", name: "CV Laut Jaya", contactName: "Budi", phone: "081299008811", email: "", address: "Muara Baru, Jakarta Utara", status: "ACTIVE" },

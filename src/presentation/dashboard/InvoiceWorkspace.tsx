@@ -709,7 +709,7 @@ export function InvoiceEditor({
                       <th>Size</th>
                       <th className="num">Qty Stok</th>
                       <th>Satuan</th>
-                      <th className="num ie-hpp-head">HPP Rata-rata Stok</th>
+                       <th className="num ie-hpp-head">HPP Rata-rata Stok / Manual</th>
                       <th className="num">Harga Jual</th>
                       <th className="num">Subtotal</th>
                       <th className="center">Aksi</th>
@@ -752,7 +752,7 @@ export function InvoiceEditor({
                                 .map((entry) => ({
                                   value: entry.id,
                                   label: productDisplayName(entry),
-                                  detail: `${quantity(entry.stockBalance)} ${entry.unit}`,
+                                  detail: entry.trackStock === false ? "Non-stok" : `${quantity(entry.stockBalance)} ${entry.unit}`,
                                   search: `${entry.sku} ${entry.category}`,
                                 }))}
                             />
@@ -763,12 +763,9 @@ export function InvoiceEditor({
                             )}
                             {product && (
                               <small className="invoice-hint">
-                                Tersedia untuk invoice ini:{" "}
-                                {quantity(
-                                  product.stockBalance +
-                                    (oldQuantities[product.id] ?? 0),
-                                )}{" "}
-                                {product.unit}
+                                {product.trackStock === false
+                                  ? "Non-stok · tidak memvalidasi atau mengurangi persediaan"
+                                  : <>Tersedia untuk invoice ini: {quantity(product.stockBalance + (oldQuantities[product.id] ?? 0))} {product.unit}</>}
                               </small>
                             )}
                           </td>
@@ -802,16 +799,18 @@ export function InvoiceEditor({
                           <td data-label="Satuan">
                             <span className="ie-unit">{product?.unit ?? "—"}</span>
                           </td>
-                          <td data-label="HPP Rata-rata Stok" className="num ie-hpp-cell">
+                          <td data-label="HPP" className="num ie-hpp-cell">
                             <b>
                               {product && item
                                 ? safeMoney(item.hpp)
                                 : "—"}
                             </b>
                             <small>
-                              {product && product.averageHpp > 0
-                                ? `Rata-rata stok: ${money(product.averageHpp)}`
-                                : "Belum ada harga stok"}
+                              {product?.trackStock === false
+                                 ? `HPP manual: ${money(product.manualCost ?? 0)}`
+                                : product && product.averageHpp > 0
+                                  ? `Rata-rata stok: ${money(product.averageHpp)}`
+                                  : "Belum ada harga stok"}
                             </small>
                           </td>
                           <td data-label="Harga Jual" className="num">
@@ -1175,7 +1174,7 @@ export function InvoiceEditor({
                       (item) => item.id === id,
                     );
                     return (
-                      product && (
+                      product && product.trackStock !== false && (
                         <p key={id}>
                           {product.name}
                           <span>

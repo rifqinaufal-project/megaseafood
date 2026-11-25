@@ -32,7 +32,7 @@ const amounts = {
   batches: [], commissions: ["amount"],
   sourcings: ["weight", "price", "total", "payment1", "payment2", "payment3"],
   lapakSales: ["amount"], lapakExpenses: ["amount"],
-  products: ["defaultSellingPrice", "averageHpp", "latestPurchaseCost", "stockBalance", "minimumStock"],
+  products: ["defaultSellingPrice", "manualCost", "averageHpp", "latestPurchaseCost", "stockBalance", "minimumStock"],
   suppliers: [], restaurants: ["paymentTermDays"],
   receipts: ["subtotal"],
   supplierPayments: ["amount"],
@@ -74,7 +74,29 @@ function migrateLegacyState(value: Record<string, unknown>): Record<string, unkn
     const gaps = Object.entries(defaults).filter(([field]) => entry[field] === undefined);
     return gaps.length ? { ...entry, ...Object.fromEntries(gaps) } : null;
   };
-  migrate("products", (entry) => missing(entry, { size: "", latestPurchaseCost: typeof entry.averageHpp === "number" ? entry.averageHpp : 0 }));
+  migrate("products", (entry) => missing(entry, {
+    size: "",
+    trackStock: true,
+    manualCost: 0,
+    latestPurchaseCost: typeof entry.averageHpp === "number" ? entry.averageHpp : 0,
+  }));
+  migrate("invoices", (entry) => {
+    if (!Array.isArray(entry.items)) return null;
+    let changed = false;
+    const items = entry.items.map((rawItem) => {
+      if (!isRecord(rawItem)) return rawItem;
+      const hpp = typeof rawItem.hpp === "number" && Number.isFinite(rawItem.hpp)
+        ? rawItem.hpp
+        : typeof rawItem.hppTotal === "number" && typeof rawItem.stockQuantity === "number" && rawItem.stockQuantity > 0
+          ? rawItem.hppTotal / rawItem.stockQuantity
+          : 0;
+      const hppTotal = typeof rawItem.hppTotal === "number" && Number.isFinite(rawItem.hppTotal) ? rawItem.hppTotal : hpp * (typeof rawItem.stockQuantity === "number" ? rawItem.stockQuantity : 0);
+      const profit = typeof rawItem.profit === "number" && Number.isFinite(rawItem.profit) ? rawItem.profit : (typeof rawItem.subtotal === "number" ? rawItem.subtotal - hppTotal : 0);
+      if (rawItem.hpp !== hpp || rawItem.hppTotal !== hppTotal || rawItem.profit !== profit) changed = true;
+      return { ...rawItem, hpp, hppTotal, profit };
+    });
+    return changed ? { ...entry, items } : null;
+  });
   migrate("suppliers", (entry) => missing(entry, { email: "", address: "" }));
   migrate("restaurants", (entry) => missing(entry, { email: "", address: "", notes: "" }));
   migrate("receipts", (entry) => {
@@ -221,6 +243,10 @@ export function normalizeBusinessState(input: unknown): BusinessState {
       }
       for (const field of amounts[key]) {
         if (typeof entry[field] !== "number" || !Number.isFinite(entry[field]) || (!signedAmountsWithCommission.has(`${key}.${field}`) && (entry[field] as number) < 0)) throw new Error(`Angka ${key}.${field} tidak valid`);
+      }
+      if (key === "products") {
+        if (typeof entry.trackStock !== "boolean") throw new Error("Mode stok produk tidak valid");
+        if (typeof entry.manualCost !== "number" || !Number.isFinite(entry.manualCost) || entry.manualCost < 0) throw new Error("HPP manual produk tidak valid");
       }
       if (key === "sourcings") {
         if (!Number.isSafeInteger(entry.sequence) || (entry.sequence as number) <= 0) throw new Error("Nomor pengadaan tidak valid");

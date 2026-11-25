@@ -75,34 +75,36 @@ export function StockPage({ state, commands, onNotify, initialFormOpen = false }
   const [pageNumber, setPageNumber] = useState(1);
 
   const active = state.products.filter((item) => item.status === "ACTIVE");
-  const lowStock = active.filter((item) => getStockStatus(item.stockBalance, item.minimumStock) === "Menipis");
-  const outOfStock = active.filter((item) => getStockStatus(item.stockBalance, item.minimumStock) === "Habis");
-  const inventoryValue = active.reduce((sum, item) => sum + item.stockBalance * item.averageHpp, 0);
-  const totalUnits = active.reduce((sum, item) => sum + item.stockBalance, 0);
+  const tracked = active.filter((item) => item.trackStock !== false);
+  const lowStock = tracked.filter((item) => getStockStatus(item.stockBalance, item.minimumStock) === "Menipis");
+  const outOfStock = tracked.filter((item) => getStockStatus(item.stockBalance, item.minimumStock) === "Habis");
+  const inventoryValue = tracked.reduce((sum, item) => sum + item.stockBalance * item.averageHpp, 0);
+  const totalUnits = tracked.reduce((sum, item) => sum + item.stockBalance, 0);
 
   const products = useMemo(() => {
     const filtered = state.products.filter((item) => {
       if (status !== "ALL" && item.status !== status) return false;
-      if (stockFilter !== "ALL" && getStockStatus(item.stockBalance, item.minimumStock).toLowerCase() !== stockFilter) return false;
+       if (stockFilter !== "ALL" && (item.trackStock === false || getStockStatus(item.stockBalance, item.minimumStock).toLowerCase() !== stockFilter)) return false;
       return matches(search, item.name, item.sku, item.category, item.size);
     });
     const sorters: Record<string, (a: Product, b: Product) => number> = {
       name: (a, b) => a.name.localeCompare(b.name),
       stock: (a, b) => a.stockBalance - b.stockBalance,
       value: (a, b) => b.stockBalance * b.averageHpp - a.stockBalance * a.averageHpp,
-      margin: (a, b) => calculateMargin(b.defaultSellingPrice, b.averageHpp).percentage - calculateMargin(a.defaultSellingPrice, a.averageHpp).percentage,
+       margin: (a, b) => calculateMargin(b.defaultSellingPrice, b.trackStock === false ? (b.manualCost ?? 0) : b.averageHpp).percentage - calculateMargin(a.defaultSellingPrice, a.trackStock === false ? (a.manualCost ?? 0) : a.averageHpp).percentage,
     };
     return [...filtered].sort(sorters[sort] ?? sorters.name);
   }, [state.products, search, status, stockFilter, sort]);
 
   const movements = useMemo(
     () =>
-      [...state.stockMovements]
-        .reverse()
-        .filter((item) => (movementType === "ALL" || item.type === movementType) && (!movementProduct || item.productId === movementProduct) && matches(search, productName(state, item.productId), item.reference, item.notes)),
+       [...state.stockMovements]
+         .reverse()
+        .filter((item) => state.products.find((product) => product.id === item.productId)?.trackStock !== false)
+         .filter((item) => (movementType === "ALL" || item.type === movementType) && (!movementProduct || item.productId === movementProduct) && matches(search, productName(state, item.productId), item.reference, item.notes)),
     [state, search, movementType, movementProduct],
   );
-  const differences = useMemo(() => weightDifferenceRows(state.receipts).filter((row) => matches(search, row.receiptNumber, productName(state, row.productId), state.suppliers.find((item) => item.id === row.supplierId)?.name)), [state, search]);
+  const differences = useMemo(() => weightDifferenceRows(state.receipts).filter((row) => state.products.find((product) => product.id === row.productId)?.trackStock !== false).filter((row) => matches(search, row.receiptNumber, productName(state, row.productId), state.suppliers.find((item) => item.id === row.supplierId)?.name)), [state, search]);
   const prices = useMemo(
     () => state.customerPrices.filter((item) => matches(search, state.restaurants.find((entry) => entry.id === item.restaurantId)?.name, productName(state, item.productId))),
     [state, search],
@@ -117,7 +119,7 @@ export function StockPage({ state, commands, onNotify, initialFormOpen = false }
   const base = { commands, onNotify, onClose: close };
 
   const exportProducts = () => {
-    downloadCsv("stok-produk", ["SKU", "Produk", "Kategori", "Stok", "Satuan", "Minimum", "HPP", "Harga jual", "Status"], products.map((item) => [item.sku, productDisplayName(item), item.category, item.stockBalance, item.unit, item.minimumStock, Math.round(item.averageHpp), item.defaultSellingPrice, item.status]));
+    downloadCsv("stok-produk", ["SKU", "Produk", "Kategori", "Mode", "Stok", "Satuan", "Minimum", "HPP", "Harga jual", "Status"], products.map((item) => [item.sku, productDisplayName(item), item.category, item.trackStock === false ? "Non-stok" : "Stok", item.trackStock === false ? "—" : item.stockBalance, item.unit, item.trackStock === false ? "—" : item.minimumStock, Math.round(item.trackStock === false ? (item.manualCost ?? 0) : item.averageHpp), item.defaultSellingPrice, item.status]));
     onNotify(`${products.length} produk berhasil diexport`);
   };
 
@@ -147,7 +149,7 @@ export function StockPage({ state, commands, onNotify, initialFormOpen = false }
 
       <Stats
         items={[
-          { label: "Produk aktif", value: active.length.toString(), detail: `${state.products.length - active.length} nonaktif` },
+           { label: "SKU berstok", value: tracked.length.toString(), detail: `${active.length - tracked.length} non-stok · ${state.products.length - active.length} nonaktif` },
           { label: "Total unit", value: qty(totalUnits), detail: "gabungan semua satuan" },
           { label: "Nilai persediaan", value: money(inventoryValue), detail: "stok × HPP rata-rata" },
           { label: "Stok menipis", value: lowStock.length.toString(), detail: "di bawah batas minimum", tone: lowStock.length ? "warn" : undefined },
@@ -211,29 +213,30 @@ export function StockPage({ state, commands, onNotify, initialFormOpen = false }
 
         {tab === "products" && (
           <>
-            <Table columns={["Produk", "Stok", "Minimum", "HPP rata-rata", "Harga jual", "Margin", "Status", ""]} count={products.length} empty={state.products.length ? "Tidak ada produk yang cocok dengan filter." : "Belum ada produk. Klik Tambah produk untuk memulai."}>
-              {productPage.rows.map((item) => {
-                const stock = getStockStatus(item.stockBalance, item.minimumStock);
-                const margin = calculateMargin(item.defaultSellingPrice, item.averageHpp);
+             <Table columns={["Produk", "Stok", "Minimum", "HPP", "Harga jual", "Margin", "Status", ""]} count={products.length} empty={state.products.length ? "Tidak ada produk yang cocok dengan filter." : "Belum ada produk. Klik Tambah produk untuk memulai."}>
+               {productPage.rows.map((item) => {
+                 const stock = item.trackStock === false ? null : getStockStatus(item.stockBalance, item.minimumStock);
+                 const effectiveHpp = item.trackStock === false ? (item.manualCost ?? 0) : item.averageHpp;
+                 const margin = calculateMargin(item.defaultSellingPrice, effectiveHpp);
                 return (
                   <tr key={item.id}>
                     <Cell label="Produk" className="resource-primary-cell">
                       <strong>{productDisplayName(item)}</strong>
-                      <small className="cell-sub">{item.sku} · {item.category}</small>
+                       <small className="cell-sub">{item.sku} · {item.category} · {item.trackStock === false ? "Non-stok" : "Stok"}</small>
                     </Cell>
-                    <Cell label="Stok">{qty(item.stockBalance)} {item.unit}</Cell>
-                    <Cell label="Minimum">{qty(item.minimumStock)} {item.unit}</Cell>
-                    <Cell label="HPP rata-rata">{money(item.averageHpp)}</Cell>
+                    <Cell label="Stok">{item.trackStock === false ? "—" : `${qty(item.stockBalance)} ${item.unit}`}</Cell>
+                    <Cell label="Minimum">{item.trackStock === false ? "—" : `${qty(item.minimumStock)} ${item.unit}`}</Cell>
+                    <Cell label="HPP">{money(effectiveHpp)} <small className="cell-sub">{item.trackStock === false ? "manual" : "rata-rata stok"}</small></Cell>
                     <Cell label="Harga jual">{money(item.defaultSellingPrice)}</Cell>
                     <Cell label="Margin">
                       <span className={margin.nominal < 0 ? "stat-danger" : undefined}>{margin.percentage.toFixed(1)}%</span>
                     </Cell>
                     <Cell label="Status">
-                      {item.status === "INACTIVE" ? <StatusChip tone="nonaktif">Nonaktif</StatusChip> : <StatusChip tone={stock === "Aman" ? "lunas" : stock === "Menipis" ? "tercatat" : "danger"}>{stock}</StatusChip>}
+                       {item.status === "INACTIVE" ? <StatusChip tone="nonaktif">Nonaktif</StatusChip> : item.trackStock === false ? <StatusChip tone="tercatat">Non-stok</StatusChip> : <StatusChip tone={stock === "Aman" ? "lunas" : stock === "Menipis" ? "tercatat" : "danger"}>{stock}</StatusChip>}
                     </Cell>
                     <Cell label="Aksi" className="row-actions">
-                      <IconAction label="Riwayat mutasi" onClick={() => showHistory(item)}><History size={15} /></IconAction>
-                      <IconAction label="Sesuaikan stok" onClick={() => setDialog({ kind: "stock", product: item })}><SlidersHorizontal size={15} /></IconAction>
+                       {item.trackStock !== false && <IconAction label="Riwayat mutasi" onClick={() => showHistory(item)}><History size={15} /></IconAction>}
+                       {item.trackStock !== false && <IconAction label="Sesuaikan stok" onClick={() => setDialog({ kind: "stock", product: item })}><SlidersHorizontal size={15} /></IconAction>}
                       <IconAction label="Sesuaikan HPP" onClick={() => setDialog({ kind: "cost", product: item })}><BadgeDollarSign size={15} /></IconAction>
                       <IconAction label="Edit produk" onClick={() => setDialog({ kind: "product", product: item })}><Pencil size={15} /></IconAction>
                       <IconAction label={item.status === "ACTIVE" ? "Nonaktifkan produk" : "Aktifkan produk"} onClick={() => report(onNotify, commands.toggleProductStatus(item.id))}><Power size={15} /></IconAction>

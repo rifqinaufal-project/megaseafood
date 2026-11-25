@@ -186,7 +186,7 @@ export function RestoDashboardPage({ business, onNavigate }: { business: Busines
     .filter((item) => item.outstandingAmount > 0)
     .sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999"));
   const overdue = outstanding.filter((item) => effectiveInvoiceStatus(item, asOf) === "OVERDUE");
-  const lowStock = business.products.filter((item) => item.status === "ACTIVE" && item.stockBalance <= item.minimumStock);
+  const lowStock = business.products.filter((item) => item.status === "ACTIVE" && item.trackStock !== false && item.stockBalance <= item.minimumStock);
   const costTotal = report.expenseByCategory.reduce((sum, item) => sum + item.amount, 0);
 
   return (

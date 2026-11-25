@@ -88,6 +88,14 @@ test("buildRestoReport filters by period and derives profit, receivables and ove
   assert.equal(empty.daily.length, 0);
 });
 
+test("inventory valuation excludes non-stock products while sales HPP remains reportable", () => {
+  const s = seedBusinessState();
+  s.products[1] = { ...s.products[1], trackStock: false, manualCost: 60000, stockBalance: 999, averageHpp: 90000 };
+  const report = buildRestoReport(s, "all", "2026-11-17");
+  assert.equal(report.metrics.inventoryValue, s.products[0].stockBalance * s.products[0].averageHpp + s.products[2].stockBalance * s.products[2].averageHpp);
+  assert.ok(report.metrics.hpp >= 0);
+});
+
 test("effectiveInvoiceStatus marks unpaid invoices past due date as overdue", () => {
   const unpaid = invoice("X", "2026-11-01", 100, 0, 0, 0, "2026-11-05");
   assert.equal(effectiveInvoiceStatus(unpaid, "2026-11-05"), "ISSUED");
