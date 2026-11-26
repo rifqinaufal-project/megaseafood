@@ -1628,17 +1628,9 @@ function BatchListPage({
                     </tr>
                   </thead>
                   <tbody>
-                    {month.days.map((day) => (
-                      <Fragment key={day.key || "no-date"}>
-                        <tr className="lapak-day-table-divider">
-                          <td colSpan={5}>
-                            <strong>{day.label}</strong>
-                            <span>
-                              {day.items.length} batch · {money(day.total)}
-                            </span>
-                          </td>
-                        </tr>
-                        {day.items.map((batch) => {
+                    {month.days
+                      .flatMap((day) => day.items)
+                      .map((batch) => {
                       const commissionRevenue = revenueOf(batch.id);
                       const expenseCost = costOf(batch.id);
                       const note = batch.notes.trim();
@@ -1721,9 +1713,7 @@ function BatchListPage({
                           </td>
                         </tr>
                       );
-                        })}
-                      </Fragment>
-                    ))}
+                      })}
                   </tbody>
                 </table>
               </div>

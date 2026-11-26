@@ -743,19 +743,6 @@ button {
   color: var(--ink);
   font-size: 14px;
 }
-.dashboard-batch-day {
-  padding: 4px 8px 0;
-  border: 1px solid #e5e9ee;
-  border-left: 3px solid var(--accent);
-  border-radius: 12px;
-  background: #fbfcfd;
-}
-.dashboard-batch-day + .dashboard-batch-day {
-  margin-top: 8px;
-}
-.dashboard-batch-day .lapak-day-divider {
-  padding: 8px;
-}
 .batch-dashboard-row {
   display: grid;
   grid-template-columns:

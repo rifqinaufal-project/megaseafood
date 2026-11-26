@@ -363,58 +363,49 @@ function LapakDashboard({
                     <small>{month.items.length} batch</small>
                   </div>
                 </header>
-                {month.days.map((day) => (
-                  <div
-                    className="dashboard-batch-day"
-                    key={day.key || "no-date"}
-                  >
-                    <div className="lapak-day-divider">
-                      <strong>{day.label}</strong>
-                      <span>{day.items.length} batch</span>
-                    </div>
-                    {day.items.map((batch) => {
-                      const batchId = batch.id;
-                      const batchCommission = commissions
-                        .filter((item) => item.batchId === batchId)
-                        .reduce((sum, item) => sum + item.amount, 0);
-                      const batchCosts = expenses
-                        .filter((item) => item.batchId === batchId)
-                        .reduce((sum, item) => sum + item.amount, 0);
-                      return (
-                        <button
-                          className="batch-dashboard-row"
-                          type="button"
-                          key={batchId}
-                          onClick={() =>
-                            onNavigate(
-                              "lapak",
-                              "Batch",
-                              false,
-                              undefined,
-                              batchId,
-                            )
-                          }
-                        >
-                          <span>
-                            <strong>
-                              {batch?.batchNumber ?? "Batch tidak ditemukan"}
-                            </strong>
-                            <small>{batch?.notes || "Tanpa catatan"}</small>
-                          </span>
-                          <span>
-                            <small>Pendapatan</small>
-                            <b>Rp {formatRupiah(batchCommission)}</b>
-                          </span>
-                          <span>
-                            <small>Biaya</small>
-                            <b>Rp {formatRupiah(batchCosts)}</b>
-                          </span>
-                          <ChevronRight size={17} />
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))}
+                {month.days
+                  .flatMap((day) => day.items)
+                  .map((batch) => {
+                    const batchId = batch.id;
+                    const batchCommission = commissions
+                      .filter((item) => item.batchId === batchId)
+                      .reduce((sum, item) => sum + item.amount, 0);
+                    const batchCosts = expenses
+                      .filter((item) => item.batchId === batchId)
+                      .reduce((sum, item) => sum + item.amount, 0);
+                    return (
+                      <button
+                        className="batch-dashboard-row"
+                        type="button"
+                        key={batchId}
+                        onClick={() =>
+                          onNavigate(
+                            "lapak",
+                            "Batch",
+                            false,
+                            undefined,
+                            batchId,
+                          )
+                        }
+                      >
+                        <span>
+                          <strong>
+                            {batch?.batchNumber ?? "Batch tidak ditemukan"}
+                          </strong>
+                          <small>{batch?.notes || "Tanpa catatan"}</small>
+                        </span>
+                        <span>
+                          <small>Pendapatan</small>
+                          <b>Rp {formatRupiah(batchCommission)}</b>
+                        </span>
+                        <span>
+                          <small>Biaya</small>
+                          <b>Rp {formatRupiah(batchCosts)}</b>
+                        </span>
+                        <ChevronRight size={17} />
+                      </button>
+                    );
+                  })}
               </section>
             ))
           ) : (
