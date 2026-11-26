@@ -4,21 +4,17 @@
 
 ## Langkah berikutnya
 
-**Tahap 0 — Persiapan** (sesi build pertama):
-1. Commit perubahan yang masih terbuka sebagai titik pulih, tanpa file pribadi:
-   - `app/globals.css` (gradient header jadi transparan)
-   - `src/presentation/dashboard/DashboardShell.tsx` (format satu baris `topProfitBatches`)
-   Pesan: "Checkpoint before UI redesign". Push. Buat tag `pre-redesign` di commit ini.
-2. Pindahkan `PLAN.md`, `DESIGN.md`, `PROGRESS.md` ke `docs/redesign/`.
-3. Tambahkan bagian "Redesign" di `AGENTS.md` di LUAR blok `nextjs-agent-*`:
-   "Sebelum mengerjakan redesign, baca `docs/redesign/PLAN.md` dan `docs/redesign/PROGRESS.md`, ikuti Aturan kerja di PLAN."
-4. Commit "Add redesign plan", push. Tutup sesi.
+**Tahap 1 — Audit logika di UI** (sesi baru, mulai dari sini):
+1. Verifikasi kandidat di checklist Tahap 1 dengan `grep` dan subagent. Jangan membaca file UI secara utuh.
+2. Untuk tiap logika yang ditemukan: pindahkan ke `src/domain` sebagai fungsi murni, tulis tes, lalu ganti pemanggilnya di UI dengan fungsi itu. Perubahan perilaku tidak boleh ada.
+3. Catat hasil audit di bagian "Catatan audit" di bawah.
+4. Selesai: `tsc`, lint, tes, dan build lolos, commit per logika, push, perbarui file ini.
 
 ## Checklist
 
 ### Tahap 0 — Persiapan
-- [ ] Commit checkpoint + tag `pre-redesign`
-- [ ] Dokumen rencana di `docs/redesign/` + bagian di `AGENTS.md`
+- [x] Commit checkpoint + tag `pre-redesign` (`516a662`)
+- [x] Dokumen rencana di `docs/redesign/` + bagian di `AGENTS.md` (`edd204c`)
 
 ### Tahap 1 — Audit logika di UI
 Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kandidat (verifikasi dulu via grep/subagent):
@@ -66,4 +62,6 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 ## Log sesi
 | Tanggal | Item | Commit | Catatan |
 |---|---|---|---|
-| 2026-11-26 | Rencana disusun (Plan mode) | — | Titik awal: `main` di `5b4a749`, ada 2 file belum di-commit (lihat Langkah berikutnya). |
+| 2026-11-26 | Rencana disusun (Plan mode) | — | Draf di folder plan, belum di repo. |
+| 2026-11-26 | Tahap 0: checkpoint + tag `pre-redesign` | `516a662` | Dua perubahan belum di-commit (gradient header transparan, format `DashboardShell.tsx`). `tsc`, lint, 136 tes lolos. |
+| 2026-11-26 | Tahap 0: dokumen rencana + `AGENTS.md` | `edd204c` | `docs/redesign/` berisi PLAN, DESIGN, PROGRESS. Bagian "UI redesign" ditambahkan di `AGENTS.md`, di luar blok Next.js. |
