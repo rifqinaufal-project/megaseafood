@@ -2227,115 +2227,115 @@ function SourcingWorkspacePage({
                           const itemOutstanding = item.total - itemPaid;
                           return (
                             <Fragment key={item.id}>
-                            <tr>
-                              <td className="date-cell" data-label="Tanggal">
-                                {item.date}
-                              </td>
-                              <td data-label="Sumber">
-                                <span className="sourcing-type-badge">
-                                  {item.sourceType === "BENGKELAN"
-                                    ? "Bengkelan"
-                                    : "Supplier"}
-                                </span>
-                              </td>
-                              <td
-                                className="resource-primary-cell"
-                                data-label="Nama"
-                              >
-                                {item.name}
-                              </td>
-                              <td data-label="Jenis">{item.type}</td>
-                              <td className="nowrap" data-label="Bobot">
-                                {item.weight.toLocaleString("id-ID")}{" "}
-                                {item.unit}
-                              </td>
-                              <td
-                                className="amount-cell"
-                                data-label="Harga / unit"
-                              >
-                                {money(item.price)}
-                              </td>
-                              <td className="amount-cell" data-label="Jumlah">
-                                <strong>{money(item.total)}</strong>
-                              </td>
-                              <td className="amount-cell" data-label="Dibayar">
-                                <button
-                                  className="sourcing-paid-toggle"
-                                  type="button"
-                                  aria-expanded={expandedSourcing === item.id}
-                                  onClick={() =>
-                                    setExpandedSourcing(
-                                      expandedSourcing === item.id
-                                        ? null
-                                        : item.id,
-                                    )
-                                  }
+                              <tr>
+                                <td className="date-cell" data-label="Tanggal">
+                                  {item.date}
+                                </td>
+                                <td data-label="Sumber">
+                                  <span className="sourcing-type-badge">
+                                    {item.sourceType === "BENGKELAN"
+                                      ? "Bengkelan"
+                                      : "Supplier"}
+                                  </span>
+                                </td>
+                                <td
+                                  className="resource-primary-cell"
+                                  data-label="Nama"
                                 >
-                                  <strong>{money(itemPaid)}</strong>
-                                  <small>
-                                    {itemPaid > 0
-                                      ? `${[item.payment1, item.payment2, item.payment3].filter((value) => value > 0).length} dari 3 tahap`
-                                      : "Belum dibayar"}
-                                  </small>
-                                  <ChevronDown
-                                    size={14}
-                                    className={
-                                      expandedSourcing === item.id
-                                        ? "is-flipped"
-                                        : ""
+                                  {item.name}
+                                </td>
+                                <td data-label="Jenis">{item.type}</td>
+                                <td className="nowrap" data-label="Bobot">
+                                  {item.weight.toLocaleString("id-ID")}{" "}
+                                  {item.unit}
+                                </td>
+                                <td
+                                  className="amount-cell"
+                                  data-label="Harga / unit"
+                                >
+                                  {money(item.price)}
+                                </td>
+                                <td className="amount-cell" data-label="Jumlah">
+                                  <strong>{money(item.total)}</strong>
+                                </td>
+                                <td className="amount-cell" data-label="Dibayar">
+                                  <button
+                                    className="sourcing-paid-toggle"
+                                    type="button"
+                                    aria-expanded={expandedSourcing === item.id}
+                                    onClick={() =>
+                                      setExpandedSourcing(
+                                        expandedSourcing === item.id
+                                          ? null
+                                          : item.id,
+                                      )
                                     }
-                                  />
-                                </button>
-                              </td>
-                              <td
-                                className={`amount-cell ${itemOutstanding > 0 ? "sourcing-outstanding" : "sourcing-paid"}`}
-                                data-label="Sisa"
-                              >
-                                {money(itemOutstanding)}
-                              </td>
-                              <td className="cell-wrap" data-label="Catatan">
-                                {item.note || "—"}
-                              </td>
-                              <td className="row-actions">
-                                <button
-                                  className="sourcing-action-button sourcing-edit-button"
-                                  type="button"
-                                  aria-label={`Edit pengadaan ${item.name}`}
-                                  onClick={() =>
-                                    onEdit("Sourcing & Bengkelan", item.id)
-                                  }
+                                  >
+                                    <strong>{money(itemPaid)}</strong>
+                                    <small>
+                                      {itemPaid > 0
+                                        ? `${[item.payment1, item.payment2, item.payment3].filter((value) => value > 0).length} dari 3 tahap`
+                                        : "Belum dibayar"}
+                                    </small>
+                                    <ChevronDown
+                                      size={14}
+                                      className={
+                                        expandedSourcing === item.id
+                                          ? "is-flipped"
+                                          : ""
+                                      }
+                                    />
+                                  </button>
+                                </td>
+                                <td
+                                  className={`amount-cell ${itemOutstanding > 0 ? "sourcing-outstanding" : "sourcing-paid"}`}
+                                  data-label="Sisa"
                                 >
-                                  <Edit2 size={15} /> <span>Edit</span>
-                                </button>
-                                <button
-                                  className="sourcing-action-button sourcing-delete-button"
-                                  type="button"
-                                  aria-label={`Hapus pengadaan ${item.name}`}
-                                  onClick={() =>
-                                    onDelete("Sourcing & Bengkelan", item.id)
-                                  }
-                                >
-                                  <Trash2 size={15} /> <span>Hapus</span>
-                                </button>
-                              </td>
-                            </tr>
-                            {expandedSourcing === item.id && (
-                              <tr className="sourcing-detail-row">
-                                <td colSpan={11}>
-                                  <div className="sourcing-payment-slots">
-                                    {([1, 2, 3] as const).map((paymentNumber) => (
-                                      <div
-                                        className="sourcing-payment-slot"
-                                        key={paymentNumber}
-                                      >
-                                        <span>Pembayaran {paymentNumber} (Rp)</span>
-                                        {renderPaymentCell(item, paymentNumber)}
-                                      </div>
-                                    ))}
-                                  </div>
+                                  {money(itemOutstanding)}
+                                </td>
+                                <td className="cell-wrap" data-label="Catatan">
+                                  {item.note || "—"}
+                                </td>
+                                <td className="row-actions">
+                                  <button
+                                    className="sourcing-action-button sourcing-edit-button"
+                                    type="button"
+                                    aria-label={`Edit pengadaan ${item.name}`}
+                                    onClick={() =>
+                                      onEdit("Sourcing & Bengkelan", item.id)
+                                    }
+                                  >
+                                    <Edit2 size={15} /> <span>Edit</span>
+                                  </button>
+                                  <button
+                                    className="sourcing-action-button sourcing-delete-button"
+                                    type="button"
+                                    aria-label={`Hapus pengadaan ${item.name}`}
+                                    onClick={() =>
+                                      onDelete("Sourcing & Bengkelan", item.id)
+                                    }
+                                  >
+                                    <Trash2 size={15} /> <span>Hapus</span>
+                                  </button>
                                 </td>
                               </tr>
-                            )}
+                              {expandedSourcing === item.id && (
+                                <tr className="sourcing-detail-row">
+                                  <td colSpan={11}>
+                                    <div className="sourcing-payment-slots">
+                                      {([1, 2, 3] as const).map((paymentNumber) => (
+                                        <div
+                                          className="sourcing-payment-slot"
+                                          key={paymentNumber}
+                                        >
+                                          <span>Pembayaran {paymentNumber} (Rp)</span>
+                                          {renderPaymentCell(item, paymentNumber)}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
                             </Fragment>
                           );
                         })}
