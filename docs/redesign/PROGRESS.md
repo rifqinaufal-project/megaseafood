@@ -74,7 +74,7 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 | 2026-11-26 | Tahap 1: validasi form ke domain | `cabf273` | `form-input.ts` dengan tes (6 tes baru). `validateItem`, `asMoney`, `asNumber` di `WorkspacePage.tsx` diganti pemanggilan domain. `tsc`, lint, 155 tes, build lolos. |
 | 2026-11-26 | Tahap 1: perhitungan editor invoice ke domain | `6277d13` | `invoice-editor-summary.ts` dengan tes (3 tes baru). Blok ringkasan `InvoiceWorkspace.tsx` diganti pemanggilan domain. `tsc`, lint, 158 tes, build lolos. |
 | 2026-11-26 | Tahap 1: piutang dashboard Resto (opsi A) ke domain | `6445125` | `resto-summary.ts`: `invoiceRevenueTotal`, `unpaidInvoices`, `unpaidInvoiceReceivable`, dengan tes (3 tes baru). Piutang = semua invoice belum lunas, termasuk ONLINE. Tahap 1 ditutup. |
-| 2026-11-26 | Tahap 1: sisa reduce Tagihan ke domain | (belum di-commit) | `ledgerPeriodTotals`, `ledgerMonthTotals`, `ledgerPreviewTotals`, `asWholeRupiah` dengan tes (5 tes baru). `TagihanWorkspace.tsx` memanggil helper. `tsc`, lint, 169 tes, build lolos. |
+| 2026-11-26 | Tahap 1: sisa reduce Tagihan ke domain | `dcb1948` | `ledgerPeriodTotals`, `ledgerMonthTotals`, `ledgerPreviewTotals`, `asWholeRupiah` dengan tes (5 tes baru). `TagihanWorkspace.tsx` memanggil helper. `tsc`, lint, 169 tes, build lolos. |
 | 2026-11-26 | Tahap 1: dashboard Lapak ke domain | `b8e6cbc` | `lapak-totals.ts` dengan tes (3 tes baru). Ringkasan Lapak dan total per batch di `DashboardShell.tsx` diganti helper. `tsc`, lint, 161 tes, build lolos. Bagian Resto belum dipindah, lihat catatan audit. |
 
 ## Catatan audit
@@ -93,4 +93,4 @@ Keputusan yang sudah diambil user:
 
 Temuan yang masih terbuka (tidak diubah, perlu keputusan user di tahap berikutnya):
 - **Validasi form ganda.** `validateFormItem` (UI, `form-input.ts`) dan `validateSourcingInput` (domain, `business-commands.ts`) tidak sama aturannya. UI tidak memeriksa tanggal pembayaran dan total pembayaran. Menyatukan keduanya mengubah perilaku, jadi perlu persetujuan user.
-- **Batas hitung di UI.** `getRows` di `WorkspacePage.tsx` dan blok `reduce` yang tersisa di `TagihanWorkspace.tsx` (turunan total per bulan dan periode) belum diaudit lagi. Kalau ada yang tersisa, catat di sini sebelum Tahap 2.
+- **Batas hitung di UI (sudah diaudit).** Sisa `reduce` di `TagihanWorkspace.tsx` (total periode, total bulan, pratinjau editor) sudah dipindah ke domain (`dcb1948`). `getRows` di `WorkspacePage.tsx` hanya memetakan data tampilan, jadi tetap di UI sesuai keputusan awal Tahap 1.
