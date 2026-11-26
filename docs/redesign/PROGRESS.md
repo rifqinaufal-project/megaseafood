@@ -4,12 +4,12 @@
 
 ## Langkah berikutnya
 
-**Tahap 2 — Fondasi**, item 3 berikutnya: AppShell (Sidebar dengan lipat dan tooltip, BusinessSwitcher, TopBar dengan cari, tema, dan profil, serta drawer mobile). Item 1 dan 2 sudah selesai. Sesi ini mengerjakan keduanya, melebihi aturan 2 `PLAN.md`, jadi item 3 dimulai di sesi baru.
-1. Baca `node_modules/next/dist/docs/` untuk layout bersarang dan `cacheComponents` (aktif di `next.config.ts`) sebelum memakai API Next. Jangan menebak API.
-2. Route `app/(app)/lapak` dan `app/(app)/resto` belum ada. Pastikan `app/page.tsx` (redirect ke `/dashboard`) dan `app/dashboard/[[...segments]]` tetap utuh sampai Tahap 5.
-3. Error dev `Could not validate instant` untuk route `/` sudah ada sebelum Tahap 2. Uji: layout, `globals.css`, dan `app/(app)` dikembalikan ke `b973c7f` satu per satu dan kombinasinya, error tetap muncul. `app/page.tsx` dan `next.config.ts` tidak berubah sejak tag `pre-redesign` (`516a662`). Error hanya terjadi di dev (`next build` lolos). Dugaan penyebab (belum diuji): redirect di `app/page.tsx` dibaca validasi `instant` sebagai error. Perbaikan menunggu keputusan user: biarkan sampai `/` diubah sesuai PLAN (redirect ke bisnis terakhir), atau ubah sekarang.
-4. Selesai: `tsc`, lint, tes, dan build lolos, commit, push, perbarui file ini.
-5. Verifikasi Tahap 2 item 1 di browser (port 3001, Chrome headless, tunggu 30 detik, light dan dark): `data-theme` benar (light menghasilkan `light`, dark menghasilkan `dark`). Layar yang tampil masih UI lama dengan warna yang sama di kedua mode (`#f4f4f2` dan `#ffffff`, sekitar 90% piksel). UI lama belum membaca token baru atau `data-theme`, jadi screenshot ini belum membuktikan desain light dan dark. Pembuktian visual dilakukan setelah komponen dasar dan AppShell (item 2 sampai 4). Kedip tema belum diukur. Server di port 3000 (PID 24553) dihentikan atas persetujuan user. Dev server sekarang di port 3001.
+**Tahap 2 — Fondasi**, item 4 berikutnya: komponen dasar `src/ui` (lihat DESIGN.md). Item 1 dan 2 sudah selesai. Item 3 (AppShell) kodenya sudah di commit `5f10635` dan sudah di-push, tetapi belum lengkap: tombol cari ⌘K belum ada dan belum dicek di browser.
+1. Baca `node_modules/next/dist/docs/` sebelum memakai API Next. `usePathname` di komponen shell hanya boleh di dalam Suspense (`cacheComponents` aktif, lihat `use-pathname.md`).
+2. Route `app/(app)/lapak` dan `app/(app)/resto` belum ada. `(app)/layout.tsx` sudah memasang AppShell, tetapi belum ada halaman yang bisa dibuka, jadi AppShell belum terlihat di browser. Pastikan `app/page.tsx` dan `app/dashboard/[[...segments]]` tetap utuh sampai Tahap 5.
+3. Error dev `Could not validate instant` untuk route `/` belum dicek ulang setelah AppShell masuk. `next build` lolos, tetapi dev server belum dijalankan di sesi ini. Perbaikan menunggu keputusan user: biarkan sampai `/` diubah sesuai PLAN (redirect ke bisnis terakhir), atau ubah sekarang.
+4. Selesai item 4: `tsc`, lint, tes, dan build lolos, commit, push, perbarui file ini.
+5. Verifikasi browser (port 3001, Chrome headless, light dan dark, desktop dan mobile) dilakukan setelah item 4, untuk AppShell dan komponen dasar sekaligus. Itu butuh halaman uji karena route `(app)` belum punya halaman. Sebelumnya, `data-theme` sudah diverifikasi di login, tetapi screenshot-nya masih UI lama. Kedip tema belum diukur. Server di port 3000 (PID 24553) dihentikan atas persetujuan user.
 
 ## Checklist
 
@@ -31,7 +31,7 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 ### Tahap 2 — Fondasi
 - [x] Font Plus Jakarta Sans, token warna light/dark, varian `dark:`, tema tanpa kedip (`2f332c7`)
 - [x] Route group `app/(app)` + layout + providers (data bisnis, toast, tema) + AuthGate (`88ad7a2`). Belum ada `page.tsx` di dalam group, jadi belum ada halaman yang diuji lewat group ini.
-- [ ] AppShell: Sidebar (lipat + tooltip), BusinessSwitcher, TopBar (cari, tema, profil), drawer mobile
+- [ ] AppShell: Sidebar (lipat + tooltip), BusinessSwitcher, TopBar (cari, tema, profil), drawer mobile. Kode di `5f10635`. Belum selesai: tombol cari ⌘K menunggu `Dialog` dari item 4, dan belum dicek di browser (lihat langkah 5).
 - [ ] Komponen dasar `src/ui` (lihat DESIGN.md)
 
 ### Tahap 3 — Lapak
@@ -79,6 +79,7 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 | 2026-11-26 | Tahap 1: dashboard Lapak ke domain | `b8e6cbc` | `lapak-totals.ts` dengan tes (3 tes baru). Ringkasan Lapak dan total per batch di `DashboardShell.tsx` diganti helper. `tsc`, lint, 161 tes, build lolos. Bagian Resto belum dipindah, lihat catatan audit. |
 | 2026-11-26 | Tahap 2: route group `(app)` + providers | `88ad7a2` | `app/(app)/layout.tsx` memasang ThemeProvider, AuthGate (dari `presentation/auth`), BusinessProvider (`src/shell/business-provider.tsx`, membungkus `useLocalBusiness`), dan ToastProvider (`src/ui/toast.tsx`). `src/shell/theme-provider.tsx` membaca dan menyimpan preferensi tema di localStorage. `tsc`, lint, 169 tes, build lolos. Belum ada halaman di group ini, jadi belum diuji di browser. ToastProvider belum dipakai. `DashboardShell` masih memakai toast internalnya. |
 | 2026-11-26 | Tahap 2: font, token light/dark, tema pra-paint | `2f332c7` | Plus Jakarta Sans lewat `next/font`. Token di `src/ui/tokens.css` (dipetakan ke `@theme`). `data-theme` diset `src/ui/theme.ts` lewat script sebelum paint. `--text-muted` disetel ke `#5C6A7E` (4,96:1 di `--bg`; nilai lama `#64748B` 4,29:1). `tsc`, lint, 169 tes, build lolos. Belum ada komponen yang memakai token, jadi UI lama tidak berubah. Screenshot login light dan dark sudah diambil, tapi keduanya masih UI lama. Token baru belum dipakai, jadi belum membuktikan desain light dan dark. |
+| 2026-11-26 | Tahap 2: AppShell (item 3, belum selesai) | `5f10635` | `src/shell/`: Sidebar (lipat ke ikon dengan tooltip, status tersimpan di localStorage), BusinessSwitcher (dropdown Lapak / Resto & Online), TopBar (tema, profil dengan Pengaturan, tema, Keluar), drawer mobile. `usePathname` dibungkus Suspense. Dipasang di `app/(app)/layout.tsx`. `tsc`, lint, 169 tes, build lolos. Di-push. Belum ada tombol cari ⌘K (menunggu `Dialog`), dan belum dicek di browser karena route `(app)` belum punya halaman. |
 
 ## Catatan audit
 
