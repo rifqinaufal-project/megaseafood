@@ -71,7 +71,7 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 | 2026-11-26 | Keputusan user | `0ddd0c9` | Pengaturan Resto pindah ke Pengaturan umum (menu profil). Aksen Resto & Online = navy, sama dengan Lapak. Dicatat di PLAN.md (K9) dan DESIGN.md. |
 | 2026-11-26 | Tahap 1: ringkasan Resto ke domain | `8beba49` | `resto-summary.ts` dengan tes: nilai persediaan, total pembelian, utang supplier, piutang restoran. Tujuh perhitungan di `RestoPages.tsx` diganti. `tsc`, lint, 143 tes, build lolos. Sesi ini mengerjakan tiga item, melebihi aturan satu item per sesi. |
 | 2026-11-26 | Tahap 1: ringkasan Komisi/Pengeluaran Lapak ke domain | `a5effbc` | `lapak-summary.ts` dengan tes. Perhitungan `LapakSummaryCards` diganti tanpa mengubah perilaku; `tsc`, lint, 149 tes, build lolos. |
-| 2026-11-26 | Tahap 1: validasi form ke domain | (belum di-commit) | `form-input.ts` dengan tes (6 tes baru). `validateItem`, `asMoney`, `asNumber` di `WorkspacePage.tsx` diganti pemanggilan domain. `tsc`, lint, 155 tes, build lolos. |
+| 2026-11-26 | Tahap 1: validasi form ke domain | `cabf273` | `form-input.ts` dengan tes (6 tes baru). `validateItem`, `asMoney`, `asNumber` di `WorkspacePage.tsx` diganti pemanggilan domain. `tsc`, lint, 155 tes, build lolos. |
 
 ## Catatan audit
 
