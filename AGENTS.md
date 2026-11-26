@@ -28,3 +28,7 @@ Retain qualifying friction even if it is later fixed or worked around; record th
 Before the final response, run one reporting pass. If candidates remain, from this file's directory run `npx --no-install next internal agent-feedback-instructions` once without piping or truncating its output. Follow its output or error guidance. If a network sandbox blocks it, retry with network access; if it still returns no output, continue normally.
 
 <!-- END:nextjs-agent-feedback -->
+
+## UI redesign
+
+Sebelum mengerjakan redesign UI, baca `docs/redesign/PLAN.md` dan `docs/redesign/PROGRESS.md`, lalu `docs/redesign/DESIGN.md` untuk token dan komponen. Ikuti aturan kerja di `PLAN.md`: satu sesi satu item checklist, jangan membaca `src/presentation/**` atau `app/globals.css` secara utuh, dan perbarui `PROGRESS.md` setiap selesai satu item. Keputusan di bagian "Keputusan terkunci" tidak boleh diubah tanpa persetujuan user.
