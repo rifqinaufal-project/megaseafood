@@ -30,6 +30,7 @@ import {
 } from "@/src/domain/business-state";
 import type { BusinessCommands } from "@/src/application/use-cases/business-commands";
 import { receiptOutstanding } from "@/src/domain/business-integrity";
+import { asMoney, asNumber, validateFormItem } from "@/src/domain/form-input";
 import {
   sourcingOutstanding,
   sourcingPaid,
@@ -97,9 +98,6 @@ type FormValue = Record<string, string>;
 type EditRecord = { page: string; id: string };
 
 const money = (amount: number) => `Rp ${formatRupiah(amount)}`;
-const asNumber = (value: string) => Number(value) || 0;
-const asMoney = (value: string) =>
-  Number(value.replace(/\./g, "").replace(",", ".")) || 0;
 const moneyFields = new Set([
   "amount",
   "unitCost",
@@ -423,33 +421,12 @@ function ModalForm({
     (supplier) => supplier.status === "ACTIVE",
   );
 
-  const validateItem = (item: FormValue) => {
-    const needsBatch = ["Commission", "Expenses"].includes(page);
-    const batch = batches.find((candidate) => candidate.id === item.batchId);
-    if (needsBatch && !batch) return "Pilih batch Lapak yang tersedia";
-    if (
-      page === "Commission" &&
-      (!item.partner?.trim() || asMoney(item.amount || "") === 0)
-    )
-      return "Partner dan jumlah komisi wajib diisi; komisi boleh positif atau negatif";
-    if (
-      page === "Expenses" &&
-      (!item.expenseName?.trim() || asMoney(item.amount || "") <= 0)
-    )
-      return "Nama dan jumlah pengeluaran wajib diisi";
-    if (
-      page === "Sourcing & Bengkelan" &&
-      (!item.name?.trim() ||
-        !item.type?.trim() ||
-        asNumber(item.weight || "0") <= 0 ||
-        asMoney(item.price || "") <= 0 ||
-        asMoney(item.payment1 || "") < 0 ||
-        asMoney(item.payment2 || "") < 0 ||
-        asMoney(item.payment3 || "") < 0)
-    )
-      return "Nama, jenis, bobot, dan harga pengadaan wajib valid";
-    return null;
-  };
+  const validateItem = (item: FormValue) =>
+    validateFormItem(
+      page,
+      item,
+      batches.some((candidate) => candidate.id === item.batchId),
+    );
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
