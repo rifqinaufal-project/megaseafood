@@ -4,10 +4,10 @@
 
 ## Langkah berikutnya
 
-**Tahap 2 — Fondasi**, item 2 berikutnya: route group `app/(app)` + layout + providers (data bisnis, toast, tema) + AuthGate. Tahap 1 sudah selesai.
-1. Baca `node_modules/next/dist/docs/` untuk route group, layout bersarang, dan `cacheComponents` (aktif di `next.config.ts`). Jangan menebak API.
-2. Route group tidak boleh bentrok dengan `app/page.tsx` dan `app/dashboard/[[...segments]]`, yang masih dipakai UI lama.
-3. Pastikan UI lama tetap berjalan (aturan 9). Verifikasi lewat server dev dan build.
+**Tahap 2 — Fondasi**, item 3 berikutnya: AppShell (Sidebar dengan lipat dan tooltip, BusinessSwitcher, TopBar dengan cari, tema, dan profil, serta drawer mobile). Item 2 sudah selesai.
+1. Baca `node_modules/next/dist/docs/` untuk layout bersarang dan `cacheComponents` (aktif di `next.config.ts`) sebelum memakai API Next. Jangan menebak API.
+2. Route `app/(app)/lapak` dan `app/(app)/resto` belum ada. Pastikan `app/page.tsx` (redirect ke `/dashboard`) dan `app/dashboard/[[...segments]]` tetap utuh sampai Tahap 5.
+3. Pastikan UI lama tetap berjalan (aturan 9). Log dev port 3001 mencatat `Could not validate instant` untuk route `/` (`NEXT_REDIRECT` dari `app/page.tsx`). `app/page.tsx` tidak berubah, tetapi belum diverifikasi apakah error itu muncul sebelum commit `88ad7a2`. Periksa sebelum item 3 dianggap selesai.
 4. Selesai: `tsc`, lint, tes, dan build lolos, commit, push, perbarui file ini.
 5. Verifikasi Tahap 2 item 1 di browser (port 3001, Chrome headless, tunggu 30 detik, light dan dark): `data-theme` benar (light menghasilkan `light`, dark menghasilkan `dark`). Layar yang tampil masih UI lama dengan warna yang sama di kedua mode (`#f4f4f2` dan `#ffffff`, sekitar 90% piksel). UI lama belum membaca token baru atau `data-theme`, jadi screenshot ini belum membuktikan desain light dan dark. Pembuktian visual dilakukan setelah komponen dasar dan AppShell (item 2 sampai 4). Kedip tema belum diukur. Server di port 3000 (PID 24553) dihentikan atas persetujuan user. Dev server sekarang di port 3001.
 
@@ -30,7 +30,7 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 
 ### Tahap 2 — Fondasi
 - [x] Font Plus Jakarta Sans, token warna light/dark, varian `dark:`, tema tanpa kedip (`2f332c7`)
-- [ ] Route group `app/(app)` + layout + providers (data bisnis, toast, tema) + AuthGate
+- [x] Route group `app/(app)` + layout + providers (data bisnis, toast, tema) + AuthGate (`88ad7a2`). Belum ada `page.tsx` di dalam group, jadi belum ada halaman yang diuji lewat group ini.
 - [ ] AppShell: Sidebar (lipat + tooltip), BusinessSwitcher, TopBar (cari, tema, profil), drawer mobile
 - [ ] Komponen dasar `src/ui` (lihat DESIGN.md)
 
@@ -77,6 +77,7 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 | 2026-11-26 | Tahap 1: piutang dashboard Resto (opsi A) ke domain | `6445125` | `resto-summary.ts`: `invoiceRevenueTotal`, `unpaidInvoices`, `unpaidInvoiceReceivable`, dengan tes (3 tes baru). Piutang = semua invoice belum lunas, termasuk ONLINE. Tahap 1 ditutup. |
 | 2026-11-26 | Tahap 1: sisa reduce Tagihan ke domain | `dcb1948` | `ledgerPeriodTotals`, `ledgerMonthTotals`, `ledgerPreviewTotals`, `asWholeRupiah` dengan tes (5 tes baru). `TagihanWorkspace.tsx` memanggil helper. `tsc`, lint, 169 tes, build lolos. |
 | 2026-11-26 | Tahap 1: dashboard Lapak ke domain | `b8e6cbc` | `lapak-totals.ts` dengan tes (3 tes baru). Ringkasan Lapak dan total per batch di `DashboardShell.tsx` diganti helper. `tsc`, lint, 161 tes, build lolos. Bagian Resto belum dipindah, lihat catatan audit. |
+| 2026-11-26 | Tahap 2: route group `(app)` + providers | `88ad7a2` | `app/(app)/layout.tsx` memasang ThemeProvider, AuthGate (dari `presentation/auth`), BusinessProvider (`src/shell/business-provider.tsx`, membungkus `useLocalBusiness`), dan ToastProvider (`src/ui/toast.tsx`). `src/shell/theme-provider.tsx` membaca dan menyimpan preferensi tema di localStorage. `tsc`, lint, 169 tes, build lolos. Belum ada halaman di group ini, jadi belum diuji di browser. ToastProvider belum dipakai. `DashboardShell` masih memakai toast internalnya. |
 | 2026-11-26 | Tahap 2: font, token light/dark, tema pra-paint | `2f332c7` | Plus Jakarta Sans lewat `next/font`. Token di `src/ui/tokens.css` (dipetakan ke `@theme`). `data-theme` diset `src/ui/theme.ts` lewat script sebelum paint. `--text-muted` disetel ke `#5C6A7E` (4,96:1 di `--bg`; nilai lama `#64748B` 4,29:1). `tsc`, lint, 169 tes, build lolos. Belum ada komponen yang memakai token, jadi UI lama tidak berubah. Screenshot login light dan dark sudah diambil, tapi keduanya masih UI lama. Token baru belum dipakai, jadi belum membuktikan desain light dan dark. |
 
 ## Catatan audit
