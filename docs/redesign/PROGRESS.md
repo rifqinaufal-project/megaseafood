@@ -65,8 +65,9 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 | 2026-11-26 | Rencana disusun (Plan mode) | — | Draf di folder plan, belum di repo. |
 | 2026-11-26 | Tahap 0: checkpoint + tag `pre-redesign` | `516a662` | Dua perubahan belum di-commit (gradient header transparan, format `DashboardShell.tsx`). `tsc`, lint, 136 tes lolos. |
 | 2026-11-26 | Tahap 0: dokumen rencana + `AGENTS.md` | `edd204c` | `docs/redesign/` berisi PLAN, DESIGN, PROGRESS. Bagian "UI redesign" ditambahkan di `AGENTS.md`, di luar blok Next.js. |
-| 2026-11-26 | Tahap 1: logika ledger ke domain | `cb79005` |
-| 2026-11-26 | Tahap 1: total pengadaan ke domain | `62ed379` | `sourcing.ts` dengan tes. Rumus `payment1+2+3` di `WorkspacePage.tsx` (3 tempat + total) dan `overview.ts` (2 tempat) diganti helper. `tsc`, lint, 139 tes, build lolos. | Dipindah dari `TagihanWorkspace.tsx` ke `src/domain/ledger.ts`. Perilaku tidak berubah. `tsc`, lint, 136 tes, build lolos. Sisa kandidat Tahap 1 belum dikerjakan. |
+| 2026-11-26 | Tahap 1: logika ledger ke domain | `cb79005` | Dipindah dari `TagihanWorkspace.tsx` ke `src/domain/ledger.ts`. Perilaku tidak berubah. `tsc`, lint, 136 tes, build lolos. |
+| 2026-11-26 | Tahap 1: total pengadaan ke domain | `62ed379` | `sourcing.ts` dengan tes. Rumus `payment1+2+3` di `WorkspacePage.tsx` (3 tempat + total) dan `overview.ts` (2 tempat) diganti helper. `tsc`, lint, 139 tes, build lolos. |
+| 2026-11-26 | Keputusan user | `0ddd0c9` | Pengaturan Resto pindah ke Pengaturan umum (menu profil). Aksen Resto & Online = navy, sama dengan Lapak. Dicatat di PLAN.md (K9) dan DESIGN.md. |
 
 ## Catatan audit
 
@@ -77,4 +78,4 @@ Pemetaan awal lewat grep. Perhitungan `reduce` di komponen (perkiraan jumlah):
 - `DashboardShell.tsx`: ~11. Ringkasan dashboard Lapak dan Resto.
 - `InvoiceWorkspace.tsx`: ~8. Turunan `calculated` (HPP, margin, profit). Sudah ada `calculateInvoice` di `domain/invoice.ts`, jadi bagian ini kemungkinan hanya ringkasan tampilan.
 
-Kandidat berikutnya diurutkan dari yang paling berisiko: Pengadaan (aturan pembayaran 3 tahap), lalu ringkasan Resto (piutang dan utang), lalu dashboard.
+Kandidat yang masih terbuka, diurutkan dari yang paling berisiko: ringkasan Resto (piutang dan utang di `RestoPages.tsx`), lalu dashboard (`DashboardShell.tsx`), lalu editor invoice (`InvoiceWorkspace.tsx`). Pengadaan sudah selesai.
