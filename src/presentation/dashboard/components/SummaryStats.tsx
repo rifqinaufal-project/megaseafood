@@ -19,7 +19,9 @@ export default function SummaryStats({
   className = "",
 }: SummaryStatsProps) {
   return (
-    <div className={`resource-stats ${className}`.trim()}>
+    <div
+      className={`resource-stats resource-stats-${stats.length} ${className}`.trim()}
+    >
       {stats.map((stat) => (
         <div
           className={`resource-stat ${stat.className ?? ""}`.trim()}

@@ -347,7 +347,7 @@ export default function TagihanWorkspace({
         }
       />
 
-      <div className="resource-stats metric-grid ledger-stats">
+      <div className="resource-stats resource-stats-4 ledger-stats">
         {[
           {
             title: "Total Pelanggan",
