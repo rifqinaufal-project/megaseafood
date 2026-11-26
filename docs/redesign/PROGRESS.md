@@ -4,11 +4,12 @@
 
 ## Langkah berikutnya
 
-**Tahap 1 — Audit logika di UI** (sesi baru, mulai dari sini). Sudah selesai: ledger, total pengadaan, ringkasan Resto, dan ringkasan Komisi/Pengeluaran Lapak. Berikutnya: audit perhitungan dashboard Lapak/Resto di `DashboardShell.tsx`.
-1. Verifikasi kandidat di checklist Tahap 1 dengan `grep` dan subagent. Jangan membaca file UI secara utuh.
-2. Untuk tiap logika yang ditemukan: pindahkan ke `src/domain` sebagai fungsi murni, tulis tes, lalu ganti pemanggilnya di UI dengan fungsi itu. Perubahan perilaku tidak boleh ada.
-3. Catat hasil audit di bagian "Catatan audit" di bawah.
-4. Selesai: `tsc`, lint, tes, dan build lolos, commit per logika, push, perbarui file ini.
+**Tahap 2 — Fondasi**, item 2 berikutnya: route group `app/(app)` + layout + providers (data bisnis, toast, tema) + AuthGate. Tahap 1 sudah selesai.
+1. Baca `node_modules/next/dist/docs/` untuk route group, layout bersarang, dan `cacheComponents` (aktif di `next.config.ts`). Jangan menebak API.
+2. Route group tidak boleh bentrok dengan `app/page.tsx` dan `app/dashboard/[[...segments]]`, yang masih dipakai UI lama.
+3. Pastikan UI lama tetap berjalan (aturan 9). Verifikasi lewat server dev dan build.
+4. Selesai: `tsc`, lint, tes, dan build lolos, commit, push, perbarui file ini.
+5. Catatan verifikasi Tahap 2 item 1: `data-theme` terpasang lewat Chrome headless. Belum ada bukti screenshot atau pengukuran kedip di browser. Port: `next dev -p 3001` gagal karena ada server lain di 3000 (PID 24553) yang melapor berjalan dari folder ini. `PLAN.md` aturan 10 menyebut port 3000 milik proyek lain. Perlu dicek user sebelum server itu dihentikan atau dipakai untuk verifikasi.
 
 ## Checklist
 
@@ -28,7 +29,7 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 - [x] Hasil audit dicatat di bawah (bagian "Catatan audit")
 
 ### Tahap 2 — Fondasi
-- [ ] Font Plus Jakarta Sans, token warna light/dark, varian `dark:`, tema tanpa kedip
+- [x] Font Plus Jakarta Sans, token warna light/dark, varian `dark:`, tema tanpa kedip (`2f332c7`)
 - [ ] Route group `app/(app)` + layout + providers (data bisnis, toast, tema) + AuthGate
 - [ ] AppShell: Sidebar (lipat + tooltip), BusinessSwitcher, TopBar (cari, tema, profil), drawer mobile
 - [ ] Komponen dasar `src/ui` (lihat DESIGN.md)
@@ -76,6 +77,7 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 | 2026-11-26 | Tahap 1: piutang dashboard Resto (opsi A) ke domain | `6445125` | `resto-summary.ts`: `invoiceRevenueTotal`, `unpaidInvoices`, `unpaidInvoiceReceivable`, dengan tes (3 tes baru). Piutang = semua invoice belum lunas, termasuk ONLINE. Tahap 1 ditutup. |
 | 2026-11-26 | Tahap 1: sisa reduce Tagihan ke domain | `dcb1948` | `ledgerPeriodTotals`, `ledgerMonthTotals`, `ledgerPreviewTotals`, `asWholeRupiah` dengan tes (5 tes baru). `TagihanWorkspace.tsx` memanggil helper. `tsc`, lint, 169 tes, build lolos. |
 | 2026-11-26 | Tahap 1: dashboard Lapak ke domain | `b8e6cbc` | `lapak-totals.ts` dengan tes (3 tes baru). Ringkasan Lapak dan total per batch di `DashboardShell.tsx` diganti helper. `tsc`, lint, 161 tes, build lolos. Bagian Resto belum dipindah, lihat catatan audit. |
+| 2026-11-26 | Tahap 2: font, token light/dark, tema pra-paint | `2f332c7` | Plus Jakarta Sans lewat `next/font`. Token di `src/ui/tokens.css` (dipetakan ke `@theme`). `data-theme` diset `src/ui/theme.ts` lewat script sebelum paint. `--text-muted` disetel ke `#5C6A7E` (4,96:1 di `--bg`; nilai lama `#64748B` 4,29:1). `tsc`, lint, 169 tes, build lolos. Belum ada komponen yang memakai token, jadi UI lama tidak berubah. Screenshot desktop/mobile tersimpan tapi belum bisa dinilai secara visual. Kedip tema belum diukur di browser. |
 
 ## Catatan audit
 
