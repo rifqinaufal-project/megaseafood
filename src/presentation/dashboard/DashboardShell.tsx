@@ -52,6 +52,11 @@ import {
   lapakPeriodTotals,
 } from "@/src/domain/lapak-totals";
 import {
+  invoiceRevenueTotal,
+  unpaidInvoiceReceivable,
+  unpaidInvoices,
+} from "@/src/domain/resto-summary";
+import {
   dayMonthLabel,
   groupByDay,
   groupByMonth,
@@ -629,13 +634,8 @@ function OverviewWorkspaceCards({
       (sum, item) => sum + (item.kind === "KREDIT" ? item.amount : 0),
       0,
     );
-  const restoRevenue = business.invoices.reduce(
-    (sum, invoice) => sum + invoice.total,
-    0,
-  );
-  const outstandingInvoices = business.invoices.filter(
-    (invoice) => invoice.outstandingAmount > 0,
-  ).length;
+  const restoRevenue = invoiceRevenueTotal(business.invoices);
+  const outstandingInvoices = unpaidInvoices(business.invoices).length;
 
   return (
     <section
@@ -727,19 +727,14 @@ function OverviewAttentionPanel({
   business: BusinessState;
   onNavigate: NavigateTarget;
 }) {
-  const outstandingInvoices = business.invoices.filter(
-    (invoice) => invoice.outstandingAmount > 0,
-  );
+  const outstandingInvoices = unpaidInvoices(business.invoices);
   const lowStockProducts = business.products.filter(
     (product) =>
       product.status === "ACTIVE" &&
       product.trackStock !== false &&
       product.stockBalance <= product.minimumStock,
   );
-  const totalReceivables = outstandingInvoices.reduce(
-    (sum, invoice) => sum + invoice.outstandingAmount,
-    0,
-  );
+  const totalReceivables = unpaidInvoiceReceivable(outstandingInvoices);
   const items = [
     {
       title: outstandingInvoices.length

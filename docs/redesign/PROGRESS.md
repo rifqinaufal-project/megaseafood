@@ -24,8 +24,8 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 - [x] Ringkasan Komisi/Pengeluaran (`LapakSummaryCards`) → `src/domain/lapak-summary.ts` (tes: `tests/lapak-summary.test.ts`)
 - [x] Validasi form di `ModalForm` / `getRows` (`WorkspacePage.tsx`) → `src/domain/form-input.ts` (`asMoney`, `asNumber`, `validateFormItem`; tes: `tests/form-input.test.ts`). `getRows` tidak diubah karena hanya memetakan baris tampilan, bukan validasi. Perilaku tidak berubah; dua aturan validasi (UI dan domain `business-commands.ts`) tetap terpisah, menunggu keputusan user.
 - [x] Perhitungan editor invoice (`InvoiceWorkspace.tsx`) → `src/domain/invoice-editor-summary.ts` (`invoiceEditorSummary`, `finite`; tes: `tests/invoice-editor-summary.test.ts`). Panel samping kini hanya membaca hasil `calculateInvoice`.
-- [x] Perhitungan dashboard Lapak/Resto di `DashboardShell.tsx` → `src/domain/lapak-totals.ts` (`lapakPeriodTotals`, `commissionTotalForBatch`, `expenseTotalForBatch`; tes: `tests/lapak-totals.test.ts`). Ringkasan Lapak dan total per batch kini memakai helper. Bagian Resto (`restoRevenue`, `totalReceivables`) belum dipindah karena ada keputusan yang belum jelas, lihat catatan audit.
-- [ ] Hasil audit dicatat di bawah (bagian "Catatan audit")
+- [x] Perhitungan dashboard Lapak/Resto di `DashboardShell.tsx` → `src/domain/lapak-totals.ts` (`lapakPeriodTotals`, `commissionTotalForBatch`, `expenseTotalForBatch`; tes: `tests/lapak-totals.test.ts`) dan `src/domain/resto-summary.ts` (`invoiceRevenueTotal`, `unpaidInvoices`, `unpaidInvoiceReceivable`; tes: `tests/resto-dashboard-totals.test.ts`). Piutang memakai opsi A: semua invoice belum lunas, termasuk ONLINE.
+- [x] Hasil audit dicatat di bawah (bagian "Catatan audit")
 
 ### Tahap 2 — Fondasi
 - [ ] Font Plus Jakarta Sans, token warna light/dark, varian `dark:`, tema tanpa kedip
@@ -84,8 +84,11 @@ Pemetaan awal lewat grep. Perhitungan `reduce` di komponen (perkiraan jumlah):
 - `DashboardShell.tsx`: ~11. Ringkasan dashboard Lapak dan Resto.
 - `InvoiceWorkspace.tsx`: ~8. Turunan `calculated` (HPP, margin, profit). Sudah ada `calculateInvoice` di `domain/invoice.ts`, jadi bagian ini kemungkinan hanya ringkasan tampilan.
 
-Kandidat yang masih terbuka: dashboard Resto di `DashboardShell.tsx`. Pengadaan, ringkasan Resto, ringkasan Komisi/Pengeluaran Lapak, editor invoice, dan dashboard Lapak sudah selesai.
+Semua kandidat Tahap 1 sudah dikerjakan. Tahap 1 selesai.
 
-Temuan yang perlu keputusan user (tidak diubah):
-- **Piutang di dashboard Resto.** `OverviewAttentionPanel` menjumlahkan `outstandingAmount` dari semua invoice yang belum lunas (termasuk ONLINE). `restaurantReceivableTotal` di `resto-summary.ts` hanya menjumlahkan invoice yang punya `restaurantId`. Dua angka ini berbeda untuk data yang punya invoice ONLINE. Pilih yang mana yang benar sebelum menyatukan.
-- **Validasi form ganda.** `validateFormItem` (UI) dan `validateSourcingInput` (domain) tidak sama aturannya: UI tidak memeriksa tanggal dan total pembayaran. Lihat item validasi form.
+Keputusan yang sudah diambil user:
+- **Piutang di dashboard Resto (opsi A).** Piutang = semua invoice yang belum lunas, termasuk ONLINE. Helper baru `unpaidInvoiceReceivable` dan `unpaidInvoices` di `resto-summary.ts`. `restaurantReceivableTotal` tetap untuk perhitungan piutang per restoran.
+
+Temuan yang masih terbuka (tidak diubah, perlu keputusan user di tahap berikutnya):
+- **Validasi form ganda.** `validateFormItem` (UI, `form-input.ts`) dan `validateSourcingInput` (domain, `business-commands.ts`) tidak sama aturannya. UI tidak memeriksa tanggal pembayaran dan total pembayaran. Menyatukan keduanya mengubah perilaku, jadi perlu persetujuan user.
+- **Batas hitung di UI.** `getRows` di `WorkspacePage.tsx` dan blok `reduce` yang tersisa di `TagihanWorkspace.tsx` (turunan total per bulan dan periode) belum diaudit lagi. Kalau ada yang tersisa, catat di sini sebelum Tahap 2.
