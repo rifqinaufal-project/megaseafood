@@ -4,11 +4,11 @@
 
 ## Langkah berikutnya
 
-**Tahap 2 — Fondasi**, item 4 berikutnya: komponen dasar `src/ui` (lihat DESIGN.md). Item 1 dan 2 sudah selesai. Item 3 (AppShell) kodenya sudah di commit `5f10635` dan sudah di-push, tetapi belum lengkap: tombol cari ⌘K belum ada dan belum dicek di browser.
+**Tahap 2 — Fondasi** selesai (item 1–4). Berikutnya: **Tahap 3 — Lapak, item Batch (daftar)**. Batch dibangun sebagai mockup hidup (K10) dan direview user di browser sebelum lanjut.
 1. Baca `node_modules/next/dist/docs/` sebelum memakai API Next. `usePathname` di komponen shell hanya boleh di dalam Suspense (`cacheComponents` aktif, lihat `use-pathname.md`).
 2. Route `app/(app)/lapak` dan `app/(app)/resto` belum ada. `(app)/layout.tsx` sudah memasang AppShell, tetapi belum ada halaman yang bisa dibuka, jadi AppShell belum terlihat di browser. Pastikan `app/page.tsx` dan `app/dashboard/[[...segments]]` tetap utuh sampai Tahap 5.
 3. Error dev `Could not validate instant` untuk route `/` belum dicek ulang setelah AppShell masuk. `next build` lolos, tetapi dev server belum dijalankan di sesi ini. Perbaikan menunggu keputusan user: biarkan sampai `/` diubah sesuai PLAN (redirect ke bisnis terakhir), atau ubah sekarang.
-4. Selesai item 4: `tsc`, lint, tes, dan build lolos, commit, push, perbarui file ini.
+4. Komponen `src/ui` lengkap (item 4). Saat menulis ini, `tsc`, lint, 171 tes, dan build lolos. `DataTable` dan `Tabs` sudah ada tetapi belum dipakai halaman mana pun. Pastikan dicek ulang saat dipakai di Batch.
 5. Verifikasi browser AppShell ditunda ke Tahap 3 Batch, atas keputusan user (route `(app)` belum punya halaman). Saat halaman Batch dibuat, cek di port 3001 (Chrome headless): light dan dark, desktop dan mobile, lipat sidebar dengan tooltip, drawer mobile, menu profil, dan ganti tema. Sebelumnya, `data-theme` sudah diverifikasi di login, tetapi screenshot-nya masih UI lama. Kedip tema belum diukur. Server di port 3000 (PID 24553) dihentikan atas persetujuan user.
 
 ## Checklist
@@ -31,8 +31,8 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 ### Tahap 2 — Fondasi
 - [x] Font Plus Jakarta Sans, token warna light/dark, varian `dark:`, tema tanpa kedip (`2f332c7`)
 - [x] Route group `app/(app)` + layout + providers (data bisnis, toast, tema) + AuthGate (`88ad7a2`). Belum ada `page.tsx` di dalam group, jadi belum ada halaman yang diuji lewat group ini.
-- [ ] AppShell: Sidebar (lipat + tooltip), BusinessSwitcher, TopBar (cari, tema, profil), drawer mobile. Kode di `5f10635`. Belum selesai: tombol cari ⌘K menunggu `Dialog` dari item 4, dan belum dicek di browser (lihat langkah 5).
-- [ ] Komponen dasar `src/ui` (lihat DESIGN.md). Sebagian sudah di commit `1967971`: `Button`, `IconButton`, `Card`, `Badge`, `Segmented`, `PeriodControl`, `EmptyState`, `cx`. Belum ada: Field/Input/Select/Textarea/MoneyInput, Dialog, Drawer, Confirm, DataTable, Tabs, Avatar, Tooltip, Toast. Item ini belum dicentang. Sisanya dikerjakan di sesi baru, satu komponen kelompok per sesi.
+- [x] AppShell: Sidebar (lipat + tooltip), BusinessSwitcher, TopBar (cari, tema, profil), drawer mobile. Kode di `5f10635`. Tombol cari ⌘K dan dialog pencarian ditambahkan di `602edcb`. Pengecekan di browser ditunda ke Tahap 3 Batch (lihat langkah 5).
+- [x] Komponen dasar `src/ui` (lihat DESIGN.md). `1967971`: `Button`, `IconButton`, `Card`, `Badge`, `Segmented`, `PeriodControl`, `EmptyState`. `6ce5aa4`: `Input`/`Select`/`Textarea`/`MoneyInput`, `Dialog`, `Drawer`, `Confirm`, `DataTable`, `Tabs`, `Avatar`, `Tooltip`. `850d355`: `MetricStrip` dan ekspor `Field`. `Toast` ada di `toast.tsx` dari `88ad7a2`.
 
 ### Tahap 3 — Lapak
 - [ ] Batch (daftar) — **review user di browser sebelum lanjut** (pengganti mockup)
@@ -78,6 +78,9 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 | 2026-11-26 | Tahap 1: sisa reduce Tagihan ke domain | `dcb1948` | `ledgerPeriodTotals`, `ledgerMonthTotals`, `ledgerPreviewTotals`, `asWholeRupiah` dengan tes (5 tes baru). `TagihanWorkspace.tsx` memanggil helper. `tsc`, lint, 169 tes, build lolos. |
 | 2026-11-26 | Tahap 1: dashboard Lapak ke domain | `b8e6cbc` | `lapak-totals.ts` dengan tes (3 tes baru). Ringkasan Lapak dan total per batch di `DashboardShell.tsx` diganti helper. `tsc`, lint, 161 tes, build lolos. Bagian Resto belum dipindah, lihat catatan audit. |
 | 2026-11-26 | Tahap 2: route group `(app)` + providers | `88ad7a2` | `app/(app)/layout.tsx` memasang ThemeProvider, AuthGate (dari `presentation/auth`), BusinessProvider (`src/shell/business-provider.tsx`, membungkus `useLocalBusiness`), dan ToastProvider (`src/ui/toast.tsx`). `src/shell/theme-provider.tsx` membaca dan menyimpan preferensi tema di localStorage. `tsc`, lint, 169 tes, build lolos. Belum ada halaman di group ini, jadi belum diuji di browser. ToastProvider belum dipakai. `DashboardShell` masih memakai toast internalnya. |
+| 2026-11-26 | Tahap 2: komponen `src/ui` (item 4, bagian 1) | `6ce5aa4` | Input, Select, Textarea, MoneyInput, Dialog, Drawer, Confirm, DataTable, Tabs, Avatar, Tooltip. Pesan commit menyebut item 4 selesai, padahal `MetricStrip` dan `Field` belum ada. Diperbaiki di commit berikutnya. |
+| 2026-11-26 | Tahap 2: tombol cari ⌘K (item 3) | `602edcb` | `CommandSearch` dipasang di `TopBar` (tombol ikon + ⌘K/Ctrl+K). Tes `search-href` ditambahkan. Pengecekan browser ditunda ke Tahap 3 Batch. |
+| 2026-11-26 | Tahap 2: `MetricStrip`, ekspor `Field` (item 4, bagian 2) | `850d355` | `MetricStrip` (maks. 4 angka, aturan 2×2 di PLAN). `FieldShell` diganti nama jadi `Field` dan diekspor agar sesuai DESIGN.md. `tsc`, lint, 171 tes, build lolos. Tahap 2 selesai. |
 | 2026-11-26 | Tahap 2: font, token light/dark, tema pra-paint | `2f332c7` | Plus Jakarta Sans lewat `next/font`. Token di `src/ui/tokens.css` (dipetakan ke `@theme`). `data-theme` diset `src/ui/theme.ts` lewat script sebelum paint. `--text-muted` disetel ke `#5C6A7E` (4,96:1 di `--bg`; nilai lama `#64748B` 4,29:1). `tsc`, lint, 169 tes, build lolos. Belum ada komponen yang memakai token, jadi UI lama tidak berubah. Screenshot login light dan dark sudah diambil, tapi keduanya masih UI lama. Token baru belum dipakai, jadi belum membuktikan desain light dan dark. |
 | 2026-11-26 | Tahap 2: komponen dasar sebagian (item 4, belum selesai) | `1967971` | `Button`, `IconButton`, `Card`, `Badge`, `Segmented`, `PeriodControl`, `EmptyState`, `cx` di `src/ui`. `tsc`, lint, build, 169 tes lolos. Di-push. Belum ada form, dialog, drawer, tabel, tab, tooltip, toast. Belum dicek visual. |
 | 2026-11-26 | Keputusan user | — | Verifikasi browser AppShell ditunda ke Tahap 3 Batch. Item 3 tetap belum dicentang sampai verifikasi itu selesai. |
