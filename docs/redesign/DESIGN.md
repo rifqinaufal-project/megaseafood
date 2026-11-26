@@ -23,7 +23,7 @@ Nilai awal, boleh disetel saat fondasi asal kontras teks ≥ 4.5:1.
 | `--surface-2` | `#F6F7F9` | `#1B1D22` | baris di dalam kartu, input, hover |
 | `--border` | `rgb(15 23 42 / 0.08)` | `rgb(255 255 255 / 0.08)` | garis tipis |
 | `--text` | `#0F172A` | `#F3F4F6` | teks utama |
-| `--text-muted` | `#64748B` | `#9CA3AF` | label, keterangan |
+| `--text-muted` | `#5C6A7E` | `#9CA3AF` | label, keterangan (4,96:1 di `--bg`, disetel dari `#64748B` yang hanya 4,29:1) |
 | `--primary` | `#1C3A6E` (navy) | `#8FB0E8` (navy terang) | tombol utama, menu aktif, fokus |
 | `--primary-fg` | `#FFFFFF` | `#0A0B0D` | teks di atas primary |
 | `--primary-soft` | `#EEF2F8` | `rgb(143 176 232 / 0.14)` | latar menu aktif, chip |
