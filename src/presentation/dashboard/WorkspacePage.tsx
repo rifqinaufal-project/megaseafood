@@ -35,6 +35,10 @@ import {
   sourcingPaid,
   sourcingTotals,
 } from "@/src/domain/sourcing";
+import {
+  commissionSummary,
+  lapakExpenseSummary,
+} from "@/src/domain/lapak-summary";
 import { resolveWorkspacePage } from "@/src/presentation/dashboard/workspace-routing";
 import {
   groupByDay,
@@ -2365,56 +2369,46 @@ function LapakSummaryCards({
   const cards =
     page === "Commission"
       ? (() => {
-          const commissions = state.commissions.filter((item) =>
-            inRange(item.date, range),
-          );
-          const total = commissions.reduce((sum, item) => sum + item.amount, 0);
-          const partners = new Set(
-            commissions.map((item) => item.partner.trim()).filter(Boolean),
-          ).size;
+          const summary = commissionSummary(state.commissions, range);
           return [
             {
               label: "Total komisi",
-              value: money(total),
+              value: money(summary.total),
               detail: range
-                ? `${commissions.length} catatan pada periode ini`
-                : `${commissions.length} catatan tercatat`,
+                ? `${summary.count} catatan pada periode ini`
+                : `${summary.count} catatan tercatat`,
             },
             {
               label: "Partner penerima",
-              value: partners.toLocaleString("id-ID"),
+              value: summary.partners.toLocaleString("id-ID"),
               detail: "partner unik pada data komisi",
             },
             {
               label: "Rata-rata komisi",
-              value: money(commissions.length ? total / commissions.length : 0),
+              value: money(summary.average),
               detail: "nilai rata-rata per catatan",
             },
           ];
         })()
       : page === "Expenses"
         ? (() => {
-            const expenses = state.lapakExpenses.filter((item) =>
-              inRange(item.date, range),
-            );
-            const total = expenses.reduce((sum, item) => sum + item.amount, 0);
-            const batches = new Set(expenses.map((item) => item.batchId)).size;
+            const summary = lapakExpenseSummary(state.lapakExpenses, range);
             return [
               {
                 label: "Total pengeluaran",
-                value: money(total),
+                value: money(summary.total),
                 detail: range
-                  ? `${expenses.length} catatan pada periode ini`
-                  : `${expenses.length} catatan tercatat`,
+                  ? `${summary.count} catatan pada periode ini`
+                  : `${summary.count} catatan tercatat`,
               },
               {
                 label: "Batch terdampak",
-                value: batches.toLocaleString("id-ID"),
+                value: summary.batches.toLocaleString("id-ID"),
                 detail: "batch dengan biaya tercatat",
               },
               {
                 label: "Rata-rata biaya",
-                value: money(expenses.length ? total / expenses.length : 0),
+                value: money(summary.average),
                 detail: "nilai rata-rata per catatan",
               },
             ];
