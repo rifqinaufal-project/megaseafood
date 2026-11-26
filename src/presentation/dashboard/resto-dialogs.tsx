@@ -83,7 +83,7 @@ export function ProductDialog({ commands, onNotify, onClose, product }: DialogPr
             <MoneyInput value={price} onChange={setPrice} placeholder="0" />
           </FormField>
           <FormField label="Kelola stok produk ini" hint={trackStock ? "ON · Produk berstok" : "OFF · Produk non-stok"}>
-            <label className="checkbox-label">
+            <label className="stock-toggle">
               <input type="checkbox" checked={trackStock} onChange={(event) => setTrackStock(event.target.checked)} />
               <span>{trackStock ? "Produk berstok" : "Produk non-stok"}</span>
             </label>
