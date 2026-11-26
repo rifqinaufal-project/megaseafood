@@ -32,7 +32,7 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 - [x] Font Plus Jakarta Sans, token warna light/dark, varian `dark:`, tema tanpa kedip (`2f332c7`)
 - [x] Route group `app/(app)` + layout + providers (data bisnis, toast, tema) + AuthGate (`88ad7a2`). Belum ada `page.tsx` di dalam group, jadi belum ada halaman yang diuji lewat group ini.
 - [ ] AppShell: Sidebar (lipat + tooltip), BusinessSwitcher, TopBar (cari, tema, profil), drawer mobile. Kode di `5f10635`. Belum selesai: tombol cari ⌘K menunggu `Dialog` dari item 4, dan belum dicek di browser (lihat langkah 5).
-- [ ] Komponen dasar `src/ui` (lihat DESIGN.md)
+- [ ] Komponen dasar `src/ui` (lihat DESIGN.md). Sebagian sudah ada tapi belum di-commit: `Button`, `IconButton`, `Card`, `Badge`, `Segmented`, `PeriodControl`, `EmptyState`, `cx`. `tsc` dan lint lolos. Belum ada: Field/Input/Select/Textarea/MoneyInput, Dialog, Drawer, Confirm, DataTable, Tabs, Avatar, Tooltip, Toast. Sesi ini melewati aturan 2 PLAN (item 3 lalu item 4), jadi sisa item 4 dikerjakan di sesi baru.
 
 ### Tahap 3 — Lapak
 - [ ] Batch (daftar) — **review user di browser sebelum lanjut** (pengganti mockup)
