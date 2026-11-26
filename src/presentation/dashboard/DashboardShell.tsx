@@ -214,11 +214,7 @@ function LapakDashboard({
     days: groupByDay(month.items, (batch) => batch.startDate),
   }));
   const dailyTotals = dailyLapakTotals(business, anchor);
-  const topBatches = topProfitBatches(
-    business.batches,
-    commissions,
-    expenses,
-  );
+  const topBatches = topProfitBatches(business.batches, commissions, expenses);
   return (
     <div className="workspace-page lapak-dashboard">
       <WorkspaceHeader
