@@ -65,7 +65,8 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 | 2026-11-26 | Rencana disusun (Plan mode) | — | Draf di folder plan, belum di repo. |
 | 2026-11-26 | Tahap 0: checkpoint + tag `pre-redesign` | `516a662` | Dua perubahan belum di-commit (gradient header transparan, format `DashboardShell.tsx`). `tsc`, lint, 136 tes lolos. |
 | 2026-11-26 | Tahap 0: dokumen rencana + `AGENTS.md` | `edd204c` | `docs/redesign/` berisi PLAN, DESIGN, PROGRESS. Bagian "UI redesign" ditambahkan di `AGENTS.md`, di luar blok Next.js. |
-| 2026-11-26 | Tahap 1: logika ledger ke domain | `cb79005` | Dipindah dari `TagihanWorkspace.tsx` ke `src/domain/ledger.ts`. Perilaku tidak berubah. `tsc`, lint, 136 tes, build lolos. Sisa kandidat Tahap 1 belum dikerjakan. |
+| 2026-11-26 | Tahap 1: logika ledger ke domain | `cb79005` |
+| 2026-11-26 | Tahap 1: total pengadaan ke domain | `62ed379` | `sourcing.ts` dengan tes. Rumus `payment1+2+3` di `WorkspacePage.tsx` (3 tempat + total) dan `overview.ts` (2 tempat) diganti helper. `tsc`, lint, 139 tes, build lolos. | Dipindah dari `TagihanWorkspace.tsx` ke `src/domain/ledger.ts`. Perilaku tidak berubah. `tsc`, lint, 136 tes, build lolos. Sisa kandidat Tahap 1 belum dikerjakan. |
 
 ## Catatan audit
 
