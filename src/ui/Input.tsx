@@ -19,7 +19,7 @@ function messageId(id: string, helper?: string, error?: string) {
   return undefined;
 }
 
-function FieldShell({ id, label, helper, error, children }: FieldText & { id: string; children: ReactNode }) {
+export function Field({ id, label, helper, error, children }: FieldText & { id: string; children: ReactNode }) {
   const message = messageId(id, helper, error);
   return (
     <div className="flex w-full flex-col gap-2">
@@ -45,7 +45,7 @@ export type InputProps = InputHTMLAttributes<HTMLInputElement> & FieldText & { p
 export function Input({ label, helper, error, prefix, id, className, ...rest }: InputProps) {
   const fieldId = useFieldId(id);
   return (
-    <FieldShell id={fieldId} label={label} helper={helper} error={error}>
+    <Field id={fieldId} label={label} helper={helper} error={error}>
       <div className="relative">
         {prefix && (
           <span aria-hidden className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-sm text-text-muted">
@@ -60,7 +60,7 @@ export function Input({ label, helper, error, prefix, id, className, ...rest }: 
           className={cx(baseControl, error ? "border-danger" : "border-border", "h-11", prefix && "pl-11", className)}
         />
       </div>
-    </FieldShell>
+    </Field>
   );
 }
 
@@ -69,7 +69,7 @@ export type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & FieldText;
 export function Select({ label, helper, error, id, className, children, ...rest }: SelectProps) {
   const fieldId = useFieldId(id);
   return (
-    <FieldShell id={fieldId} label={label} helper={helper} error={error}>
+    <Field id={fieldId} label={label} helper={helper} error={error}>
       <select
         {...rest}
         id={fieldId}
@@ -79,7 +79,7 @@ export function Select({ label, helper, error, id, className, children, ...rest 
       >
         {children}
       </select>
-    </FieldShell>
+    </Field>
   );
 }
 
@@ -88,7 +88,7 @@ export type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & FieldT
 export function Textarea({ label, helper, error, id, className, ...rest }: TextareaProps) {
   const fieldId = useFieldId(id);
   return (
-    <FieldShell id={fieldId} label={label} helper={helper} error={error}>
+    <Field id={fieldId} label={label} helper={helper} error={error}>
       <textarea
         {...rest}
         id={fieldId}
@@ -96,6 +96,6 @@ export function Textarea({ label, helper, error, id, className, ...rest }: Texta
         aria-describedby={messageId(fieldId, helper, error)}
         className={cx(baseControl, error ? "border-danger" : "border-border", "min-h-24 resize-y py-3", className)}
       />
-    </FieldShell>
+    </Field>
   );
 }
