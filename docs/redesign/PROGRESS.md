@@ -4,7 +4,7 @@
 
 ## Langkah berikutnya
 
-**Tahap 1 — Audit logika di UI** (sesi baru, mulai dari sini). Sudah selesai: ledger, total pengadaan, dan ringkasan Resto. Berikutnya: ringkasan Komisi/Pengeluaran Lapak (`LapakSummaryCards`), lalu dashboard `DashboardShell.tsx`.
+**Tahap 1 — Audit logika di UI** (sesi baru, mulai dari sini). Sudah selesai: ledger, total pengadaan, ringkasan Resto, dan ringkasan Komisi/Pengeluaran Lapak. Berikutnya: audit perhitungan dashboard Lapak/Resto di `DashboardShell.tsx`.
 1. Verifikasi kandidat di checklist Tahap 1 dengan `grep` dan subagent. Jangan membaca file UI secara utuh.
 2. Untuk tiap logika yang ditemukan: pindahkan ke `src/domain` sebagai fungsi murni, tulis tes, lalu ganti pemanggilnya di UI dengan fungsi itu. Perubahan perilaku tidak boleh ada.
 3. Catat hasil audit di bagian "Catatan audit" di bawah.
@@ -21,7 +21,7 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 - [x] `buildLedgerGroups`, `ledgerTotals` → `src/domain/ledger.ts` (tes: `business-integrity.test.ts`). `formatLedgerDate` tetap di UI karena murni format tampilan.
 - [x] Total dibayar / sisa pengadaan → `src/domain/sourcing.ts` (`sourcingPaid`, `sourcingOutstanding`, `sourcingTotals`; tes: `tests/sourcing.test.ts`). Dipakai di `WorkspacePage.tsx` dan `overview.ts`.
 - [x] Ringkasan Resto (`RestoPages.tsx`): nilai persediaan, total pembelian, utang supplier, piutang restoran → `src/domain/resto-summary.ts` (tes: `tests/resto-summary.test.ts`).
-- [ ] Ringkasan Komisi/Pengeluaran (`LapakSummaryCards`)
+- [x] Ringkasan Komisi/Pengeluaran (`LapakSummaryCards`) → `src/domain/lapak-summary.ts` (tes: `tests/lapak-summary.test.ts`)
 - [ ] Validasi form di `ModalForm` / `getRows` (`WorkspacePage.tsx`)
 - [ ] Perhitungan editor invoice (`InvoiceWorkspace.tsx`)
 - [ ] Perhitungan dashboard Lapak/Resto di `DashboardShell.tsx`
@@ -70,6 +70,7 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 | 2026-11-26 | Tahap 1: total pengadaan ke domain | `62ed379` | `sourcing.ts` dengan tes. Rumus `payment1+2+3` di `WorkspacePage.tsx` (3 tempat + total) dan `overview.ts` (2 tempat) diganti helper. `tsc`, lint, 139 tes, build lolos. |
 | 2026-11-26 | Keputusan user | `0ddd0c9` | Pengaturan Resto pindah ke Pengaturan umum (menu profil). Aksen Resto & Online = navy, sama dengan Lapak. Dicatat di PLAN.md (K9) dan DESIGN.md. |
 | 2026-11-26 | Tahap 1: ringkasan Resto ke domain | `8beba49` | `resto-summary.ts` dengan tes: nilai persediaan, total pembelian, utang supplier, piutang restoran. Tujuh perhitungan di `RestoPages.tsx` diganti. `tsc`, lint, 143 tes, build lolos. Sesi ini mengerjakan tiga item, melebihi aturan satu item per sesi. |
+| 2026-11-26 | Tahap 1: ringkasan Komisi/Pengeluaran Lapak ke domain | `a5effbc` | `lapak-summary.ts` dengan tes. Perhitungan `LapakSummaryCards` diganti tanpa mengubah perilaku; `tsc`, lint, 149 tes, build lolos. |
 
 ## Catatan audit
 
@@ -80,4 +81,4 @@ Pemetaan awal lewat grep. Perhitungan `reduce` di komponen (perkiraan jumlah):
 - `DashboardShell.tsx`: ~11. Ringkasan dashboard Lapak dan Resto.
 - `InvoiceWorkspace.tsx`: ~8. Turunan `calculated` (HPP, margin, profit). Sudah ada `calculateInvoice` di `domain/invoice.ts`, jadi bagian ini kemungkinan hanya ringkasan tampilan.
 
-Kandidat yang masih terbuka: ringkasan Komisi/Pengeluaran Lapak, dashboard (`DashboardShell.tsx`), lalu editor invoice (`InvoiceWorkspace.tsx`). Pengadaan dan ringkasan Resto sudah selesai.
+Kandidat yang masih terbuka: dashboard (`DashboardShell.tsx`), lalu editor invoice (`InvoiceWorkspace.tsx`). Pengadaan, ringkasan Resto, dan ringkasan Komisi/Pengeluaran Lapak sudah selesai.
