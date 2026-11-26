@@ -30,6 +30,11 @@ import {
 } from "@/src/domain/business-state";
 import type { BusinessCommands } from "@/src/application/use-cases/business-commands";
 import { receiptOutstanding } from "@/src/domain/business-integrity";
+import {
+  sourcingOutstanding,
+  sourcingPaid,
+  sourcingTotals,
+} from "@/src/domain/sourcing";
 import { resolveWorkspacePage } from "@/src/presentation/dashboard/workspace-routing";
 import {
   groupByDay,
@@ -1959,10 +1964,7 @@ function SourcingWorkspacePage({
     (item) => item.date,
     (item) => item.total,
   ).map((month) => {
-    const paid = month.items.reduce(
-      (sum, item) => sum + item.payment1 + item.payment2 + item.payment3,
-      0,
-    );
+    const paid = month.items.reduce((sum, item) => sum + sourcingPaid(item), 0);
     return {
       ...month,
       days: groupByDay(
@@ -1974,12 +1976,7 @@ function SourcingWorkspacePage({
       outstanding: month.total - paid,
     };
   });
-  const total = rows.reduce((sum, item) => sum + item.total, 0);
-  const paid = rows.reduce(
-    (sum, item) => sum + item.payment1 + item.payment2 + item.payment3,
-    0,
-  );
-  const outstanding = total - paid;
+  const { total, paid, outstanding } = sourcingTotals(rows);
   const beginPayment = (
     item: BusinessState["sourcings"][number],
     paymentNumber: 1 | 2 | 3,
@@ -2222,9 +2219,8 @@ function SourcingWorkspacePage({
                           </td>
                         </tr>
                         {day.items.map((item) => {
-                          const itemPaid =
-                            item.payment1 + item.payment2 + item.payment3;
-                          const itemOutstanding = item.total - itemPaid;
+                          const itemPaid = sourcingPaid(item);
+                          const itemOutstanding = sourcingOutstanding(item);
                           return (
                             <Fragment key={item.id}>
                               <tr>

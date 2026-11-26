@@ -1,6 +1,7 @@
 import { formatRupiah, today, type BusinessState } from "@/src/domain/business-state";
 import type { ActivityRow, DashboardSnapshot, OverviewRange } from "@/src/domain/dashboard";
 import { invoiceCostTotal, invoiceDirectCostTotal, invoiceTransactionProfit } from "@/src/domain/invoice";
+import { sourcingPaid } from "@/src/domain/sourcing";
 
 const money = (value: number) => `${value < 0 ? "-" : ""}Rp ${formatRupiah(Math.abs(value))}`;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
@@ -35,7 +36,7 @@ function sourcingFigures(state: BusinessState, keep: (date: string) => boolean) 
   const sourcings = state.sourcings.filter((item) => keep(item.date));
   return {
     total: sum(sourcings, (item) => item.total),
-    paid: sum(sourcings, (item) => item.payment1 + item.payment2 + item.payment3),
+    paid: sum(sourcings, sourcingPaid),
     count: sourcings.length,
   };
 }
@@ -127,7 +128,7 @@ export function buildOverview(state: BusinessState, range: OverviewRange, asOf =
   const restoIn = sum(state.invoices, (item) => item.paidAmount);
   const cashOut =
     sum(state.supplierPayments, (item) => item.amount) +
-    sum(state.sourcings, (item) => item.payment1 + item.payment2 + item.payment3) +
+    sum(state.sourcings, sourcingPaid) +
     sum(state.operatingExpenses, (item) => item.amount) +
     sum(state.lapakExpenses, (item) => item.amount);
 

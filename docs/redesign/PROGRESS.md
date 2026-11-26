@@ -19,7 +19,7 @@
 ### Tahap 1 — Audit logika di UI
 Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kandidat (verifikasi dulu via grep/subagent):
 - [x] `buildLedgerGroups`, `ledgerTotals` → `src/domain/ledger.ts` (tes: `business-integrity.test.ts`). `formatLedgerDate` tetap di UI karena murni format tampilan.
-- [ ] Total dibayar / sisa pengadaan (`WorkspacePage.tsx`, Sourcing)
+- [x] Total dibayar / sisa pengadaan → `src/domain/sourcing.ts` (`sourcingPaid`, `sourcingOutstanding`, `sourcingTotals`; tes: `tests/sourcing.test.ts`). Dipakai di `WorkspacePage.tsx` dan `overview.ts`.
 - [ ] Ringkasan Komisi/Pengeluaran (`LapakSummaryCards`)
 - [ ] Validasi form di `ModalForm` / `getRows` (`WorkspacePage.tsx`)
 - [ ] Perhitungan editor invoice (`InvoiceWorkspace.tsx`)
@@ -65,7 +65,7 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 | 2026-11-26 | Rencana disusun (Plan mode) | — | Draf di folder plan, belum di repo. |
 | 2026-11-26 | Tahap 0: checkpoint + tag `pre-redesign` | `516a662` | Dua perubahan belum di-commit (gradient header transparan, format `DashboardShell.tsx`). `tsc`, lint, 136 tes lolos. |
 | 2026-11-26 | Tahap 0: dokumen rencana + `AGENTS.md` | `edd204c` | `docs/redesign/` berisi PLAN, DESIGN, PROGRESS. Bagian "UI redesign" ditambahkan di `AGENTS.md`, di luar blok Next.js. |
-| 2026-11-26 | Tahap 1: logika ledger ke domain | (lihat commit) | Dipindah dari `TagihanWorkspace.tsx` ke `src/domain/ledger.ts`. Perilaku tidak berubah. `tsc`, lint, 136 tes, build lolos. Sisa kandidat Tahap 1 belum dikerjakan. |
+| 2026-11-26 | Tahap 1: logika ledger ke domain | `cb79005` | Dipindah dari `TagihanWorkspace.tsx` ke `src/domain/ledger.ts`. Perilaku tidak berubah. `tsc`, lint, 136 tes, build lolos. Sisa kandidat Tahap 1 belum dikerjakan. |
 
 ## Catatan audit
 
