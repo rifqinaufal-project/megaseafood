@@ -18,7 +18,7 @@
 
 ### Tahap 1 — Audit logika di UI
 Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kandidat (verifikasi dulu via grep/subagent):
-- [ ] `buildLedgerGroups`, `formatLedgerDate` (`TagihanWorkspace.tsx`)
+- [x] `buildLedgerGroups`, `ledgerTotals` → `src/domain/ledger.ts` (tes: `business-integrity.test.ts`). `formatLedgerDate` tetap di UI karena murni format tampilan.
 - [ ] Total dibayar / sisa pengadaan (`WorkspacePage.tsx`, Sourcing)
 - [ ] Ringkasan Komisi/Pengeluaran (`LapakSummaryCards`)
 - [ ] Validasi form di `ModalForm` / `getRows` (`WorkspacePage.tsx`)
@@ -65,3 +65,15 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 | 2026-11-26 | Rencana disusun (Plan mode) | — | Draf di folder plan, belum di repo. |
 | 2026-11-26 | Tahap 0: checkpoint + tag `pre-redesign` | `516a662` | Dua perubahan belum di-commit (gradient header transparan, format `DashboardShell.tsx`). `tsc`, lint, 136 tes lolos. |
 | 2026-11-26 | Tahap 0: dokumen rencana + `AGENTS.md` | `edd204c` | `docs/redesign/` berisi PLAN, DESIGN, PROGRESS. Bagian "UI redesign" ditambahkan di `AGENTS.md`, di luar blok Next.js. |
+| 2026-11-26 | Tahap 1: logika ledger ke domain | (lihat commit) | Dipindah dari `TagihanWorkspace.tsx` ke `src/domain/ledger.ts`. Perilaku tidak berubah. `tsc`, lint, 136 tes, build lolos. Sisa kandidat Tahap 1 belum dikerjakan. |
+
+## Catatan audit
+
+Pemetaan awal lewat grep. Perhitungan `reduce` di komponen (perkiraan jumlah):
+- `TagihanWorkspace.tsx`: ~15, sebagian sudah pindah ke `ledger.ts`. Sisanya turunan total per bulan dan periode.
+- `WorkspacePage.tsx`: ~14. Total pengadaan (`rows`, `paid`, `outstanding`) dan `revenueOf`/`costOf` per batch termasuk kandidat.
+- `RestoPages.tsx`: ~11. Nilai inventaris, total utang, piutang per restoran.
+- `DashboardShell.tsx`: ~11. Ringkasan dashboard Lapak dan Resto.
+- `InvoiceWorkspace.tsx`: ~8. Turunan `calculated` (HPP, margin, profit). Sudah ada `calculateInvoice` di `domain/invoice.ts`, jadi bagian ini kemungkinan hanya ringkasan tampilan.
+
+Kandidat berikutnya diurutkan dari yang paling berisiko: Pengadaan (aturan pembayaran 3 tahap), lalu ringkasan Resto (piutang dan utang), lalu dashboard.

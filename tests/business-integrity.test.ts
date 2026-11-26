@@ -15,7 +15,7 @@ import {
   receiptOutstanding,
 } from "../src/domain/business-integrity";
 import WorkspacePage from "../src/presentation/dashboard/WorkspacePage";
-import { buildLedgerGroups } from "../src/presentation/dashboard/TagihanWorkspace";
+import { buildLedgerGroups } from "../src/domain/ledger";
 import {
   groupByDay,
   groupByMonth,
