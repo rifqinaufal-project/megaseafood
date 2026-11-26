@@ -55,6 +55,7 @@ import {
   type InvoiceInput,
 } from "@/src/domain/invoice";
 import { productDisplayName } from "@/src/domain/inventory";
+import { finite, invoiceEditorSummary } from "@/src/domain/invoice-editor-summary";
 import {
   Cell,
   IconAction,
@@ -417,29 +418,15 @@ export function InvoiceEditor({
   const selectedRestaurant = business.restaurants.find(
     (item) => item.id === draft.restaurantId,
   );
-  const finite = (value: number) => (Number.isFinite(value) ? value : 0);
-  const hppTotal = calculated.items.reduce(
-    (sum, item) => sum + finite(item.hppTotal),
-    0,
-  );
-  const marginQty = calculated.items.reduce(
-    (sum, item) => sum + Math.max(finite(item.marginQuantity), 0),
-    0,
-  );
-  const marginRevenue = calculated.items.reduce(
-    (sum, item) =>
-      sum +
-      Math.max(finite(item.marginQuantity), 0) * finite(item.sellingPrice),
-    0,
-  );
-  const directTotal = calculated.directCosts.reduce(
-    (sum, cost) => sum + finite(cost.amount),
-    0,
-  );
-  const revenue = finite(calculated.total);
-  const profit = revenue - hppTotal - directTotal;
-  const marginPercent = revenue > 0 ? (profit / revenue) * 100 : 0;
-  const productProfit = revenue - hppTotal;
+  const {
+    hppTotal,
+    marginQty,
+    marginRevenue,
+    directTotal,
+    profit,
+    marginPercent,
+    productProfit,
+  } = invoiceEditorSummary(calculated);
   const discountValue = finite(number(draft.discount));
   const marginUnits = Array.from(
     new Set(

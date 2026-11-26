@@ -23,7 +23,7 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 - [x] Ringkasan Resto (`RestoPages.tsx`): nilai persediaan, total pembelian, utang supplier, piutang restoran → `src/domain/resto-summary.ts` (tes: `tests/resto-summary.test.ts`).
 - [x] Ringkasan Komisi/Pengeluaran (`LapakSummaryCards`) → `src/domain/lapak-summary.ts` (tes: `tests/lapak-summary.test.ts`)
 - [x] Validasi form di `ModalForm` / `getRows` (`WorkspacePage.tsx`) → `src/domain/form-input.ts` (`asMoney`, `asNumber`, `validateFormItem`; tes: `tests/form-input.test.ts`). `getRows` tidak diubah karena hanya memetakan baris tampilan, bukan validasi. Perilaku tidak berubah; dua aturan validasi (UI dan domain `business-commands.ts`) tetap terpisah, menunggu keputusan user.
-- [ ] Perhitungan editor invoice (`InvoiceWorkspace.tsx`)
+- [x] Perhitungan editor invoice (`InvoiceWorkspace.tsx`) → `src/domain/invoice-editor-summary.ts` (`invoiceEditorSummary`, `finite`; tes: `tests/invoice-editor-summary.test.ts`). Panel samping kini hanya membaca hasil `calculateInvoice`.
 - [ ] Perhitungan dashboard Lapak/Resto di `DashboardShell.tsx`
 - [ ] Hasil audit dicatat di bawah (bagian "Catatan audit")
 
@@ -72,6 +72,7 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 | 2026-11-26 | Tahap 1: ringkasan Resto ke domain | `8beba49` | `resto-summary.ts` dengan tes: nilai persediaan, total pembelian, utang supplier, piutang restoran. Tujuh perhitungan di `RestoPages.tsx` diganti. `tsc`, lint, 143 tes, build lolos. Sesi ini mengerjakan tiga item, melebihi aturan satu item per sesi. |
 | 2026-11-26 | Tahap 1: ringkasan Komisi/Pengeluaran Lapak ke domain | `a5effbc` | `lapak-summary.ts` dengan tes. Perhitungan `LapakSummaryCards` diganti tanpa mengubah perilaku; `tsc`, lint, 149 tes, build lolos. |
 | 2026-11-26 | Tahap 1: validasi form ke domain | `cabf273` | `form-input.ts` dengan tes (6 tes baru). `validateItem`, `asMoney`, `asNumber` di `WorkspacePage.tsx` diganti pemanggilan domain. `tsc`, lint, 155 tes, build lolos. |
+| 2026-11-26 | Tahap 1: perhitungan editor invoice ke domain | (belum di-commit) | `invoice-editor-summary.ts` dengan tes (3 tes baru). Blok ringkasan `InvoiceWorkspace.tsx` diganti pemanggilan domain. `tsc`, lint, 158 tes, build lolos. |
 
 ## Catatan audit
 
