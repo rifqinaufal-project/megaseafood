@@ -73,7 +73,7 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 | 2026-11-26 | Tahap 1: ringkasan Komisi/Pengeluaran Lapak ke domain | `a5effbc` | `lapak-summary.ts` dengan tes. Perhitungan `LapakSummaryCards` diganti tanpa mengubah perilaku; `tsc`, lint, 149 tes, build lolos. |
 | 2026-11-26 | Tahap 1: validasi form ke domain | `cabf273` | `form-input.ts` dengan tes (6 tes baru). `validateItem`, `asMoney`, `asNumber` di `WorkspacePage.tsx` diganti pemanggilan domain. `tsc`, lint, 155 tes, build lolos. |
 | 2026-11-26 | Tahap 1: perhitungan editor invoice ke domain | `6277d13` | `invoice-editor-summary.ts` dengan tes (3 tes baru). Blok ringkasan `InvoiceWorkspace.tsx` diganti pemanggilan domain. `tsc`, lint, 158 tes, build lolos. |
-| 2026-11-26 | Tahap 1: dashboard Lapak ke domain | (belum di-commit) | `lapak-totals.ts` dengan tes (3 tes baru). Ringkasan Lapak dan total per batch di `DashboardShell.tsx` diganti helper. `tsc`, lint, 161 tes, build lolos. Bagian Resto belum dipindah, lihat catatan audit. |
+| 2026-11-26 | Tahap 1: dashboard Lapak ke domain | `b8e6cbc` | `lapak-totals.ts` dengan tes (3 tes baru). Ringkasan Lapak dan total per batch di `DashboardShell.tsx` diganti helper. `tsc`, lint, 161 tes, build lolos. Bagian Resto belum dipindah, lihat catatan audit. |
 
 ## Catatan audit
 
