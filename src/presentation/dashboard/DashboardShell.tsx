@@ -47,6 +47,11 @@ import {
   topProfitBatches,
 } from "@/src/domain/lapak-dashboard";
 import {
+  commissionTotalForBatch,
+  expenseTotalForBatch,
+  lapakPeriodTotals,
+} from "@/src/domain/lapak-totals";
+import {
   dayMonthLabel,
   groupByDay,
   groupByMonth,
@@ -182,16 +187,8 @@ function LapakDashboard({
   const sourcings = business.sourcings.filter((item) => inPeriod(item.date));
   const sales = business.lapakSales.filter((item) => inPeriod(item.date));
   const expenses = business.lapakExpenses.filter((item) => inPeriod(item.date));
-  const commissionTotal = commissions.reduce(
-    (sum, item) => sum + item.amount,
-    0,
-  );
-  const salesTotal = sales.reduce(
-    (sum, item) => sum + (item.kind === "KREDIT" ? item.amount : 0),
-    0,
-  );
-  const sourcingTotal = sourcings.reduce((sum, item) => sum + item.total, 0);
-  const expenseTotal = expenses.reduce((sum, item) => sum + item.amount, 0);
+  const { commissionTotal, salesTotal, sourcingTotal, expenseTotal } =
+    lapakPeriodTotals({ commissions, sales, sourcings, expenses });
   const batchIds = [
     ...new Set(
       // Sales are standalone, so only commission and expense records mark a batch as used.
@@ -363,12 +360,8 @@ function LapakDashboard({
                   .flatMap((day) => day.items)
                   .map((batch) => {
                     const batchId = batch.id;
-                    const batchCommission = commissions
-                      .filter((item) => item.batchId === batchId)
-                      .reduce((sum, item) => sum + item.amount, 0);
-                    const batchCosts = expenses
-                      .filter((item) => item.batchId === batchId)
-                      .reduce((sum, item) => sum + item.amount, 0);
+                     const batchCommission = commissionTotalForBatch(commissions, batch);
+                     const batchCosts = expenseTotalForBatch(expenses, batch);
                     return (
                       <button
                         className="batch-dashboard-row"

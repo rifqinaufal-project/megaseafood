@@ -24,7 +24,7 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 - [x] Ringkasan Komisi/Pengeluaran (`LapakSummaryCards`) → `src/domain/lapak-summary.ts` (tes: `tests/lapak-summary.test.ts`)
 - [x] Validasi form di `ModalForm` / `getRows` (`WorkspacePage.tsx`) → `src/domain/form-input.ts` (`asMoney`, `asNumber`, `validateFormItem`; tes: `tests/form-input.test.ts`). `getRows` tidak diubah karena hanya memetakan baris tampilan, bukan validasi. Perilaku tidak berubah; dua aturan validasi (UI dan domain `business-commands.ts`) tetap terpisah, menunggu keputusan user.
 - [x] Perhitungan editor invoice (`InvoiceWorkspace.tsx`) → `src/domain/invoice-editor-summary.ts` (`invoiceEditorSummary`, `finite`; tes: `tests/invoice-editor-summary.test.ts`). Panel samping kini hanya membaca hasil `calculateInvoice`.
-- [ ] Perhitungan dashboard Lapak/Resto di `DashboardShell.tsx`
+- [x] Perhitungan dashboard Lapak/Resto di `DashboardShell.tsx` → `src/domain/lapak-totals.ts` (`lapakPeriodTotals`, `commissionTotalForBatch`, `expenseTotalForBatch`; tes: `tests/lapak-totals.test.ts`). Ringkasan Lapak dan total per batch kini memakai helper. Bagian Resto (`restoRevenue`, `totalReceivables`) belum dipindah karena ada keputusan yang belum jelas, lihat catatan audit.
 - [ ] Hasil audit dicatat di bawah (bagian "Catatan audit")
 
 ### Tahap 2 — Fondasi
@@ -73,6 +73,7 @@ Pindahkan perhitungan/validasi yang masih di komponen ke `src/domain` + tes. Kan
 | 2026-11-26 | Tahap 1: ringkasan Komisi/Pengeluaran Lapak ke domain | `a5effbc` | `lapak-summary.ts` dengan tes. Perhitungan `LapakSummaryCards` diganti tanpa mengubah perilaku; `tsc`, lint, 149 tes, build lolos. |
 | 2026-11-26 | Tahap 1: validasi form ke domain | `cabf273` | `form-input.ts` dengan tes (6 tes baru). `validateItem`, `asMoney`, `asNumber` di `WorkspacePage.tsx` diganti pemanggilan domain. `tsc`, lint, 155 tes, build lolos. |
 | 2026-11-26 | Tahap 1: perhitungan editor invoice ke domain | `6277d13` | `invoice-editor-summary.ts` dengan tes (3 tes baru). Blok ringkasan `InvoiceWorkspace.tsx` diganti pemanggilan domain. `tsc`, lint, 158 tes, build lolos. |
+| 2026-11-26 | Tahap 1: dashboard Lapak ke domain | (belum di-commit) | `lapak-totals.ts` dengan tes (3 tes baru). Ringkasan Lapak dan total per batch di `DashboardShell.tsx` diganti helper. `tsc`, lint, 161 tes, build lolos. Bagian Resto belum dipindah, lihat catatan audit. |
 
 ## Catatan audit
 
@@ -83,4 +84,8 @@ Pemetaan awal lewat grep. Perhitungan `reduce` di komponen (perkiraan jumlah):
 - `DashboardShell.tsx`: ~11. Ringkasan dashboard Lapak dan Resto.
 - `InvoiceWorkspace.tsx`: ~8. Turunan `calculated` (HPP, margin, profit). Sudah ada `calculateInvoice` di `domain/invoice.ts`, jadi bagian ini kemungkinan hanya ringkasan tampilan.
 
-Kandidat yang masih terbuka: dashboard (`DashboardShell.tsx`), lalu editor invoice (`InvoiceWorkspace.tsx`). Pengadaan, ringkasan Resto, dan ringkasan Komisi/Pengeluaran Lapak sudah selesai.
+Kandidat yang masih terbuka: dashboard Resto di `DashboardShell.tsx`. Pengadaan, ringkasan Resto, ringkasan Komisi/Pengeluaran Lapak, editor invoice, dan dashboard Lapak sudah selesai.
+
+Temuan yang perlu keputusan user (tidak diubah):
+- **Piutang di dashboard Resto.** `OverviewAttentionPanel` menjumlahkan `outstandingAmount` dari semua invoice yang belum lunas (termasuk ONLINE). `restaurantReceivableTotal` di `resto-summary.ts` hanya menjumlahkan invoice yang punya `restaurantId`. Dua angka ini berbeda untuk data yang punya invoice ONLINE. Pilih yang mana yang benar sebelum menyatukan.
+- **Validasi form ganda.** `validateFormItem` (UI) dan `validateSourcingInput` (domain) tidak sama aturannya: UI tidak memeriksa tanggal dan total pembayaran. Lihat item validasi form.
