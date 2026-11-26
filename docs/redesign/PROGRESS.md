@@ -4,7 +4,7 @@
 
 ## Langkah berikutnya
 
-**Tahap 1 — Audit logika di UI** (sesi baru, mulai dari sini):
+**Tahap 1 — Audit logika di UI** (sesi baru, mulai dari sini). Sudah selesai: ledger dan total pengadaan. Berikutnya: ringkasan Resto di `RestoPages.tsx` (piutang per restoran, utang, nilai inventaris).
 1. Verifikasi kandidat di checklist Tahap 1 dengan `grep` dan subagent. Jangan membaca file UI secara utuh.
 2. Untuk tiap logika yang ditemukan: pindahkan ke `src/domain` sebagai fungsi murni, tulis tes, lalu ganti pemanggilnya di UI dengan fungsi itu. Perubahan perilaku tidak boleh ada.
 3. Catat hasil audit di bagian "Catatan audit" di bawah.
