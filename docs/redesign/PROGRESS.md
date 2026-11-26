@@ -4,10 +4,10 @@
 
 ## Langkah berikutnya
 
-**Tahap 2 — Fondasi**, item 3 berikutnya: AppShell (Sidebar dengan lipat dan tooltip, BusinessSwitcher, TopBar dengan cari, tema, dan profil, serta drawer mobile). Item 2 sudah selesai.
+**Tahap 2 — Fondasi**, item 3 berikutnya: AppShell (Sidebar dengan lipat dan tooltip, BusinessSwitcher, TopBar dengan cari, tema, dan profil, serta drawer mobile). Item 1 dan 2 sudah selesai. Sesi ini mengerjakan keduanya, melebihi aturan 2 `PLAN.md`, jadi item 3 dimulai di sesi baru.
 1. Baca `node_modules/next/dist/docs/` untuk layout bersarang dan `cacheComponents` (aktif di `next.config.ts`) sebelum memakai API Next. Jangan menebak API.
 2. Route `app/(app)/lapak` dan `app/(app)/resto` belum ada. Pastikan `app/page.tsx` (redirect ke `/dashboard`) dan `app/dashboard/[[...segments]]` tetap utuh sampai Tahap 5.
-3. Pastikan UI lama tetap berjalan (aturan 9). Log dev port 3001 mencatat `Could not validate instant` untuk route `/` (`NEXT_REDIRECT` dari `app/page.tsx`). `app/page.tsx` tidak berubah, tetapi belum diverifikasi apakah error itu muncul sebelum commit `88ad7a2`. Periksa sebelum item 3 dianggap selesai.
+3. Error dev `Could not validate instant` untuk route `/` sudah ada sebelum Tahap 2. Uji: layout, `globals.css`, dan `app/(app)` dikembalikan ke `b973c7f` satu per satu dan kombinasinya, error tetap muncul. `app/page.tsx` dan `next.config.ts` tidak berubah sejak tag `pre-redesign` (`516a662`). Error hanya terjadi di dev (`next build` lolos). Dugaan penyebab (belum diuji): redirect di `app/page.tsx` dibaca validasi `instant` sebagai error. Perbaikan menunggu keputusan user: biarkan sampai `/` diubah sesuai PLAN (redirect ke bisnis terakhir), atau ubah sekarang.
 4. Selesai: `tsc`, lint, tes, dan build lolos, commit, push, perbarui file ini.
 5. Verifikasi Tahap 2 item 1 di browser (port 3001, Chrome headless, tunggu 30 detik, light dan dark): `data-theme` benar (light menghasilkan `light`, dark menghasilkan `dark`). Layar yang tampil masih UI lama dengan warna yang sama di kedua mode (`#f4f4f2` dan `#ffffff`, sekitar 90% piksel). UI lama belum membaca token baru atau `data-theme`, jadi screenshot ini belum membuktikan desain light dan dark. Pembuktian visual dilakukan setelah komponen dasar dan AppShell (item 2 sampai 4). Kedip tema belum diukur. Server di port 3000 (PID 24553) dihentikan atas persetujuan user. Dev server sekarang di port 3001.
 
