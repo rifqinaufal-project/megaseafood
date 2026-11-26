@@ -5,6 +5,13 @@ import { AlertTriangle, BadgeDollarSign, Download, History, Pencil, Plus, Power,
 import type { BusinessCommands } from "@/src/application/use-cases/business-commands";
 import { today, type BusinessState, type OperatingExpense, type Product, type Receipt, type Restaurant, type Supplier } from "@/src/domain/business-state";
 import { receiptOutstanding } from "@/src/domain/business-integrity";
+import {
+  restaurantReceivable,
+  restaurantReceivableTotal,
+  stockValue,
+  supplierDebtTotal,
+  supplierPurchaseTotal,
+} from "@/src/domain/resto-summary";
 import { calculateMargin, getStockStatus, productDisplayName, stockMovementLabel, weightDifferenceRows } from "@/src/domain/inventory";
 import {
   AdjustCostDialog,
@@ -78,7 +85,7 @@ export function StockPage({ state, commands, onNotify, initialFormOpen = false }
   const tracked = active.filter((item) => item.trackStock !== false);
   const lowStock = tracked.filter((item) => getStockStatus(item.stockBalance, item.minimumStock) === "Menipis");
   const outOfStock = tracked.filter((item) => getStockStatus(item.stockBalance, item.minimumStock) === "Habis");
-  const inventoryValue = tracked.reduce((sum, item) => sum + item.stockBalance * item.averageHpp, 0);
+  const inventoryValue = stockValue(tracked);
   const totalUnits = tracked.reduce((sum, item) => sum + item.stockBalance, 0);
 
   const products = useMemo(() => {
@@ -355,8 +362,8 @@ export function SuppliersPage({ state, commands, onNotify, initialFormOpen = fal
     const receipts = state.receipts.filter((item) => item.supplierId === supplier.id && item.status === "POSTED");
     return {
       count: receipts.length,
-      total: receipts.reduce((sum, item) => sum + item.subtotal, 0),
-      debt: receipts.reduce((sum, item) => sum + (receiptOutstanding(item) ?? 0), 0),
+      total: supplierPurchaseTotal(receipts),
+      debt: supplierDebtTotal(receipts),
     };
   };
   const suppliers = state.suppliers.filter((item) => (status === "ALL" || item.status === status) && matches(search, item.name, item.contactName, item.phone, item.email, item.address));
@@ -371,8 +378,8 @@ export function SuppliersPage({ state, commands, onNotify, initialFormOpen = fal
       <Stats
         items={[
           { label: "Supplier aktif", value: state.suppliers.filter((item) => item.status === "ACTIVE").length.toString(), detail: `${state.suppliers.length} total supplier` },
-          { label: "Total pembelian", value: money(posted.reduce((sum, item) => sum + item.subtotal, 0)), detail: `${posted.length} penerimaan stok` },
-          { label: "Utang berjalan", value: money(posted.reduce((sum, item) => sum + (receiptOutstanding(item) ?? 0), 0)), detail: "tagihan supplier belum lunas" },
+          { label: "Total pembelian", value: money(supplierPurchaseTotal(posted)), detail: `${posted.length} penerimaan stok` },
+          { label: "Utang berjalan", value: money(supplierDebtTotal(posted)), detail: "tagihan supplier belum lunas" },
         ]}
       />
       <section className="panel resource-panel">
@@ -421,7 +428,7 @@ export function RestaurantsPage({ state, commands, onNotify, initialFormOpen = f
   const [status, setStatus] = useState("ALL");
   const [pageNumber, setPageNumber] = useState(1);
 
-  const receivable = (restaurant: Restaurant) => state.invoices.filter((item) => item.restaurantId === restaurant.id).reduce((sum, item) => sum + item.outstandingAmount, 0);
+  const receivable = (restaurant: Restaurant) => restaurantReceivable(state.invoices, restaurant.id);
   const restaurants = state.restaurants.filter((item) => (status === "ALL" || item.status === status) && matches(search, item.name, item.contactName, item.phone, item.email, item.address));
   const page = paginate(restaurants, pageNumber);
 
@@ -433,7 +440,7 @@ export function RestaurantsPage({ state, commands, onNotify, initialFormOpen = f
       <Stats
         items={[
           { label: "Restoran aktif", value: state.restaurants.filter((item) => item.status === "ACTIVE").length.toString(), detail: `${state.restaurants.length} total restoran` },
-          { label: "Piutang berjalan", value: money(state.invoices.filter((item) => item.restaurantId).reduce((sum, item) => sum + item.outstandingAmount, 0)), detail: "invoice restoran belum lunas" },
+          { label: "Piutang berjalan", value: money(restaurantReceivableTotal(state.invoices)), detail: "invoice restoran belum lunas" },
           { label: "Harga khusus", value: state.customerPrices.length.toString(), detail: "harga per restoran & produk" },
         ]}
       />
@@ -507,7 +514,7 @@ export function PayablesPage({ state, commands, onNotify, initialFormOpen = fals
 
   const supplierName = (id: string) => state.suppliers.find((item) => item.id === id)?.name ?? "Supplier dihapus";
   const open = state.receipts.filter((item) => item.status === "POSTED");
-  const verifiedDebt = open.reduce((sum, item) => sum + (receiptOutstanding(item) ?? 0), 0);
+  const verifiedDebt = supplierDebtTotal(open);
 
   const receipts = useMemo(
     () =>
