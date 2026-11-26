@@ -33,7 +33,13 @@ import {
   periodRange,
   type LapakPeriod,
 } from "@/src/domain/lapak-periods";
-import { buildLedgerGroups, ledgerTotals } from "@/src/domain/ledger";
+import {
+  buildLedgerGroups,
+  ledgerMonthTotals,
+  ledgerPeriodTotals,
+  ledgerPreviewTotals,
+} from "@/src/domain/ledger";
+import { asWholeRupiah } from "@/src/domain/form-input";
 import LapakPeriodControl from "@/src/presentation/dashboard/LapakPeriodControl";
 import WorkspaceHeader from "@/src/presentation/dashboard/components/WorkspaceHeader";
 
@@ -147,44 +153,16 @@ export default function TagihanWorkspace({
         (group) => group.restan,
       ).map((month) => ({
         ...month,
-        credit: month.items.reduce((sum, group) => sum + group.credit, 0),
-        debit: month.items.reduce((sum, group) => sum + group.debit, 0),
-        transactions: month.items.reduce(
-          (sum, group) => sum + group.lines.length,
-          0,
-        ),
+        ...ledgerMonthTotals(month.items),
       })),
     [filtered],
   );
 
   // Summary cards describe what is on screen: the selected period, or the whole book on "Semua".
-  const totals = useMemo(() => {
-    if (!range) return ledgerTotals(groups);
-    const scoped = groups
-      .map((group) => {
-        const lines = group.lines.filter((line) =>
-          inPeriodRange(line.row.date, range),
-        );
-        return {
-          ...group,
-          lines,
-          credit: lines
-            .filter((line) => line.row.kind === "KREDIT")
-            .reduce((sum, line) => sum + line.row.amount, 0),
-          debit: lines
-            .filter((line) => line.row.kind === "DEBIT")
-            .reduce((sum, line) => sum + line.row.amount, 0),
-        };
-      })
-      .filter((group) => group.lines.length > 0);
-    return {
-      customers: scoped.length,
-      credit: scoped.reduce((sum, group) => sum + group.credit, 0),
-      debit: scoped.reduce((sum, group) => sum + group.debit, 0),
-      // Restan is the customer's real balance, it never shrinks just because a period is picked.
-      restan: ledgerTotals(groups).restan,
-    };
-  }, [groups, range]);
+  const totals = useMemo(
+    () => ledgerPeriodTotals(groups, range),
+    [groups, range],
+  );
   const pageCount = Math.max(1, Math.ceil(monthGroups.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
   const pageMonths = monthGroups.slice(
@@ -794,14 +772,7 @@ function LedgerForm({
       ].sort((a, b) => a.localeCompare(b, "id")),
     [business.lapakSales],
   );
-  const numeric = (value: string) =>
-    Number(value.replaceAll(".", "").replaceAll(/[^\d]/g, "")) || 0;
-  const previewCredit = rows
-    .filter((row) => row.kind === "KREDIT")
-    .reduce((sum, row) => sum + numeric(row.amount), 0);
-  const previewDebit = rows
-    .filter((row) => row.kind === "DEBIT")
-    .reduce((sum, row) => sum + numeric(row.amount), 0);
+  const { previewCredit, previewDebit } = ledgerPreviewTotals(rows);
   const [error, setError] = useState("");
 
   const update = (key: number, patch: Partial<EditorRow>) =>
@@ -813,7 +784,7 @@ function LedgerForm({
     if (!customerName.trim()) return setError("Nama pelanggan wajib diisi");
     for (const [index, row] of rows.entries()) {
       if (!row.date) return setError(`Baris ${index + 1}: tanggal wajib diisi`);
-      if (numeric(row.amount) <= 0)
+      if (asWholeRupiah(row.amount) <= 0)
         return setError(
           `Baris ${index + 1}: nominal harus lebih besar dari nol`,
         );
@@ -825,7 +796,7 @@ function LedgerForm({
         date: row.date,
         customerName,
         kind: row.kind,
-        amount: numeric(row.amount),
+        amount: asWholeRupiah(row.amount),
         note: row.note,
       });
       onNotify(result.message, result.ok ? "success" : "error");
@@ -838,7 +809,7 @@ function LedgerForm({
             date: rows[0].date,
             customerName,
             kind: rows[0].kind,
-            amount: numeric(rows[0].amount),
+            amount: asWholeRupiah(rows[0].amount),
             note: rows[0].note,
           })
         : commands.addLapakSaleEntries({
@@ -846,7 +817,7 @@ function LedgerForm({
             entries: rows.map((row) => ({
               date: row.date,
               kind: row.kind,
-              amount: numeric(row.amount),
+              amount: asWholeRupiah(row.amount),
               note: row.note,
             })),
           });

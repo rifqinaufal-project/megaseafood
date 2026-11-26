@@ -14,6 +14,11 @@ export function asMoney(value: string): number {
   return Number(value.replace(/\./g, "").replace(",", ".")) || 0;
 }
 
+// Angka rupiah utuh dari input teks, mis. "1.500.000" menjadi 1500000. Input tidak valid menjadi 0.
+export function asWholeRupiah(value: string): number {
+  return Number(value.replaceAll(".", "").replaceAll(/[^\d]/g, "")) || 0;
+}
+
 // Validasi satu item form. Mengembalikan pesan error, atau null jika item valid.
 // `hasBatch` diisi pemanggil: apakah `item.batchId` cocok dengan batch yang tersedia.
 export function validateFormItem(page: string, item: FormItem, hasBatch: boolean): string | null {
