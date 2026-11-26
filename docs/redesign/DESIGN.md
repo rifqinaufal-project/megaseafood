@@ -36,7 +36,7 @@ Nilai awal, boleh disetel saat fondasi asal kontras teks ≥ 4.5:1.
 
 Aksen bisnis (dipakai di dropdown pemilih bisnis dan ikon bisnis):
 - Lapak: navy (`--primary`).
-- Resto & Online: `--warning` (kuning) atau teal — diputuskan saat fondasi, harus tetap harmonis dengan navy.
+- Resto & Online: sama dengan Lapak, navy (`--primary`). Keputusan user, pembeda antar bisnis cukup lewat nama dan ikon.
 
 Aturan: **tidak ada warna hex di komponen.** Semua lewat token/kelas Tailwind dari token.
 

@@ -26,7 +26,7 @@ Model bisnis, logika domain, penyimpanan data, API, dan auth **tidak berubah**.
 | K6 | Kanan atas (baris tipis, bukan header penuh): tombol cari (⌘K), tombol tema, pill profil (menu: Pengaturan, Tema, Keluar). |
 | K7 | **Overview gabungan dihapus.** Tiap bisnis punya Dashboard sendiri. |
 | K8 | Lapak: Komisi & Pengeluaran digabung ke **detail Batch** (tab). |
-| K9 | Resto: Pembayaran + Utang + Pengeluaran → **Keuangan** (tab). Restoran + Supplier → **Kontak** (tab). Pengaturan Resto pindah ke menu profil/pengaturan. |
+| K9 | Resto: Pembayaran + Utang + Pengeluaran → **Keuangan** (tab). Restoran + Supplier → **Kontak** (tab). Pengaturan Resto pindah ke Pengaturan umum, dibuka dari menu profil (keputusan user: pengaturan ini jadi general). |
 | K10 | Tanpa mockup terpisah. Halaman Batch (Lapak) dibangun pertama sebagai "mockup hidup" untuk direview user di browser. |
 | K11 | Aturan bisnis yang sudah ada tetap berlaku (lihat bagian bawah). |
 
