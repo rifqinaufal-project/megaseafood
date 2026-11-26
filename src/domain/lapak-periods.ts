@@ -88,6 +88,20 @@ export const shiftDays = (date: string, days: number) => {
   return shifted.toISOString().slice(0, 10);
 };
 
+/** Shift a `YYYY-MM-DD` string by whole months, clamping the day to the target month's length. */
+export const shiftMonths = (date: string, months: number) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || "");
+  if (!match) return date;
+  const target = new Date(
+    Date.UTC(Number(match[1]), Number(match[2]) - 1 + months, 1),
+  );
+  const year = target.getUTCFullYear();
+  const month = target.getUTCMonth();
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const day = Math.min(Number(match[3]), lastDay);
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+};
+
 /** Monday of the week that contains `date`; the business week starts on Monday. */
 export const startOfWeek = (date: string) => {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || "");

@@ -23,8 +23,13 @@ import {
   periodLabel,
   periodRange,
   shiftDays,
+  shiftMonths,
   startOfWeek,
 } from "../src/domain/lapak-periods";
+import {
+  dailyLapakTotals,
+  topProfitBatches,
+} from "../src/domain/lapak-dashboard";
 import { resolveWorkspacePage } from "../src/presentation/dashboard/workspace-routing";
 import {
   BUSINESS_STORAGE_KEY,
@@ -326,14 +331,17 @@ test("standalone sourcing renders its fields without a batch column", () => {
       business: getState(),
       commands,
       onNotify: () => {},
+      initialPeriod: "Semua",
     }),
   );
   assert.match(listing, /sourcing-record-table/);
   assert.match(listing, />Edit<\/span>/);
   assert.match(listing, />Hapus<\/span>/);
-  assert.match(listing, /payment-add-button/);
-  assert.match(listing, /\+ Bayar/);
-  assert.match(listing, /<th>Pembayaran 1 \(Rp\)<\/th>/);
+  // The three payment slots are merged into one "Dibayar" summary; slots open on expand.
+  assert.match(listing, /<th>Dibayar<\/th>/);
+  assert.match(listing, /sourcing-paid-toggle/);
+  assert.doesNotMatch(listing, /<th>Pembayaran 1 \(Rp\)<\/th>/);
+  assert.doesNotMatch(listing, /payment-add-button/);
   assert.doesNotMatch(listing, /<th>No<\/th>/);
   assert.doesNotMatch(listing, /sourcing-record"/);
 });
@@ -395,6 +403,8 @@ const renderPenjualan = (
       business: getState(),
       commands,
       onNotify: () => {},
+      // Fixed sample dates sit outside today, so the render tests read the whole book.
+      initialPeriod: "Semua",
       ...extra,
     }),
   );
@@ -802,6 +812,130 @@ test("period ranges follow the calendar without time-zone drift", () => {
   assert.equal(inRange("2026-11-30", week), false);
 });
 
+test("month shifts clamp the day to the target month's length", () => {
+  assert.equal(shiftMonths("2026-01-31", 1), "2026-02-28");
+  assert.equal(shiftMonths("2026-03-31", -1), "2026-02-28");
+  assert.equal(shiftMonths("2026-12-15", 1), "2027-01-15");
+  assert.equal(shiftMonths("2026-11-26", 0), "2026-11-26");
+});
+
+test("dashboard daily totals cover the last seven days, newest first", () => {
+  const { commands, getState } = memoryCommands({
+    ...seedBusinessState(),
+    batches: [],
+    commissions: [],
+    lapakSales: [],
+    lapakExpenses: [],
+  });
+  const batchId = commands.createBatch({
+    startDate: "2026-11-20",
+    notes: "Udang",
+  }).id!;
+  commands.addCommission({
+    batchId,
+    date: "2026-11-26",
+    partner: "Juragan A",
+    amount: 300000,
+    note: "",
+  });
+  // Kredit penjualan ikut pendapatan; debit adalah pembayaran dan tidak dihitung.
+  commands.addLapakSale({
+    date: "2026-11-26",
+    customerName: "Bu Ani",
+    kind: "KREDIT",
+    amount: 100000,
+    note: "",
+  });
+  commands.addLapakSale({
+    date: "2026-11-26",
+    customerName: "Bu Ani",
+    kind: "DEBIT",
+    amount: 50000,
+    note: "",
+  });
+  commands.addLapakExpense({
+    batchId,
+    date: "2026-11-25",
+    expenseName: "Solar",
+    amount: 120000,
+    notes: "",
+  });
+  const totals = dailyLapakTotals(getState(), "2026-11-26");
+  assert.equal(totals.length, 7);
+  assert.equal(totals[0].date, "2026-11-26");
+  assert.equal(totals[0].income, 400000);
+  assert.equal(totals[0].cost, 0);
+  assert.equal(totals[1].date, "2026-11-25");
+  assert.equal(totals[1].profit, -120000);
+  assert.equal(totals[6].date, "2026-11-20");
+});
+
+test("top profit batches rank by commission minus expenses and skip empty batches", () => {
+  const { commands, getState } = memoryCommands({
+    ...seedBusinessState(),
+    batches: [],
+    commissions: [],
+    lapakSales: [],
+    lapakExpenses: [],
+  });
+  const make = (notes: string) =>
+    commands.createBatch({ startDate: "2026-11-10", notes }).id!;
+  const big = make("Besar");
+  const small = make("Kecil");
+  const loss = make("Rugi");
+  make("Kosong");
+  commands.addCommission({
+    batchId: big,
+    date: "2026-11-10",
+    partner: "A",
+    amount: 500000,
+    note: "",
+  });
+  commands.addLapakExpense({
+    batchId: big,
+    date: "2026-11-10",
+    expenseName: "Es",
+    amount: 100000,
+    notes: "",
+  });
+  commands.addCommission({
+    batchId: small,
+    date: "2026-11-10",
+    partner: "B",
+    amount: 300000,
+    note: "",
+  });
+  commands.addCommission({
+    batchId: loss,
+    date: "2026-11-10",
+    partner: "C",
+    amount: 200000,
+    note: "",
+  });
+  commands.addLapakExpense({
+    batchId: loss,
+    date: "2026-11-10",
+    expenseName: "Solar",
+    amount: 250000,
+    notes: "",
+  });
+  const state = getState();
+  const ranked = topProfitBatches(
+    state.batches,
+    state.commissions,
+    state.lapakExpenses,
+  );
+  assert.deepEqual(
+    ranked.map((item) => item.batch.id),
+    [big, small, loss],
+  );
+  assert.deepEqual(
+    ranked.map((item) => item.profit),
+    [400000, 300000, -50000],
+  );
+  assert.equal(ranked.length, 3);
+});
+
 test("lapak list pages offer period controls while batch detail stays focused", () => {
   const { commands, getState } = memoryCommands();
   // Batch ikut memakai pemilih yang sama, termasuk halaman detail per batch.
@@ -833,18 +967,20 @@ test("lapak list pages offer period controls while batch detail stays focused", 
           new RegExp(`>${option}<`),
           `${label} tanpa pilihan ${option}`,
         );
-      // Memakai pemilih yang sama dengan Dashboard Lapak (.period-switcher), default "Semua".
+      // Memakai pemilih yang sama dengan Dashboard Lapak (.period-switcher).
       assert.match(
         html,
         /class="period-switcher"/,
         `${label} tidak memakai period-switcher`,
       );
+      // Semua halaman Lapak dibuka pada Harian, hari ini.
       assert.match(
         html,
-        /class="active"[^>]*>Semua</,
-        `${label} tidak default ke Semua`,
+        /class="active"[^>]*>Harian</,
+        `${label} tidak default ke Harian`,
       );
-      assert.match(html, /Dikelompokkan per bulan/);
+      assert.match(html, /class="period-stepper"/);
+      assert.match(html, />Hari ini</);
     }
     if (label === "Tagihan") {
       assert.doesNotMatch(
@@ -890,6 +1026,7 @@ test("batch list is grouped by month with the newest month first", () => {
       business: getState(),
       commands,
       onNotify: () => {},
+      initialPeriod: "Semua",
     }),
   );
   assert.match(html, /<h2>Oktober 2026<\/h2>/);
@@ -979,6 +1116,7 @@ test("komisi and pengeluaran are grouped by month with a monthly subtotal", () =
       business: getState(),
       commands,
       onNotify: () => {},
+      initialPeriod: "Semua",
     }),
   );
   assert.match(commission, /<h2>Oktober 2026<\/h2>/);
@@ -997,6 +1135,7 @@ test("komisi and pengeluaran are grouped by month with a monthly subtotal", () =
       business: getState(),
       commands,
       onNotify: () => {},
+      initialPeriod: "Semua",
     }),
   );
   assert.match(expenses, /<h2>Oktober 2026<\/h2>/);
@@ -1048,6 +1187,7 @@ test("pengadaan is grouped by month with its own paid and outstanding subtotal",
       business: getState(),
       commands,
       onNotify: () => {},
+      initialPeriod: "Semua",
     }),
   );
   assert.match(html, /<h2>Oktober 2026<\/h2>/);
@@ -1280,6 +1420,7 @@ test("batch list shows each batch's name and income/cost totals without CRUD met
       business: getState(),
       commands,
       onNotify: () => {},
+      initialPeriod: "Semua",
     }),
   );
 

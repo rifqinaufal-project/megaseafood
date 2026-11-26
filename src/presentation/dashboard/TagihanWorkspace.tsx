@@ -26,7 +26,6 @@ import {
 } from "@/src/domain/business-state";
 import type { BusinessCommands } from "@/src/application/use-cases/business-commands";
 import {
-  groupByDay,
   groupByMonth,
   inRange as inPeriodRange,
   monthKey,
@@ -44,6 +43,7 @@ type Props = {
   commands: BusinessCommands;
   onNotify: Notify;
   initialFormOpen?: boolean;
+  initialPeriod?: LapakPeriod;
 };
 
 const PAGE_SIZE = 25;
@@ -146,6 +146,7 @@ export default function TagihanWorkspace({
   commands,
   onNotify,
   initialFormOpen = false,
+  initialPeriod = "Harian",
 }: Props) {
   const [formOpen, setFormOpen] = useState(initialFormOpen);
   const [editing, setEditing] = useState<LapakSale | null>(null);
@@ -154,7 +155,7 @@ export default function TagihanWorkspace({
   const [kind, setKind] = useState<"ALL" | "KREDIT" | "DEBIT">("ALL");
   const [sort, setSort] = useState<"nama" | "tanggal" | "nominal">("nama");
   const [page, setPage] = useState(1);
-  const [period, setPeriod] = useState<LapakPeriod>("Semua");
+  const [period, setPeriod] = useState<LapakPeriod>(initialPeriod);
   const [anchor, setAnchor] = useState(today());
   const range = useMemo(() => periodRange(period, anchor), [period, anchor]);
 
@@ -206,7 +207,6 @@ export default function TagihanWorkspace({
         (group) => group.restan,
       ).map((month) => ({
         ...month,
-        days: groupByDay(month.items, (group) => group.lastDate),
         credit: month.items.reduce((sum, group) => sum + group.credit, 0),
         debit: month.items.reduce((sum, group) => sum + group.debit, 0),
         transactions: month.items.reduce(
@@ -251,7 +251,11 @@ export default function TagihanWorkspace({
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE,
   );
-  const filtersActive = period !== "Semua" || kind !== "ALL" || !!search.trim();
+  const filtersActive =
+    period !== initialPeriod ||
+    anchor !== today() ||
+    kind !== "ALL" ||
+    !!search.trim();
 
   const exportCsv = () => {
     const rows: string[][] = [
@@ -411,6 +415,7 @@ export default function TagihanWorkspace({
             setPage(1);
           }}
           variant="bar"
+          allCaption="Dikelompokkan per bulan, lalu per pelanggan"
         />
       </div>
 
@@ -462,7 +467,7 @@ export default function TagihanWorkspace({
               onClick={() => {
                 setSearch("");
                 setKind("ALL");
-                setPeriod("Semua");
+                setPeriod(initialPeriod);
                 setAnchor(today());
                 setPage(1);
               }}
@@ -495,18 +500,8 @@ export default function TagihanWorkspace({
                     </span>
                   </div>
                 </header>
-                <div className="ledger-day-groups">
-                  {month.days.map((day) => (
-                    <section
-                      className="lapak-day-group"
-                      key={day.key || "no-date"}
-                    >
-                      <header className="lapak-day-divider">
-                        <strong>{day.label}</strong>
-                        <span>{day.items.length} pelanggan</span>
-                      </header>
-                      <div className="ledger-groups">
-                        {day.items.map((group) => {
+                <div className="ledger-groups">
+                  {month.items.map((group) => {
                           const cardKey = `${month.key}-${group.customerName}`;
                           const open = expanded === cardKey;
                           return (
@@ -732,10 +727,7 @@ export default function TagihanWorkspace({
                               )}
                             </section>
                           );
-                        })}
-                      </div>
-                    </section>
-                  ))}
+                  })}
                 </div>
               </section>
             ))}
@@ -743,14 +735,16 @@ export default function TagihanWorkspace({
         ) : (
           <div className="empty-state ledger-empty">
             <strong>
-              {filtersActive
-                ? "Tidak ada transaksi yang cocok"
-                : "Belum ada transaksi buku tagihan"}
+              {business.lapakSales.length === 0
+                ? "Belum ada transaksi buku tagihan"
+                : "Tidak ada transaksi yang cocok"}
             </strong>
             <p>
-              {filtersActive
-                ? "Coba ubah kata kunci, jenis transaksi, atau rentang tanggal."
-                : "Mulai dengan mencatat transaksi kredit pertama. Debit dicatat saat pelanggan membayar."}
+              {business.lapakSales.length === 0
+                ? "Mulai dengan mencatat transaksi kredit pertama. Debit dicatat saat pelanggan membayar."
+                : filtersActive
+                  ? "Coba ubah kata kunci, jenis transaksi, atau rentang tanggal."
+                  : "Tidak ada transaksi pada periode ini. Pilih periode lain atau pilih Semua."}
             </p>
           </div>
         )}

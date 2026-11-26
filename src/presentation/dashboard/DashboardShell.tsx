@@ -43,6 +43,11 @@ import {
 } from "@/src/domain/business-state";
 import AccountMenu from "@/src/presentation/auth/AccountMenu";
 import {
+  dailyLapakTotals,
+  topProfitBatches,
+} from "@/src/domain/lapak-dashboard";
+import {
+  dayMonthLabel,
   groupByDay,
   groupByMonth,
   inRange,
@@ -52,6 +57,7 @@ import {
 import LapakPeriodControl from "@/src/presentation/dashboard/LapakPeriodControl";
 import SummaryStats from "@/src/presentation/dashboard/components/SummaryStats";
 import WorkspaceHeader from "@/src/presentation/dashboard/components/WorkspaceHeader";
+import { Cell, Table } from "@/src/presentation/dashboard/resto-ui";
 import { useLocalBusiness } from "@/src/presentation/dashboard/use-local-business";
 import WorkspacePage from "@/src/presentation/dashboard/WorkspacePage";
 import { RestoDashboardPage } from "@/src/presentation/dashboard/RestoReports";
@@ -166,14 +172,7 @@ function LapakDashboard({
   onPeriodChange: (period: LapakPeriod) => void;
   onNavigate: NavigateTarget;
 }) {
-  const dates = [
-    ...business.batches.map((item) => item.startDate),
-    ...business.commissions.map((item) => item.date),
-    ...business.sourcings.map((item) => item.date),
-    ...business.lapakSales.map((item) => item.date),
-    ...business.lapakExpenses.map((item) => item.date),
-  ];
-  const anchor = dates.sort().at(-1) ?? today();
+  const [anchor, setAnchor] = useState(today());
   // Same period rules as the Lapak pages: Harian = one day, Mingguan = Senin–Minggu, Bulanan = one month.
   const range = periodRange(period, anchor);
   const inPeriod = (date: string) => inRange(date, range);
@@ -214,6 +213,12 @@ function LapakDashboard({
     ...month,
     days: groupByDay(month.items, (batch) => batch.startDate),
   }));
+  const dailyTotals = dailyLapakTotals(business, anchor);
+  const topBatches = topProfitBatches(
+    business.batches,
+    commissions,
+    expenses,
+  );
   return (
     <div className="workspace-page lapak-dashboard">
       <WorkspaceHeader
@@ -250,10 +255,86 @@ function LapakDashboard({
           period={period}
           anchor={anchor}
           onPeriod={onPeriodChange}
-          onAnchor={() => undefined}
-          showAnchor={false}
+          onAnchor={setAnchor}
           variant="bar"
         />
+      </div>
+      <div className="lapak-dashboard-grid">
+        <section className="panel resource-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">7 hari terakhir</p>
+              <h2>Total harian</h2>
+            </div>
+          </div>
+          <Table
+            columns={["Tanggal", "Pendapatan", "Biaya", "Profit"]}
+            empty="Belum ada transaksi."
+            count={dailyTotals.filter((day) => day.income || day.cost).length}
+          >
+            {dailyTotals.map((day) => (
+              <tr key={day.date}>
+                <Cell label="Tanggal">{dayMonthLabel(day.date)}</Cell>
+                <Cell label="Pendapatan" className="amount-cell">
+                  {money(day.income)}
+                </Cell>
+                <Cell label="Biaya" className="amount-cell">
+                  {money(day.cost)}
+                </Cell>
+                <Cell
+                  label="Profit"
+                  className={`amount-cell ${day.profit < 0 ? "is-debit" : "is-settled"}`}
+                >
+                  {money(day.profit)}
+                </Cell>
+              </tr>
+            ))}
+          </Table>
+        </section>
+        <section className="panel resource-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Periode ini</p>
+              <h2>Batch paling menguntungkan</h2>
+            </div>
+          </div>
+          {topBatches.length ? (
+            <div className="batch-dashboard-list">
+              {topBatches.map((item) => (
+                <button
+                  className="batch-dashboard-row"
+                  type="button"
+                  key={item.batch.id}
+                  onClick={() =>
+                    onNavigate(
+                      "lapak",
+                      "Batch",
+                      false,
+                      undefined,
+                      item.batch.id,
+                    )
+                  }
+                >
+                  <span>
+                    <strong>{item.batch.batchNumber}</strong>
+                    <small>{item.batch.notes || "Tanpa catatan"}</small>
+                  </span>
+                  <span>
+                    <small>Profit</small>
+                    <b className={item.profit < 0 ? "is-debit" : "is-settled"}>
+                      {money(item.profit)}
+                    </b>
+                  </span>
+                  <ChevronRight size={17} />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">
+              Belum ada batch dengan pendapatan atau biaya pada periode ini.
+            </div>
+          )}
+        </section>
       </div>
       <section className="panel resource-panel">
         <div className="panel-heading">
@@ -328,7 +409,6 @@ function LapakDashboard({
                             <small>Biaya</small>
                             <b>Rp {formatRupiah(batchCosts)}</b>
                           </span>
-                          <span className="status status-tercatat">Batch</span>
                           <ChevronRight size={17} />
                         </button>
                       );
@@ -975,7 +1055,7 @@ function DashboardContent({ session }: { session: BusinessSession }) {
     [business, globalSearchQuery],
   );
   const [showQuickAdd, setShowQuickAdd] = useState(false);
-  const [lapakPeriod, setLapakPeriod] = useState<LapakPeriod>("Semua");
+  const [lapakPeriod, setLapakPeriod] = useState<LapakPeriod>("Harian");
   const [pendingRequest, setPendingRequest] = useState<{
     module: Module;
     page: string;

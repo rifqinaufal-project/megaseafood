@@ -1,10 +1,14 @@
 "use client";
 
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { today } from "@/src/domain/business-state";
 import {
   LAPAK_PERIODS,
   MONTH_LABELS,
   PERIOD_LABELS,
   periodLabel,
+  shiftDays,
+  shiftMonths,
   type LapakPeriod,
 } from "@/src/domain/lapak-periods";
 
@@ -17,6 +21,8 @@ type Props = {
   showAnchor?: boolean;
   /** "heading": switcher sits in the page header, like the Dashboard. "bar": own row above the content. */
   variant?: "heading" | "bar";
+  /** Caption shown while "Semua" is picked, e.g. "Dikelompokkan per bulan". */
+  allCaption?: string;
 };
 
 /**
@@ -31,10 +37,42 @@ export default function LapakPeriodControl({
   onAnchor,
   showAnchor = true,
   variant = "heading",
+  allCaption = "Dikelompokkan per bulan",
 }: Props) {
   const year = Number(anchor.slice(0, 4)) || new Date().getFullYear();
   const month = anchor.slice(5, 7) || "01";
   const years = Array.from({ length: 11 }, (_, index) => year - 5 + index);
+  const stepBy = (direction: -1 | 1) => {
+    if (period === "Harian") onAnchor(shiftDays(anchor, direction));
+    else if (period === "Mingguan") onAnchor(shiftDays(anchor, direction * 7));
+    else if (period === "Bulanan") onAnchor(shiftMonths(anchor, direction));
+  };
+  const stepper =
+    period !== "Semua" ? (
+      <div className="period-stepper" role="group" aria-label="Geser periode">
+        <button
+          type="button"
+          aria-label="Periode sebelumnya"
+          onClick={() => stepBy(-1)}
+        >
+          <ChevronLeft size={15} />
+        </button>
+        <button
+          type="button"
+          aria-label="Periode berikutnya"
+          onClick={() => stepBy(1)}
+        >
+          <ChevronRight size={15} />
+        </button>
+        <button
+          className="period-today"
+          type="button"
+          onClick={() => onAnchor(today())}
+        >
+          Hari ini
+        </button>
+      </div>
+    ) : null;
   const picker =
     showAnchor && period !== "Semua" ? (
       <label className="period-picker">
@@ -102,11 +140,10 @@ export default function LapakPeriodControl({
     return (
       <div className="lapak-period-bar" role="group" aria-label="Pilih periode">
         {switcher}
+        {stepper}
         {picker}
         <span className="period-caption lapak-period-caption">
-          {period === "Semua"
-            ? "Dikelompokkan per bulan"
-            : periodLabel(period, anchor)}
+          {period === "Semua" ? allCaption : periodLabel(period, anchor)}
         </span>
       </div>
     );
@@ -114,6 +151,7 @@ export default function LapakPeriodControl({
   return (
     <div className="lapak-period-head">
       {switcher}
+      {stepper}
       {picker}
     </div>
   );

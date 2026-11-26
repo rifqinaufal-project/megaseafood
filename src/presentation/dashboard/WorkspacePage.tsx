@@ -12,6 +12,7 @@ import { createPortal } from "react-dom";
 import {
   ArrowUpRight,
   Download,
+  ChevronDown,
   Edit2,
   Filter,
   Plus,
@@ -31,7 +32,6 @@ import type { BusinessCommands } from "@/src/application/use-cases/business-comm
 import { receiptOutstanding } from "@/src/domain/business-integrity";
 import { resolveWorkspacePage } from "@/src/presentation/dashboard/workspace-routing";
 import {
-  dayMonthLabel,
   groupByDay,
   groupByMonth,
   inRange,
@@ -42,6 +42,7 @@ import {
 import LapakPeriodControl from "@/src/presentation/dashboard/LapakPeriodControl";
 import SummaryStats from "@/src/presentation/dashboard/components/SummaryStats";
 import WorkspaceHeader from "@/src/presentation/dashboard/components/WorkspaceHeader";
+import { Cell, Table } from "@/src/presentation/dashboard/resto-ui";
 import InvoiceWorkspace from "@/src/presentation/dashboard/InvoiceWorkspace";
 import TagihanWorkspace from "@/src/presentation/dashboard/TagihanWorkspace";
 import { RestoReportsPage } from "@/src/presentation/dashboard/RestoReports";
@@ -80,6 +81,7 @@ type WorkspacePageProps = {
   initialCreateBatch?: boolean;
   initialInvoiceId?: string;
   initialBatchId?: string;
+  initialPeriod?: LapakPeriod;
 };
 
 type FormValue = Record<string, string>;
@@ -1523,28 +1525,42 @@ function BatchListPage({
   onOpen,
   onEdit,
   onDelete,
+  initialPeriod = "Harian",
 }: {
   state: BusinessState;
   onCreate: () => void;
   onOpen: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  initialPeriod?: LapakPeriod;
 }) {
-  const [period, setPeriod] = useState<LapakPeriod>("Semua");
+  const [period, setPeriod] = useState<LapakPeriod>(initialPeriod);
   const [anchor, setAnchor] = useState(today());
   const range = useMemo(() => periodRange(period, anchor), [period, anchor]);
   // A batch belongs to the period its start date falls in; "Semua" keeps the whole list grouped by month.
   const visible = state.batches.filter((batch) =>
     inRange(batch.startDate, range),
   );
+  const revenueOf = (batchId: string) =>
+    state.commissions
+      .filter((item) => item.batchId === batchId)
+      .reduce((sum, item) => sum + item.amount, 0);
+  const costOf = (batchId: string) =>
+    state.lapakExpenses
+      .filter((item) => item.batchId === batchId)
+      .reduce((sum, item) => sum + item.amount, 0);
   const months = groupByMonth(
     visible,
     (batch) => batch.startDate,
-    (batch) =>
-      state.commissions
-        .filter((item) => item.batchId === batch.id)
-        .reduce((sum, item) => sum + item.amount, 0),
-  );
+    (batch) => revenueOf(batch.id),
+  ).map((month) => ({
+    ...month,
+    days: groupByDay(
+      month.items,
+      (batch) => batch.startDate,
+      (batch) => revenueOf(batch.id),
+    ),
+  }));
   return (
     <div className="workspace-page">
       <WorkspaceHeader
@@ -1602,23 +1618,29 @@ function BatchListPage({
                 >
                   <thead>
                     <tr>
-                      <th scope="col">Tanggal</th>
                       <th scope="col">Batch</th>
                       <th scope="col">Pendapatan</th>
                       <th scope="col">Biaya</th>
+                      <th scope="col">Profit</th>
                       <th scope="col" className="batch-actions-heading">
                         Aksi
                       </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {month.items.map((batch) => {
-                      const commissionRevenue = state.commissions
-                        .filter((item) => item.batchId === batch.id)
-                        .reduce((sum, item) => sum + item.amount, 0);
-                      const expenseCost = state.lapakExpenses
-                        .filter((item) => item.batchId === batch.id)
-                        .reduce((sum, item) => sum + item.amount, 0);
+                    {month.days.map((day) => (
+                      <Fragment key={day.key || "no-date"}>
+                        <tr className="lapak-day-table-divider">
+                          <td colSpan={5}>
+                            <strong>{day.label}</strong>
+                            <span>
+                              {day.items.length} batch · {money(day.total)}
+                            </span>
+                          </td>
+                        </tr>
+                        {day.items.map((batch) => {
+                      const commissionRevenue = revenueOf(batch.id);
+                      const expenseCost = costOf(batch.id);
                       const note = batch.notes.trim();
                       const batchName = note
                         ? /^batch\b/i.test(note)
@@ -1641,9 +1663,6 @@ function BatchListPage({
                             }
                           }}
                         >
-                          <td className="batch-table-date">
-                            {dayMonthLabel(batch.startDate)}
-                          </td>
                           <td className="batch-table-identity">
                             <strong>{batch.batchNumber}</strong>
                             <small>{batchName}</small>
@@ -1653,6 +1672,11 @@ function BatchListPage({
                           </td>
                           <td className="batch-table-amount">
                             {money(expenseCost)}
+                          </td>
+                          <td
+                            className={`batch-table-amount ${commissionRevenue - expenseCost < 0 ? "is-debit" : "is-settled"}`}
+                          >
+                            {money(commissionRevenue - expenseCost)}
                           </td>
                           <td>
                             <div
@@ -1697,7 +1721,9 @@ function BatchListPage({
                           </td>
                         </tr>
                       );
-                    })}
+                        })}
+                      </Fragment>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -1910,8 +1936,10 @@ function SourcingWorkspacePage({
   onDelete,
   onPayment,
   onNotify,
+  initialPeriod = "Harian",
 }: {
   state: BusinessState;
+  initialPeriod?: LapakPeriod;
   onAdd: () => void;
   onExport: () => void;
   onEdit: (page: string, id: string) => void;
@@ -1928,7 +1956,8 @@ function SourcingWorkspacePage({
     paymentNumber: 1 | 2 | 3;
   } | null>(null);
   const [paymentDraft, setPaymentDraft] = useState({ amount: "", date: "" });
-  const [period, setPeriod] = useState<LapakPeriod>("Semua");
+  const [expandedSourcing, setExpandedSourcing] = useState<string | null>(null);
+  const [period, setPeriod] = useState<LapakPeriod>(initialPeriod);
   const [anchor, setAnchor] = useState(today());
   const range = useMemo(() => periodRange(period, anchor), [period, anchor]);
   // Harian/mingguan/bulanan narrow the list; "Semua" keeps the whole book grouped by month.
@@ -2187,9 +2216,7 @@ function SourcingWorkspacePage({
                       <th>Bobot</th>
                       <th>Harga / unit</th>
                       <th>Jumlah</th>
-                      <th>Pembayaran 1 (Rp)</th>
-                      <th>Pembayaran 2 (Rp)</th>
-                      <th>Pembayaran 3 (Rp)</th>
+                      <th>Dibayar</th>
                       <th>Sisa</th>
                       <th>Catatan</th>
                       <th>Aksi</th>
@@ -2199,7 +2226,7 @@ function SourcingWorkspacePage({
                     {month.days.map((day) => (
                       <Fragment key={day.key || "no-date"}>
                         <tr className="lapak-day-table-divider">
-                          <td colSpan={13}>
+                          <td colSpan={11}>
                             <strong>{day.label}</strong>
                             <span>{day.items.length} catatan</span>
                           </td>
@@ -2209,7 +2236,8 @@ function SourcingWorkspacePage({
                             item.payment1 + item.payment2 + item.payment3;
                           const itemOutstanding = item.total - itemPaid;
                           return (
-                            <tr key={item.id}>
+                            <Fragment key={item.id}>
+                            <tr>
                               <td className="date-cell" data-label="Tanggal">
                                 {item.date}
                               </td>
@@ -2240,23 +2268,34 @@ function SourcingWorkspacePage({
                               <td className="amount-cell" data-label="Jumlah">
                                 <strong>{money(item.total)}</strong>
                               </td>
-                              <td
-                                className="sourcing-payment-table-cell"
-                                data-label="Pembayaran 1"
-                              >
-                                {renderPaymentCell(item, 1)}
-                              </td>
-                              <td
-                                className="sourcing-payment-table-cell"
-                                data-label="Pembayaran 2"
-                              >
-                                {renderPaymentCell(item, 2)}
-                              </td>
-                              <td
-                                className="sourcing-payment-table-cell"
-                                data-label="Pembayaran 3"
-                              >
-                                {renderPaymentCell(item, 3)}
+                              <td className="amount-cell" data-label="Dibayar">
+                                <button
+                                  className="sourcing-paid-toggle"
+                                  type="button"
+                                  aria-expanded={expandedSourcing === item.id}
+                                  onClick={() =>
+                                    setExpandedSourcing(
+                                      expandedSourcing === item.id
+                                        ? null
+                                        : item.id,
+                                    )
+                                  }
+                                >
+                                  <strong>{money(itemPaid)}</strong>
+                                  <small>
+                                    {itemPaid > 0
+                                      ? `${[item.payment1, item.payment2, item.payment3].filter((value) => value > 0).length} dari 3 tahap`
+                                      : "Belum dibayar"}
+                                  </small>
+                                  <ChevronDown
+                                    size={14}
+                                    className={
+                                      expandedSourcing === item.id
+                                        ? "is-flipped"
+                                        : ""
+                                    }
+                                  />
+                                </button>
                               </td>
                               <td
                                 className={`amount-cell ${itemOutstanding > 0 ? "sourcing-outstanding" : "sourcing-paid"}`}
@@ -2290,6 +2329,24 @@ function SourcingWorkspacePage({
                                 </button>
                               </td>
                             </tr>
+                            {expandedSourcing === item.id && (
+                              <tr className="sourcing-detail-row">
+                                <td colSpan={11}>
+                                  <div className="sourcing-payment-slots">
+                                    {([1, 2, 3] as const).map((paymentNumber) => (
+                                      <div
+                                        className="sourcing-payment-slot"
+                                        key={paymentNumber}
+                                      >
+                                        <span>Pembayaran {paymentNumber} (Rp)</span>
+                                        {renderPaymentCell(item, paymentNumber)}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                            </Fragment>
                           );
                         })}
                       </Fragment>
@@ -2402,14 +2459,16 @@ function GroupedLapakPage({
   onAdd,
   onEdit,
   onDelete,
+  initialPeriod = "Harian",
 }: {
   page: string;
   state: BusinessState;
   onAdd: () => void;
   onEdit: (page: string, id: string) => void;
   onDelete: (page: string, id: string) => void;
+  initialPeriod?: LapakPeriod;
 }) {
-  const [period, setPeriod] = useState<LapakPeriod>("Semua");
+  const [period, setPeriod] = useState<LapakPeriod>(initialPeriod);
   const [anchor, setAnchor] = useState(today());
   const range = useMemo(() => periodRange(period, anchor), [period, anchor]);
   const batchNumber = (batchId: string) =>
@@ -2513,52 +2572,53 @@ function GroupedLapakPage({
                   </span>
                 </div>
               </div>
-              <div className="lapak-day-groups">
-                {group.days.map((day) => (
-                  <section
-                    className="lapak-day-group"
-                    key={day.key || "no-date"}
-                  >
-                    <header className="lapak-day-divider">
+              <Table
+                columns={["Batch", "Keterangan", "Jumlah", "Aksi"]}
+                empty="Belum ada data."
+                count={group.items.length}
+                className="lapak-record-table"
+              >
+                {group.days.flatMap((day) => [
+                  <tr className="lapak-day-table-divider" key={`day-${day.key}`}>
+                    <td colSpan={4}>
                       <strong>{day.label}</strong>
-                      <span>{day.items.length} transaksi</span>
-                    </header>
-                    <div className="batch-item-list">
-                      {day.items.map((item) => (
-                        <div className="batch-item" key={item.id}>
-                          <div>
-                            <strong>{item.title}</strong>
-                            <small>
-                              {item.date}
-                              {item.batch ? ` · ${item.batch}` : ""} ·{" "}
-                              {item.detail}
-                            </small>
-                          </div>
-                          <b>{money(item.amount)}</b>
-                          <div className="item-actions">
-                            <button
-                              className="icon-button"
-                              type="button"
-                              aria-label="Edit data"
-                              onClick={() => onEdit(page, item.id)}
-                            >
-                              <Edit2 size={15} />
-                            </button>
-                            <button
-                              className="icon-button danger-button"
-                              type="button"
-                              aria-label="Hapus data"
-                              onClick={() => onDelete(page, item.id)}
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                ))}
-              </div>
+                      <span>
+                        {day.items.length} transaksi · {money(day.total)}
+                      </span>
+                    </td>
+                  </tr>,
+                  ...day.items.map((item) => (
+                    <tr key={item.id}>
+                      <Cell label="Batch">{item.batch || "—"}</Cell>
+                      <Cell label="Keterangan">
+                        <strong>{item.title}</strong>
+                        <small>{item.detail}</small>
+                      </Cell>
+                      <Cell label="Jumlah" className="lapak-table-amount">
+                        {money(item.amount)}
+                      </Cell>
+                      <Cell label="Aksi" className="lapak-row-actions">
+                        <button
+                          className="icon-button"
+                          type="button"
+                          aria-label="Edit data"
+                          onClick={() => onEdit(page, item.id)}
+                        >
+                          <Edit2 size={15} />
+                        </button>
+                        <button
+                          className="icon-button danger-button"
+                          type="button"
+                          aria-label="Hapus data"
+                          onClick={() => onDelete(page, item.id)}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </Cell>
+                    </tr>
+                  )),
+                ])}
+              </Table>
             </section>
           ))}
         </div>
@@ -2587,6 +2647,7 @@ export default function WorkspacePage({
   initialCreateBatch = false,
   initialInvoiceId,
   initialBatchId,
+  initialPeriod,
 }: WorkspacePageProps) {
   const effectivePage = resolveWorkspacePage(module, page);
   const [formOpen, setFormOpen] = useState(initialFormOpen);
@@ -2766,6 +2827,7 @@ export default function WorkspacePage({
       <>
         <SourcingWorkspacePage
           state={business}
+          initialPeriod={initialPeriod}
           onAdd={() => openForm(effectivePage)}
           onExport={exportTable}
           onEdit={editLapakRecord}
@@ -2797,6 +2859,7 @@ export default function WorkspacePage({
         commands={commands}
         onNotify={onNotify}
         initialFormOpen={initialFormOpen}
+        initialPeriod={initialPeriod}
       />
     );
   if (module === "lapak" && ["Expenses", "Commission"].includes(effectivePage))
@@ -2805,6 +2868,7 @@ export default function WorkspacePage({
         <GroupedLapakPage
           page={effectivePage}
           state={business}
+          initialPeriod={initialPeriod}
           onAdd={() => openForm(effectivePage)}
           onEdit={editLapakRecord}
           onDelete={deleteLapakRecord}
@@ -2862,6 +2926,7 @@ export default function WorkspacePage({
     return (
       <BatchListPage
         state={business}
+        initialPeriod={initialPeriod}
         onCreate={() => setCreateBatchMode(true)}
         onOpen={(id) =>
           onNavigate
